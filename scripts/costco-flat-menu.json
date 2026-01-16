@@ -1,0 +1,2347 @@
+[
+  {
+    "text": "디지털/TV/컴퓨터",
+    "href": "https://www.costco.co.kr/c/cos_1",
+    "code": "cos_1"
+  },
+  {
+    "text": "Apple",
+    "href": "https://www.costco.co.kr/c/cos_1.5",
+    "code": "cos_1.5"
+  },
+  {
+    "text": "All Mac",
+    "href": "/c/cos_1.5.3",
+    "code": "cos_1.5.3"
+  },
+  {
+    "text": "All iPad",
+    "href": "/c/cos_1.5.6",
+    "code": "cos_1.5.6"
+  },
+  {
+    "text": "iPhone",
+    "href": "/c/cos_1.5.1",
+    "code": "cos_1.5.1"
+  },
+  {
+    "text": "Apple Watch",
+    "href": "/c/cos_1.5.2",
+    "code": "cos_1.5.2"
+  },
+  {
+    "text": "AirPods",
+    "href": "/c/cos_1.5.7",
+    "code": "cos_1.5.7"
+  },
+  {
+    "text": "Apple Accessories",
+    "href": "/c/cos_1.5.9",
+    "code": "cos_1.5.9"
+  },
+  {
+    "text": "TV",
+    "href": "https://www.costco.co.kr/c/cos_1.1",
+    "code": "cos_1.1"
+  },
+  {
+    "text": "101cm이하 TV",
+    "href": "/c/cos_1.1.1",
+    "code": "cos_1.1.1"
+  },
+  {
+    "text": "101~12​5​cm TV",
+    "href": "/c/cos_1.1.2",
+    "code": "cos_1.1.2"
+  },
+  {
+    "text": "12​6​~15​1​cm TV",
+    "href": "/c/cos_1.1.3",
+    "code": "cos_1.1.3"
+  },
+  {
+    "text": "15​2​~17​7​cm TV",
+    "href": "/c/cos_1.1.4",
+    "code": "cos_1.1.4"
+  },
+  {
+    "text": "20​4​cm이상 TV",
+    "href": "/c/cos_1.1.6",
+    "code": "cos_1.1.6"
+  },
+  {
+    "text": "오디오/영상기기",
+    "href": "https://www.costco.co.kr/c/cos_1.3",
+    "code": "cos_1.3"
+  },
+  {
+    "text": "오디오/스피커",
+    "href": "/c/cos_1.3.2",
+    "code": "cos_1.3.2"
+  },
+  {
+    "text": "사운드바/홈시어터",
+    "href": "/c/cos_1.3.4",
+    "code": "cos_1.3.4"
+  },
+  {
+    "text": "헤드폰/이어폰",
+    "href": "/c/cos_1.3.5",
+    "code": "cos_1.3.5"
+  },
+  {
+    "text": "카메라",
+    "href": "https://www.costco.co.kr/c/cos_1.7",
+    "code": "cos_1.7"
+  },
+  {
+    "text": "모바일",
+    "href": "https://www.costco.co.kr/c/cos_1.8",
+    "code": "cos_1.8"
+  },
+  {
+    "text": "스마트기기/전화기",
+    "href": "/c/cos_1.8.3",
+    "code": "cos_1.8.3"
+  },
+  {
+    "text": "모바일 충전/배터리",
+    "href": "/c/cos_1.8.5",
+    "code": "cos_1.8.5"
+  },
+  {
+    "text": "휴대폰 액세서리",
+    "href": "/c/cos_1.8.6",
+    "code": "cos_1.8.6"
+  },
+  {
+    "text": "보안 카메라",
+    "href": "https://www.costco.co.kr/c/cos_1.14.1",
+    "code": "cos_1.14.1"
+  },
+  {
+    "text": "노트북/데스크탑",
+    "href": "https://www.costco.co.kr/c/cos_1.4.3",
+    "code": "cos_1.4.3"
+  },
+  {
+    "text": "태블릿",
+    "href": "https://www.costco.co.kr/c/cos_1.4",
+    "code": "cos_1.4"
+  },
+  {
+    "text": "모니터/프린터",
+    "href": "https://www.costco.co.kr/c/cos_1.15",
+    "code": "cos_1.15"
+  },
+  {
+    "text": "모니터",
+    "href": "/c/cos_1.6.1",
+    "code": "cos_1.6.1"
+  },
+  {
+    "text": "프린터",
+    "href": "/c/cos_1.6.6",
+    "code": "cos_1.6.6"
+  },
+  {
+    "text": "잉크/토너",
+    "href": "/c/cos_11.2.1",
+    "code": "cos_11.2.1"
+  },
+  {
+    "text": "게임",
+    "href": "https://www.costco.co.kr/c/cos_1.16",
+    "code": "cos_1.16"
+  },
+  {
+    "text": "게이밍 의자",
+    "href": "/c/cos_1.16.2",
+    "code": "cos_1.16.2"
+  },
+  {
+    "text": "PC 게이밍 액세서리",
+    "href": "/c/cos_1.16.3",
+    "code": "cos_1.16.3"
+  },
+  {
+    "text": "플레이스테이션",
+    "href": "/c/cos_1.16.4",
+    "code": "cos_1.16.4"
+  },
+  {
+    "text": "컴퓨터 액세서리",
+    "href": "https://www.costco.co.kr/c/cos_1.6",
+    "code": "cos_1.6"
+  },
+  {
+    "text": "키보드/마우스",
+    "href": "/c/cos_1.6.7",
+    "code": "cos_1.6.7"
+  },
+  {
+    "text": "저장장치",
+    "href": "/c/cos_1.6.2",
+    "code": "cos_1.6.2"
+  },
+  {
+    "text": "공유기/네트워크",
+    "href": "/c/cos_1.6.8",
+    "code": "cos_1.6.8"
+  },
+  {
+    "text": "컴퓨터 주변기기",
+    "href": "/c/cos_1.6.4",
+    "code": "cos_1.6.4"
+  },
+  {
+    "text": "소프트웨어",
+    "href": "/c/cos_1.6.5",
+    "code": "cos_1.6.5"
+  },
+  {
+    "text": "악기",
+    "href": "https://www.costco.co.kr/c/cos_1.13",
+    "code": "cos_1.13"
+  },
+  {
+    "text": "건반악기",
+    "href": "/c/cos_1.13.1",
+    "code": "cos_1.13.1"
+  },
+  {
+    "text": "현악기/기타 악기",
+    "href": "/c/cos_1.13.2",
+    "code": "cos_1.13.2"
+  },
+  {
+    "text": "대형/생활가전",
+    "href": "https://www.costco.co.kr/c/cos_14",
+    "code": "cos_14"
+  },
+  {
+    "text": "냉장고",
+    "href": "https://www.costco.co.kr/c/cos_14.1",
+    "code": "cos_14.1"
+  },
+  {
+    "text": "일반/양문형 냉장고",
+    "href": "/c/cos_1.2.1",
+    "code": "cos_1.2.1"
+  },
+  {
+    "text": "김치냉장고",
+    "href": "/c/cos_1.2.2",
+    "code": "cos_1.2.2"
+  },
+  {
+    "text": "와인셀러",
+    "href": "/c/cos_1.2.8",
+    "code": "cos_1.2.8"
+  },
+  {
+    "text": "냉동고",
+    "href": "/c/cos_1.2.3",
+    "code": "cos_1.2.3"
+  },
+  {
+    "text": "세탁기/건조기/의류관리기",
+    "href": "https://www.costco.co.kr/c/cos_14.2",
+    "code": "cos_14.2"
+  },
+  {
+    "text": "일반 세탁기",
+    "href": "/c/cos_14.2.1",
+    "code": "cos_14.2.1"
+  },
+  {
+    "text": "드럼 세탁기",
+    "href": "/c/cos_14.2.2",
+    "code": "cos_14.2.2"
+  },
+  {
+    "text": "건조기/의류관리기",
+    "href": "/c/cos_14.2.4",
+    "code": "cos_14.2.4"
+  },
+  {
+    "text": "가전세트",
+    "href": "https://www.costco.co.kr/c/cos_14.6",
+    "code": "cos_14.6"
+  },
+  {
+    "text": "냉장고 세트",
+    "href": "/c/cos_14.6.1",
+    "code": "cos_14.6.1"
+  },
+  {
+    "text": "세탁기 건조기 세트",
+    "href": "/c/cos_14.6.2",
+    "code": "cos_14.6.2"
+  },
+  {
+    "text": "커머셜 가전",
+    "href": "https://www.costco.co.kr/c/cos_14.7",
+    "code": "cos_14.7"
+  },
+  {
+    "text": "주방가전",
+    "href": "https://www.costco.co.kr/c/cos_1.9",
+    "code": "cos_1.9"
+  },
+  {
+    "text": "블렌더/믹서/쥬서기",
+    "href": "/c/cos_1.9.1",
+    "code": "cos_1.9.1"
+  },
+  {
+    "text": "커피메이커",
+    "href": "/c/cos_1.9.3",
+    "code": "cos_1.9.3"
+  },
+  {
+    "text": "무선 전기주전자",
+    "href": "/c/cos_1.9.12",
+    "code": "cos_1.9.12"
+  },
+  {
+    "text": "전기팬/그릴",
+    "href": "/c/cos_1.9.17",
+    "code": "cos_1.9.17"
+  },
+  {
+    "text": "전자레인지/오븐/토스터기",
+    "href": "/c/cos_1.9.15",
+    "code": "cos_1.9.15"
+  },
+  {
+    "text": "전기/가스레인지",
+    "href": "/c/cos_1.9.16",
+    "code": "cos_1.9.16"
+  },
+  {
+    "text": "찜기/전기밥솥",
+    "href": "/c/cos_1.9.6",
+    "code": "cos_1.9.6"
+  },
+  {
+    "text": "식기세척기/건조기",
+    "href": "/c/cos_1.2.6",
+    "code": "cos_1.2.6"
+  },
+  {
+    "text": "기타 주방가전",
+    "href": "/c/cos_1.9.5",
+    "code": "cos_1.9.5"
+  },
+  {
+    "text": "계절가전",
+    "href": "https://www.costco.co.kr/c/cos_1.11",
+    "code": "cos_1.11"
+  },
+  {
+    "text": "에어컨/냉난방기",
+    "href": "/c/cos_1.11.1",
+    "code": "cos_1.11.1"
+  },
+  {
+    "text": "시스템 에어컨",
+    "href": "/c/cos_1.11.8",
+    "code": "cos_1.11.8"
+  },
+  {
+    "text": "선풍기/공기순환기",
+    "href": "/c/cos_1.11.3",
+    "code": "cos_1.11.3"
+  },
+  {
+    "text": "히터",
+    "href": "/c/cos_1.11.2",
+    "code": "cos_1.11.2"
+  },
+  {
+    "text": "전기 매트/담요",
+    "href": "/c/cos_1.11.7",
+    "code": "cos_1.11.7"
+  },
+  {
+    "text": "제습기/에어워셔/가습기",
+    "href": "/c/cos_1.11.5",
+    "code": "cos_1.11.5"
+  },
+  {
+    "text": "공기청정가전",
+    "href": "https://www.costco.co.kr/c/cos_14.5",
+    "code": "cos_14.5"
+  },
+  {
+    "text": "공기청정기",
+    "href": "/c/cos_14.5.1",
+    "code": "cos_14.5.1"
+  },
+  {
+    "text": "공기청정기 필터",
+    "href": "/c/cos_14.5.2",
+    "code": "cos_14.5.2"
+  },
+  {
+    "text": "생활가전",
+    "href": "https://www.costco.co.kr/c/cos_14.4",
+    "code": "cos_14.4"
+  },
+  {
+    "text": "다리미/기타 생활가전",
+    "href": "/c/cos_1.9.8",
+    "code": "cos_1.9.8"
+  },
+  {
+    "text": "전동칫솔",
+    "href": "/c/cos_1.9.10",
+    "code": "cos_1.9.10"
+  },
+  {
+    "text": "청소기",
+    "href": "/c/cos_1.9.14",
+    "code": "cos_1.9.14"
+  },
+  {
+    "text": "미용/건강가전",
+    "href": "https://www.costco.co.kr/c/cos_14.3",
+    "code": "cos_14.3"
+  },
+  {
+    "text": "안마의자",
+    "href": "/c/cos_14.3.1",
+    "code": "cos_14.3.1"
+  },
+  {
+    "text": "건강가전",
+    "href": "/c/cos_1.9.9",
+    "code": "cos_1.9.9"
+  },
+  {
+    "text": "면도기/제모기",
+    "href": "/c/cos_14.3.2",
+    "code": "cos_14.3.2"
+  },
+  {
+    "text": "뷰티가전",
+    "href": "/c/cos_14.3.3",
+    "code": "cos_14.3.3"
+  },
+  {
+    "text": "비데",
+    "href": "/c/cos_9.6.2",
+    "code": "cos_9.6.2"
+  },
+  {
+    "text": "스파/사우나",
+    "href": "/c/cos_4.1.3",
+    "code": "cos_4.1.3"
+  },
+  {
+    "text": "가구/침구/인테리어",
+    "href": "https://www.costco.co.kr/c/cos_2",
+    "code": "cos_2"
+  },
+  {
+    "text": "거실가구",
+    "href": "https://www.costco.co.kr/c/cos_2.1",
+    "code": "cos_2.1"
+  },
+  {
+    "text": "소파",
+    "href": "/c/cos_2.1.1",
+    "code": "cos_2.1.1"
+  },
+  {
+    "text": "거실장/TV장/장식장",
+    "href": "/c/cos_2.1.2",
+    "code": "cos_2.1.2"
+  },
+  {
+    "text": "거실테이블",
+    "href": "/c/cos_2.1.3",
+    "code": "cos_2.1.3"
+  },
+  {
+    "text": "침실가구",
+    "href": "https://www.costco.co.kr/c/cos_2.10",
+    "code": "cos_2.10"
+  },
+  {
+    "text": "매트리스",
+    "href": "/c/cos_2.1.4",
+    "code": "cos_2.1.4"
+  },
+  {
+    "text": "침대",
+    "href": "/c/cos_2.10.1",
+    "code": "cos_2.10.1"
+  },
+  {
+    "text": "돌침대/흙침대",
+    "href": "/c/cos_2.10.2",
+    "code": "cos_2.10.2"
+  },
+  {
+    "text": "모션침대/헤드보드",
+    "href": "/c/cos_2.10.3",
+    "code": "cos_2.10.3"
+  },
+  {
+    "text": "서랍장/화장대",
+    "href": "/c/cos_2.1.5",
+    "code": "cos_2.1.5"
+  },
+  {
+    "text": "협탁/사이드테이블",
+    "href": "/c/cos_2.10.4",
+    "code": "cos_2.10.4"
+  },
+  {
+    "text": "유아동 가구",
+    "href": "https://www.costco.co.kr/c/cos_2.2",
+    "code": "cos_2.2"
+  },
+  {
+    "text": "주방가구",
+    "href": "https://www.costco.co.kr/c/cos_2.11",
+    "code": "cos_2.11"
+  },
+  {
+    "text": "식탁 세트",
+    "href": "/c/cos_2.2.2",
+    "code": "cos_2.2.2"
+  },
+  {
+    "text": "테이블/식탁의자",
+    "href": "/c/cos_2.2.3",
+    "code": "cos_2.2.3"
+  },
+  {
+    "text": "사무가구",
+    "href": "https://www.costco.co.kr/c/cos_11.9",
+    "code": "cos_11.9"
+  },
+  {
+    "text": "사무용 의자",
+    "href": "/c/cos_11.9.1",
+    "code": "cos_11.9.1"
+  },
+  {
+    "text": "책상",
+    "href": "/c/cos_2.2.4",
+    "code": "cos_2.2.4"
+  },
+  {
+    "text": "학생/사무가구 세트",
+    "href": "/c/cos_11.9.2",
+    "code": "cos_11.9.2"
+  },
+  {
+    "text": "조명",
+    "href": "https://www.costco.co.kr/c/cos_2.3",
+    "code": "cos_2.3"
+  },
+  {
+    "text": "테이블/플로어 램프",
+    "href": "/c/cos_2.3.1",
+    "code": "cos_2.3.1"
+  },
+  {
+    "text": "책상 스탠드",
+    "href": "/c/cos_2.3.2",
+    "code": "cos_2.3.2"
+  },
+  {
+    "text": "침구",
+    "href": "https://www.costco.co.kr/c/cos_2.4",
+    "code": "cos_2.4"
+  },
+  {
+    "text": "이불/담요",
+    "href": "/c/cos_2.4.1",
+    "code": "cos_2.4.1"
+  },
+  {
+    "text": "침구 세트",
+    "href": "/c/cos_2.4.11",
+    "code": "cos_2.4.11"
+  },
+  {
+    "text": "토퍼/패드/스프레드",
+    "href": "/c/cos_2.4.2",
+    "code": "cos_2.4.2"
+  },
+  {
+    "text": "베개",
+    "href": "/c/cos_2.4.12",
+    "code": "cos_2.4.12"
+  },
+  {
+    "text": "쿠션/방석/액세서리",
+    "href": "/c/cos_2.4.13",
+    "code": "cos_2.4.13"
+  },
+  {
+    "text": "아동 침구",
+    "href": "/c/cos_2.4.5",
+    "code": "cos_2.4.5"
+  },
+  {
+    "text": "홈인테리어",
+    "href": "https://www.costco.co.kr/c/cos_2.12",
+    "code": "cos_2.12"
+  },
+  {
+    "text": "커튼",
+    "href": "/c/cos_2.4.6",
+    "code": "cos_2.4.6"
+  },
+  {
+    "text": "블라인드",
+    "href": "/c/cos_2.4.10",
+    "code": "cos_2.4.10"
+  },
+  {
+    "text": "카페트/러그",
+    "href": "/c/cos_2.12.1",
+    "code": "cos_2.12.1"
+  },
+  {
+    "text": "소파패드",
+    "href": "/c/cos_2.12.2",
+    "code": "cos_2.12.2"
+  },
+  {
+    "text": "욕실/주방매트",
+    "href": "/c/cos_2.12.3",
+    "code": "cos_2.12.3"
+  },
+  {
+    "text": "타월",
+    "href": "/c/cos_2.4.8",
+    "code": "cos_2.4.8"
+  },
+  {
+    "text": "거울/캔들/액자/소품",
+    "href": "/c/cos_2.4.9",
+    "code": "cos_2.4.9"
+  },
+  {
+    "text": "시계",
+    "href": "/c/cos_2.4.3",
+    "code": "cos_2.4.3"
+  },
+  {
+    "text": "홈/키친",
+    "href": "https://www.costco.co.kr/c/cos_15",
+    "code": "cos_15"
+  },
+  {
+    "text": "조리용품",
+    "href": "https://www.costco.co.kr/c/cos_15.1",
+    "code": "cos_15.1"
+  },
+  {
+    "text": "프라이팬/그릴",
+    "href": "/c/cos_15.1.1",
+    "code": "cos_15.1.1"
+  },
+  {
+    "text": "쿡웨어",
+    "href": "/c/cos_15.1.3",
+    "code": "cos_15.1.3"
+  },
+  {
+    "text": "식탁용품",
+    "href": "https://www.costco.co.kr/c/cos_2.5",
+    "code": "cos_2.5"
+  },
+  {
+    "text": "디너웨어",
+    "href": "/c/cos_2.5.13",
+    "code": "cos_2.5.13"
+  },
+  {
+    "text": "그릇/식기",
+    "href": "/c/cos_2.5.3",
+    "code": "cos_2.5.3"
+  },
+  {
+    "text": "수저/포크/나이프",
+    "href": "/c/cos_15.2.1",
+    "code": "cos_15.2.1"
+  },
+  {
+    "text": "컵/머그/물병",
+    "href": "/c/cos_2.5.1",
+    "code": "cos_2.5.1"
+  },
+  {
+    "text": "와인잔/맥주잔",
+    "href": "/c/cos_2.5.15",
+    "code": "cos_2.5.15"
+  },
+  {
+    "text": "보온/보냉용품",
+    "href": "/c/cos_2.5.6",
+    "code": "cos_2.5.6"
+  },
+  {
+    "text": "보관/밀폐용기",
+    "href": "/c/cos_2.5.5",
+    "code": "cos_2.5.5"
+  },
+  {
+    "text": "주방잡화",
+    "href": "https://www.costco.co.kr/c/cos_15.2",
+    "code": "cos_15.2"
+  },
+  {
+    "text": "조리도구",
+    "href": "/c/cos_15.2.2",
+    "code": "cos_15.2.2"
+  },
+  {
+    "text": "주방수납/정리",
+    "href": "/c/cos_15.2.3",
+    "code": "cos_15.2.3"
+  },
+  {
+    "text": "주방 액세서리/용품",
+    "href": "/c/cos_2.5.8",
+    "code": "cos_2.5.8"
+  },
+  {
+    "text": "정수기용품",
+    "href": "/c/cos_2.5.10",
+    "code": "cos_2.5.10"
+  },
+  {
+    "text": "식품 보관백",
+    "href": "/c/cos_2.5.11",
+    "code": "cos_2.5.11"
+  },
+  {
+    "text": "호일/일회용품/기타",
+    "href": "/c/cos_2.5.12",
+    "code": "cos_2.5.12"
+  },
+  {
+    "text": "커피/베이킹용품",
+    "href": "/c/cos_2.5.2",
+    "code": "cos_2.5.2"
+  },
+  {
+    "text": "칼/도마",
+    "href": "https://www.costco.co.kr/c/cos_15.3",
+    "code": "cos_15.3"
+  },
+  {
+    "text": "칼/채칼/가위",
+    "href": "/c/cos_15.3.1",
+    "code": "cos_15.3.1"
+  },
+  {
+    "text": "도마/서빙보드",
+    "href": "/c/cos_15.3.2",
+    "code": "cos_15.3.2"
+  },
+  {
+    "text": "세탁용품",
+    "href": "https://www.costco.co.kr/c/cos_2.8",
+    "code": "cos_2.8"
+  },
+  {
+    "text": "빨래 건조대/다리미판",
+    "href": "/c/cos_2.8.1",
+    "code": "cos_2.8.1"
+  },
+  {
+    "text": "세탁물 바구니",
+    "href": "/c/cos_2.8.2",
+    "code": "cos_2.8.2"
+  },
+  {
+    "text": "욕실용품",
+    "href": "https://www.costco.co.kr/c/cos_15.4.1",
+    "code": "cos_15.4.1"
+  },
+  {
+    "text": "세제/청소용품",
+    "href": "https://www.costco.co.kr/c/cos_2.7",
+    "code": "cos_2.7"
+  },
+  {
+    "text": "세탁세제",
+    "href": "/c/cos_2.7.1",
+    "code": "cos_2.7.1"
+  },
+  {
+    "text": "주방세제",
+    "href": "/c/cos_2.7.2",
+    "code": "cos_2.7.2"
+  },
+  {
+    "text": "청소세제",
+    "href": "/c/cos_2.7.4",
+    "code": "cos_2.7.4"
+  },
+  {
+    "text": "유아동/완구/반려동물용품",
+    "href": "https://www.costco.co.kr/c/cos_3",
+    "code": "cos_3"
+  },
+  {
+    "text": "기저귀",
+    "href": "https://www.costco.co.kr/c/cos_3.1",
+    "code": "cos_3.1"
+  },
+  {
+    "text": "유아동 의류/잡화",
+    "href": "https://www.costco.co.kr/c/cos_3.7",
+    "code": "cos_3.7"
+  },
+  {
+    "text": "아동 아우터웨어",
+    "href": "/c/cos_6.15.4",
+    "code": "cos_6.15.4"
+  },
+  {
+    "text": "아동 상의",
+    "href": "/c/cos_6.15.5",
+    "code": "cos_6.15.5"
+  },
+  {
+    "text": "아동 하의",
+    "href": "/c/cos_6.15.6",
+    "code": "cos_6.15.6"
+  },
+  {
+    "text": "아동 상하의/드레스",
+    "href": "/c/cos_6.15.7",
+    "code": "cos_6.15.7"
+  },
+  {
+    "text": "아동 속옷/양말",
+    "href": "/c/cos_6.3.2",
+    "code": "cos_6.3.2"
+  },
+  {
+    "text": "아동신발",
+    "href": "/c/cos_6.4.3",
+    "code": "cos_6.4.3"
+  },
+  {
+    "text": "아동 가방/캐리어",
+    "href": "/c/cos_6.9.3",
+    "code": "cos_6.9.3"
+  },
+  {
+    "text": "유아동 바디/구강케어",
+    "href": "https://www.costco.co.kr/c/cos_3.2.2",
+    "code": "cos_3.2.2"
+  },
+  {
+    "text": "유아동용품",
+    "href": "https://www.costco.co.kr/c/cos_3.4",
+    "code": "cos_3.4"
+  },
+  {
+    "text": "놀이방 매트",
+    "href": "/c/cos_3.5.10",
+    "code": "cos_3.5.10"
+  },
+  {
+    "text": "완구",
+    "href": "https://www.costco.co.kr/c/cos_3.5",
+    "code": "cos_3.5"
+  },
+  {
+    "text": "블럭 완구",
+    "href": "/c/cos_3.5.2",
+    "code": "cos_3.5.2"
+  },
+  {
+    "text": "활동 완구",
+    "href": "/c/cos_3.5.16",
+    "code": "cos_3.5.16"
+  },
+  {
+    "text": "학습/STEM 완구",
+    "href": "/c/cos_3.5.4",
+    "code": "cos_3.5.4"
+  },
+  {
+    "text": "미술놀이/DIY",
+    "href": "/c/cos_3.5.1",
+    "code": "cos_3.5.1"
+  },
+  {
+    "text": "봉제인형",
+    "href": "/c/cos_3.5.8",
+    "code": "cos_3.5.8"
+  },
+  {
+    "text": "역할놀이",
+    "href": "/c/cos_3.5.12",
+    "code": "cos_3.5.12"
+  },
+  {
+    "text": "키친/돌하우스",
+    "href": "/c/cos_3.5.9",
+    "code": "cos_3.5.9"
+  },
+  {
+    "text": "영유아 완구",
+    "href": "/c/cos_3.5.13",
+    "code": "cos_3.5.13"
+  },
+  {
+    "text": "RC 완구/피규어/프라모델",
+    "href": "/c/cos_3.5.7",
+    "code": "cos_3.5.7"
+  },
+  {
+    "text": "보드게임/퍼즐",
+    "href": "/c/cos_3.5.14",
+    "code": "cos_3.5.14"
+  },
+  {
+    "text": "반려동물용품",
+    "href": "https://www.costco.co.kr/c/cos_10.9",
+    "code": "cos_10.9"
+  },
+  {
+    "text": "강아지 사료/간식",
+    "href": "/c/cos_10.9.6",
+    "code": "cos_10.9.6"
+  },
+  {
+    "text": "강아지 용품",
+    "href": "/c/cos_10.9.7",
+    "code": "cos_10.9.7"
+  },
+  {
+    "text": "고양이 사료/간식",
+    "href": "/c/cos_10.9.2",
+    "code": "cos_10.9.2"
+  },
+  {
+    "text": "고양이 용품/기타 반려동물용품",
+    "href": "/c/cos_10.9.4",
+    "code": "cos_10.9.4"
+  },
+  {
+    "text": "스포츠/헬스/캠핑",
+    "href": "https://www.costco.co.kr/c/cos_4",
+    "code": "cos_4"
+  },
+  {
+    "text": "골프",
+    "href": "https://www.costco.co.kr/c/cos_4.4",
+    "code": "cos_4.4"
+  },
+  {
+    "text": "골프 가방",
+    "href": "/c/cos_4.4.1",
+    "code": "cos_4.4.1"
+  },
+  {
+    "text": "골프공",
+    "href": "/c/cos_4.4.2",
+    "code": "cos_4.4.2"
+  },
+  {
+    "text": "골프 클럽",
+    "href": "/c/cos_4.4.3",
+    "code": "cos_4.4.3"
+  },
+  {
+    "text": "헬스/운동기구",
+    "href": "https://www.costco.co.kr/c/cos_4.1",
+    "code": "cos_4.1"
+  },
+  {
+    "text": "러닝/워킹/사이클",
+    "href": "/c/cos_4.1.1",
+    "code": "cos_4.1.1"
+  },
+  {
+    "text": "헬스기구/용품",
+    "href": "/c/cos_4.1.4",
+    "code": "cos_4.1.4"
+  },
+  {
+    "text": "다이어트/헬스 식품",
+    "href": "https://www.costco.co.kr/c/cos_4.11",
+    "code": "cos_4.11"
+  },
+  {
+    "text": "헬스 보충식품",
+    "href": "/c/cos_12.5.2",
+    "code": "cos_12.5.2"
+  },
+  {
+    "text": "다이어트/뷰티 식품",
+    "href": "/c/cos_12.5",
+    "code": "cos_12.5"
+  },
+  {
+    "text": "캠핑",
+    "href": "https://www.costco.co.kr/c/cos_4.2",
+    "code": "cos_4.2"
+  },
+  {
+    "text": "캠핑 의자/테이블",
+    "href": "/c/cos_4.2.6",
+    "code": "cos_4.2.6"
+  },
+  {
+    "text": "캠핑용품",
+    "href": "/c/cos_4.2.7",
+    "code": "cos_4.2.7"
+  },
+  {
+    "text": "매트/침낭/간이침대",
+    "href": "/c/cos_4.2.8",
+    "code": "cos_4.2.8"
+  },
+  {
+    "text": "캠핑요리도구",
+    "href": "/c/cos_4.2.4",
+    "code": "cos_4.2.4"
+  },
+  {
+    "text": "텐트/그늘막/스크린",
+    "href": "/c/cos_4.2.1",
+    "code": "cos_4.2.1"
+  },
+  {
+    "text": "등산",
+    "href": "https://www.costco.co.kr/c/cos_4.3.1",
+    "code": "cos_4.3.1"
+  },
+  {
+    "text": "아웃도어 스포츠",
+    "href": "https://www.costco.co.kr/c/cos_4.7.0",
+    "code": "cos_4.7.0"
+  },
+  {
+    "text": "자전거/보드",
+    "href": "https://www.costco.co.kr/c/cos_4.6",
+    "code": "cos_4.6"
+  },
+  {
+    "text": "자전거/용품",
+    "href": "/c/cos_4.6.1",
+    "code": "cos_4.6.1"
+  },
+  {
+    "text": "겨울 스포츠",
+    "href": "https://www.costco.co.kr/c/cos_4.8.1",
+    "code": "cos_4.8.1"
+  },
+  {
+    "text": "수상스포츠",
+    "href": "https://www.costco.co.kr/c/cos_4.5",
+    "code": "cos_4.5"
+  },
+  {
+    "text": "풀장/비치용품",
+    "href": "/c/cos_4.5.3",
+    "code": "cos_4.5.3"
+  },
+  {
+    "text": "물놀이 용품",
+    "href": "/c/cos_4.5.4",
+    "code": "cos_4.5.4"
+  },
+  {
+    "text": "파티오/정원/창고",
+    "href": "https://www.costco.co.kr/c/cos_5",
+    "code": "cos_5"
+  },
+  {
+    "text": "가제보/스크린 하우스/그린 하우스",
+    "href": "https://www.costco.co.kr/c/cos_5.8",
+    "code": "cos_5.8"
+  },
+  {
+    "text": "가제보/스크린 하우스",
+    "href": "/c/cos_5.2.3",
+    "code": "cos_5.2.3"
+  },
+  {
+    "text": "그린하우스",
+    "href": "/c/cos_5.2.6",
+    "code": "cos_5.2.6"
+  },
+  {
+    "text": "가든아치/펜스",
+    "href": "/c/cos_5.2.2",
+    "code": "cos_5.2.2"
+  },
+  {
+    "text": "창고/보관함",
+    "href": "https://www.costco.co.kr/c/cos_5.2",
+    "code": "cos_5.2"
+  },
+  {
+    "text": "조립식창고",
+    "href": "/c/cos_5.2.1",
+    "code": "cos_5.2.1"
+  },
+  {
+    "text": "간이천막/차고",
+    "href": "/c/cos_5.2.4",
+    "code": "cos_5.2.4"
+  },
+  {
+    "text": "보관함",
+    "href": "/c/cos_5.2.5",
+    "code": "cos_5.2.5"
+  },
+  {
+    "text": "정원 가구",
+    "href": "https://www.costco.co.kr/c/cos_5.1",
+    "code": "cos_5.1"
+  },
+  {
+    "text": "다이닝세트",
+    "href": "/c/cos_5.1.1",
+    "code": "cos_5.1.1"
+  },
+  {
+    "text": "소파세트",
+    "href": "/c/cos_5.1.2",
+    "code": "cos_5.1.2"
+  },
+  {
+    "text": "발코니 세트",
+    "href": "/c/cos_5.1.3",
+    "code": "cos_5.1.3"
+  },
+  {
+    "text": "베드/벤치/그네",
+    "href": "/c/cos_5.1.5",
+    "code": "cos_5.1.5"
+  },
+  {
+    "text": "테이블/의자",
+    "href": "/c/cos_5.1.6",
+    "code": "cos_5.1.6"
+  },
+  {
+    "text": "파라솔/차양막",
+    "href": "https://www.costco.co.kr/c/cos_5.9",
+    "code": "cos_5.9"
+  },
+  {
+    "text": "파라솔/우산 받침대",
+    "href": "/c/cos_5.9.1",
+    "code": "cos_5.9.1"
+  },
+  {
+    "text": "차양막",
+    "href": "/c/cos_5.9.3",
+    "code": "cos_5.9.3"
+  },
+  {
+    "text": "그릴/액세서리",
+    "href": "https://www.costco.co.kr/c/cos_5.3",
+    "code": "cos_5.3"
+  },
+  {
+    "text": "가스/전기 그릴",
+    "href": "/c/cos_5.3.1",
+    "code": "cos_5.3.1"
+  },
+  {
+    "text": "차콜 그릴",
+    "href": "/c/cos_5.3.3",
+    "code": "cos_5.3.3"
+  },
+  {
+    "text": "그릴 액세서리",
+    "href": "/c/cos_5.3.4",
+    "code": "cos_5.3.4"
+  },
+  {
+    "text": "가든 전기용품",
+    "href": "https://www.costco.co.kr/c/cos_5.4",
+    "code": "cos_5.4"
+  },
+  {
+    "text": "잔디깎기/블로워",
+    "href": "/c/cos_5.4.2",
+    "code": "cos_5.4.2"
+  },
+  {
+    "text": "정원용품/장식",
+    "href": "https://www.costco.co.kr/c/cos_5.5",
+    "code": "cos_5.5"
+  },
+  {
+    "text": "야외장식/분수대",
+    "href": "/c/cos_5.5.4",
+    "code": "cos_5.5.4"
+  },
+  {
+    "text": "화로/야외히터",
+    "href": "/c/cos_5.5.6",
+    "code": "cos_5.5.6"
+  },
+  {
+    "text": "꽃다발/꽃바구니",
+    "href": "https://www.costco.co.kr/c/cos_5.6.1",
+    "code": "cos_5.6.1"
+  },
+  {
+    "text": "식물",
+    "href": "https://www.costco.co.kr/c/cos_5.6.2",
+    "code": "cos_5.6.2"
+  },
+  {
+    "text": "원예용품",
+    "href": "https://www.costco.co.kr/c/cos_5.7",
+    "code": "cos_5.7"
+  },
+  {
+    "text": "정원 가위/툴",
+    "href": "/c/cos_5.7.1",
+    "code": "cos_5.7.1"
+  },
+  {
+    "text": "식물 영양제/비료/흙/자갈",
+    "href": "/c/cos_5.5.2",
+    "code": "cos_5.5.2"
+  },
+  {
+    "text": "화분",
+    "href": "/c/cos_5.7.2",
+    "code": "cos_5.7.2"
+  },
+  {
+    "text": "간이텃밭",
+    "href": "/c/cos_5.7.3",
+    "code": "cos_5.7.3"
+  },
+  {
+    "text": "야외용 호스",
+    "href": "/c/cos_5.5.1",
+    "code": "cos_5.5.1"
+  },
+  {
+    "text": "의류/가방/잡화",
+    "href": "https://www.costco.co.kr/c/cos_6",
+    "code": "cos_6"
+  },
+  {
+    "text": "여성의류",
+    "href": "https://www.costco.co.kr/c/cos_6.11",
+    "code": "cos_6.11"
+  },
+  {
+    "text": "니트",
+    "href": "/c/cos_6.11.1",
+    "code": "cos_6.11.1"
+  },
+  {
+    "text": "셔츠/블라우스/탑",
+    "href": "/c/cos_6.11.3",
+    "code": "cos_6.11.3"
+  },
+  {
+    "text": "바지/스커트/원피스",
+    "href": "/c/cos_6.11.2",
+    "code": "cos_6.11.2"
+  },
+  {
+    "text": "스포츠웨어",
+    "href": "/c/cos_6.11.4",
+    "code": "cos_6.11.4"
+  },
+  {
+    "text": "재킷/패딩/코트",
+    "href": "/c/cos_6.11.5",
+    "code": "cos_6.11.5"
+  },
+  {
+    "text": "홈웨어/잠옷",
+    "href": "/c/cos_6.11.6",
+    "code": "cos_6.11.6"
+  },
+  {
+    "text": "남성의류",
+    "href": "https://www.costco.co.kr/c/cos_6.12",
+    "code": "cos_6.12"
+  },
+  {
+    "text": "셔츠/탑/니트",
+    "href": "/c/cos_6.12.1",
+    "code": "cos_6.12.1"
+  },
+  {
+    "text": "바지",
+    "href": "/c/cos_6.12.2",
+    "code": "cos_6.12.2"
+  },
+  {
+    "text": "재킷/패딩/코트",
+    "href": "/c/cos_6.12.3",
+    "code": "cos_6.12.3"
+  },
+  {
+    "text": "스포츠웨어",
+    "href": "/c/cos_6.12.4",
+    "code": "cos_6.12.4"
+  },
+  {
+    "text": "홈웨어/잠",
+    "href": "/c/cos_6.12.5",
+    "code": "cos_6.12.5"
+  },
+  {
+    "text": "여성 속옷/양말",
+    "href": "https://www.costco.co.kr/c/cos_6.13",
+    "code": "cos_6.13"
+  },
+  {
+    "text": "속옷 상의/세트",
+    "href": "/c/cos_6.13.1",
+    "code": "cos_6.13.1"
+  },
+  {
+    "text": "팬티",
+    "href": "/c/cos_6.13.2",
+    "code": "cos_6.13.2"
+  },
+  {
+    "text": "양말/스타킹",
+    "href": "/c/cos_6.13.3",
+    "code": "cos_6.13.3"
+  },
+  {
+    "text": "남성 속옷/양말",
+    "href": "https://www.costco.co.kr/c/cos_6.14",
+    "code": "cos_6.14"
+  },
+  {
+    "text": "팬티",
+    "href": "/c/cos_6.14.1",
+    "code": "cos_6.14.1"
+  },
+  {
+    "text": "속옷 상의/세트",
+    "href": "/c/cos_6.14.2",
+    "code": "cos_6.14.2"
+  },
+  {
+    "text": "양말",
+    "href": "/c/cos_6.14.3",
+    "code": "cos_6.14.3"
+  },
+  {
+    "text": "유아동 의류/속옷/양말",
+    "href": "https://www.costco.co.kr/c/cos_6.15",
+    "code": "cos_6.15"
+  },
+  {
+    "text": "여성신발",
+    "href": "https://www.costco.co.kr/c/cos_6.16",
+    "code": "cos_6.16"
+  },
+  {
+    "text": "운동화",
+    "href": "/c/cos_6.16.1",
+    "code": "cos_6.16.1"
+  },
+  {
+    "text": "캐주얼화",
+    "href": "/c/cos_6.16.2",
+    "code": "cos_6.16.2"
+  },
+  {
+    "text": "부츠",
+    "href": "/c/cos_6.16.3",
+    "code": "cos_6.16.3"
+  },
+  {
+    "text": "슬리퍼/샌들",
+    "href": "/c/cos_6.16.4",
+    "code": "cos_6.16.4"
+  },
+  {
+    "text": "남성신발",
+    "href": "https://www.costco.co.kr/c/cos_6.17",
+    "code": "cos_6.17"
+  },
+  {
+    "text": "남성가방",
+    "href": "https://www.costco.co.kr/c/cos_6.8",
+    "code": "cos_6.8"
+  },
+  {
+    "text": "여행가방",
+    "href": "https://www.costco.co.kr/c/cos_6.9",
+    "code": "cos_6.9"
+  },
+  {
+    "text": "패션잡화",
+    "href": "https://www.costco.co.kr/c/cos_6.1",
+    "code": "cos_6.1"
+  },
+  {
+    "text": "선글라스/안경테",
+    "href": "https://www.costco.co.kr/c/cos_6.6",
+    "code": "cos_6.6"
+  },
+  {
+    "text": "보석/시계/액세서리",
+    "href": "https://www.costco.co.kr/c/cos_7",
+    "code": "cos_7"
+  },
+  {
+    "text": "One & Only 보석",
+    "href": "https://www.costco.co.kr/c/cos_7.0.2",
+    "code": "cos_7.0.2"
+  },
+  {
+    "text": "순금/순은",
+    "href": "https://www.costco.co.kr/c/cos_7.9",
+    "code": "cos_7.9"
+  },
+  {
+    "text": "골드바",
+    "href": "/c/cos_7.7.0",
+    "code": "cos_7.7.0"
+  },
+  {
+    "text": "기타 순금제품",
+    "href": "/c/cos_7.7.2",
+    "code": "cos_7.7.2"
+  },
+  {
+    "text": "목걸이",
+    "href": "https://www.costco.co.kr/c/cos_7.1",
+    "code": "cos_7.1"
+  },
+  {
+    "text": "다이아몬드 목걸이",
+    "href": "/c/cos_7.1.1",
+    "code": "cos_7.1.1"
+  },
+  {
+    "text": "골드 목걸이",
+    "href": "/c/cos_7.1.2",
+    "code": "cos_7.1.2"
+  },
+  {
+    "text": "진주/유색석 목걸이",
+    "href": "/c/cos_7.1.3",
+    "code": "cos_7.1.3"
+  },
+  {
+    "text": "팔찌",
+    "href": "https://www.costco.co.kr/c/cos_7.4",
+    "code": "cos_7.4"
+  },
+  {
+    "text": "다이아몬드 팔찌",
+    "href": "/c/cos_7.4.1",
+    "code": "cos_7.4.1"
+  },
+  {
+    "text": "골드 팔찌",
+    "href": "/c/cos_7.4.2",
+    "code": "cos_7.4.2"
+  },
+  {
+    "text": "반지",
+    "href": "https://www.costco.co.kr/c/cos_7.2",
+    "code": "cos_7.2"
+  },
+  {
+    "text": "다이아몬드 반지",
+    "href": "/c/cos_7.2.1",
+    "code": "cos_7.2.1"
+  },
+  {
+    "text": "골드 반지",
+    "href": "/c/cos_7.2.2",
+    "code": "cos_7.2.2"
+  },
+  {
+    "text": "진주/유색석 반지",
+    "href": "/c/cos_7.2.3",
+    "code": "cos_7.2.3"
+  },
+  {
+    "text": "귀걸이",
+    "href": "https://www.costco.co.kr/c/cos_7.3",
+    "code": "cos_7.3"
+  },
+  {
+    "text": "다이아몬드 귀걸이",
+    "href": "/c/cos_7.3.1",
+    "code": "cos_7.3.1"
+  },
+  {
+    "text": "골드 귀걸이",
+    "href": "/c/cos_7.3.2",
+    "code": "cos_7.3.2"
+  },
+  {
+    "text": "진주/유색석 귀걸이",
+    "href": "/c/cos_7.3.3",
+    "code": "cos_7.3.3"
+  },
+  {
+    "text": "여성시계",
+    "href": "https://www.costco.co.kr/c/cos_7.5.1",
+    "code": "cos_7.5.1"
+  },
+  {
+    "text": "패션주얼리",
+    "href": "https://www.costco.co.kr/c/cos_7.6.1",
+    "code": "cos_7.6.1"
+  },
+  {
+    "text": "선글라스",
+    "href": "/c/cos_6.6.1",
+    "code": "cos_6.6.1"
+  },
+  {
+    "text": "화장품/미용/제지",
+    "href": "https://www.costco.co.kr/c/cos_8",
+    "code": "cos_8"
+  },
+  {
+    "text": "바디/구강케어",
+    "href": "https://www.costco.co.kr/c/cos_8.1",
+    "code": "cos_8.1"
+  },
+  {
+    "text": "샤워/입욕용품",
+    "href": "/c/cos_8.1.1",
+    "code": "cos_8.1.1"
+  },
+  {
+    "text": "바디로션/크림",
+    "href": "/c/cos_8.1.3",
+    "code": "cos_8.1.3"
+  },
+  {
+    "text": "핸드/풋/데오드란트",
+    "href": "/c/cos_8.1.5",
+    "code": "cos_8.1.5"
+  },
+  {
+    "text": "핸드세정제/핸드소독제",
+    "href": "/c/cos_8.1.6",
+    "code": "cos_8.1.6"
+  },
+  {
+    "text": "제모/여성청결제",
+    "href": "/c/cos_8.1.7",
+    "code": "cos_8.1.7"
+  },
+  {
+    "text": "구강케어",
+    "href": "/c/cos_8.1.4",
+    "code": "cos_8.1.4"
+  },
+  {
+    "text": "헤어케어",
+    "href": "https://www.costco.co.kr/c/cos_8.2",
+    "code": "cos_8.2"
+  },
+  {
+    "text": "샴푸/컨디셔너",
+    "href": "/c/cos_8.2.1",
+    "code": "cos_8.2.1"
+  },
+  {
+    "text": "헤어 영양/염색",
+    "href": "/c/cos_8.2.2",
+    "code": "cos_8.2.2"
+  },
+  {
+    "text": "화장품/향수",
+    "href": "https://www.costco.co.kr/c/cos_8.3",
+    "code": "cos_8.3"
+  },
+  {
+    "text": "스킨/토너/미스트",
+    "href": "/c/cos_8.3.11",
+    "code": "cos_8.3.11"
+  },
+  {
+    "text": "로션/크림",
+    "href": "/c/cos_8.3.7",
+    "code": "cos_8.3.7"
+  },
+  {
+    "text": "에센스/세럼/앰플",
+    "href": "/c/cos_8.3.9",
+    "code": "cos_8.3.9"
+  },
+  {
+    "text": "남성 화장품",
+    "href": "/c/cos_8.3.10",
+    "code": "cos_8.3.10"
+  },
+  {
+    "text": "메이크업",
+    "href": "/c/cos_8.3.3",
+    "code": "cos_8.3.3"
+  },
+  {
+    "text": "클렌징",
+    "href": "/c/cos_8.3.4",
+    "code": "cos_8.3.4"
+  },
+  {
+    "text": "팩/마스크",
+    "href": "/c/cos_8.3.6",
+    "code": "cos_8.3.6"
+  },
+  {
+    "text": "선케어",
+    "href": "/c/cos_8.3.2",
+    "code": "cos_8.3.2"
+  },
+  {
+    "text": "면도",
+    "href": "/c/cos_8.3.8",
+    "code": "cos_8.3.8"
+  },
+  {
+    "text": "향수",
+    "href": "/c/cos_8.3.5",
+    "code": "cos_8.3.5"
+  },
+  {
+    "text": "화장지",
+    "href": "https://www.costco.co.kr/c/cos_2.6",
+    "code": "cos_2.6"
+  },
+  {
+    "text": "화장지/티슈",
+    "href": "/c/cos_2.6.1",
+    "code": "cos_2.6.1"
+  },
+  {
+    "text": "키친타월",
+    "href": "/c/cos_2.6.2",
+    "code": "cos_2.6.2"
+  },
+  {
+    "text": "생리대/위생용품",
+    "href": "https://www.costco.co.kr/c/cos_2.6.3",
+    "code": "cos_2.6.3"
+  },
+  {
+    "text": "건강/영양제",
+    "href": "https://www.costco.co.kr/c/cos_12",
+    "code": "cos_12"
+  },
+  {
+    "text": "비타민/미네랄",
+    "href": "https://www.costco.co.kr/c/cos_12.1",
+    "code": "cos_12.1"
+  },
+  {
+    "text": "비타민 C",
+    "href": "/c/cos_12.1.3",
+    "code": "cos_12.1.3"
+  },
+  {
+    "text": "비타민 D",
+    "href": "/c/cos_12.1.4",
+    "code": "cos_12.1.4"
+  },
+  {
+    "text": "칼슘/마그네슘",
+    "href": "/c/cos_12.1.5",
+    "code": "cos_12.1.5"
+  },
+  {
+    "text": "유산균",
+    "href": "https://www.costco.co.kr/c/cos_12.2.1",
+    "code": "cos_12.2.1"
+  },
+  {
+    "text": "오메가3/크릴오일",
+    "href": "https://www.costco.co.kr/c/cos_12.6.1",
+    "code": "cos_12.6.1"
+  },
+  {
+    "text": "홍삼제품",
+    "href": "https://www.costco.co.kr/c/cos_12.3",
+    "code": "cos_12.3"
+  },
+  {
+    "text": "홍삼",
+    "href": "/c/cos_12.3.2",
+    "code": "cos_12.3.2"
+  },
+  {
+    "text": "어린이 홍삼",
+    "href": "/c/cos_12.3.3",
+    "code": "cos_12.3.3"
+  },
+  {
+    "text": "어린이 영양제",
+    "href": "https://www.costco.co.kr/c/cos_12.4.1",
+    "code": "cos_12.4.1"
+  },
+  {
+    "text": "다이어트 식품",
+    "href": "/c/cos_12.5.1",
+    "code": "cos_12.5.1"
+  },
+  {
+    "text": "콜라겐",
+    "href": "/c/cos_12.5.3",
+    "code": "cos_12.5.3"
+  },
+  {
+    "text": "스피루리나",
+    "href": "/c/cos_8.6.6",
+    "code": "cos_8.6.6"
+  },
+  {
+    "text": "건강즙",
+    "href": "/c/cos_10.11.5",
+    "code": "cos_10.11.5"
+  },
+  {
+    "text": "관절 보조식품",
+    "href": "https://www.costco.co.kr/c/cos_12.9",
+    "code": "cos_12.9"
+  },
+  {
+    "text": "초록입홍합",
+    "href": "/c/cos_12.9.1",
+    "code": "cos_12.9.1"
+  },
+  {
+    "text": "글루코사민",
+    "href": "/c/cos_12.6.2",
+    "code": "cos_12.6.2"
+  },
+  {
+    "text": "홈케어/구급용품",
+    "href": "https://www.costco.co.kr/c/cos_12.7",
+    "code": "cos_12.7"
+  },
+  {
+    "text": "홈케어",
+    "href": "/c/cos_12.7.1",
+    "code": "cos_12.7.1"
+  },
+  {
+    "text": "마스크/구급용품",
+    "href": "/c/cos_12.7.2",
+    "code": "cos_12.7.2"
+  },
+  {
+    "text": "모기약/모기퇴치용품",
+    "href": "/c/cos_12.7.3",
+    "code": "cos_12.7.3"
+  },
+  {
+    "text": "기타 건강식품",
+    "href": "https://www.costco.co.kr/c/cos_12.8",
+    "code": "cos_12.8"
+  },
+  {
+    "text": "프로폴리스",
+    "href": "/c/cos_8.6.7",
+    "code": "cos_8.6.7"
+  },
+  {
+    "text": "눈영양제",
+    "href": "/c/cos_8.6.12",
+    "code": "cos_8.6.12"
+  },
+  {
+    "text": "밀크씨슬",
+    "href": "/c/cos_12.8.2",
+    "code": "cos_12.8.2"
+  },
+  {
+    "text": "기타 건강보조식품",
+    "href": "/c/cos_12.8.3",
+    "code": "cos_12.8.3"
+  },
+  {
+    "text": "공구/생활/자동차",
+    "href": "https://www.costco.co.kr/c/cos_9",
+    "code": "cos_9"
+  },
+  {
+    "text": "선반/수납",
+    "href": "https://www.costco.co.kr/c/cos_9.5",
+    "code": "cos_9.5"
+  },
+  {
+    "text": "선반/진열대",
+    "href": "/c/cos_9.5.2",
+    "code": "cos_9.5.2"
+  },
+  {
+    "text": "수납/옷걸이/휴지통",
+    "href": "/c/cos_9.5.3",
+    "code": "cos_9.5.3"
+  },
+  {
+    "text": "캐비닛",
+    "href": "/c/cos_9.5.1",
+    "code": "cos_9.5.1"
+  },
+  {
+    "text": "작업용 공구/설비/자재",
+    "href": "https://www.costco.co.kr/c/cos_9.1",
+    "code": "cos_9.1"
+  },
+  {
+    "text": "작업용 공구/안전용품",
+    "href": "/c/cos_9.1.3",
+    "code": "cos_9.1.3"
+  },
+  {
+    "text": "핸드트럭/사다리/스툴",
+    "href": "/c/cos_9.1.4",
+    "code": "cos_9.1.4"
+  },
+  {
+    "text": "전동공구",
+    "href": "/c/cos_9.1.5",
+    "code": "cos_9.1.5"
+  },
+  {
+    "text": "고압세척기/건습식청소기",
+    "href": "/c/cos_9.1.6",
+    "code": "cos_9.1.6"
+  },
+  {
+    "text": "공구보관함/작업대",
+    "href": "/c/cos_9.1.7",
+    "code": "cos_9.1.7"
+  },
+  {
+    "text": "전구/야외조명",
+    "href": "https://www.costco.co.kr/c/cos_9.2",
+    "code": "cos_9.2"
+  },
+  {
+    "text": "전구/실내등",
+    "href": "/c/cos_9.2.1",
+    "code": "cos_9.2.1"
+  },
+  {
+    "text": "야외조명",
+    "href": "/c/cos_9.2.2",
+    "code": "cos_9.2.2"
+  },
+  {
+    "text": "건전지",
+    "href": "https://www.costco.co.kr/c/cos_9.3.1",
+    "code": "cos_9.3.1"
+  },
+  {
+    "text": "보안",
+    "href": "https://www.costco.co.kr/c/cos_9.4",
+    "code": "cos_9.4"
+  },
+  {
+    "text": "금고",
+    "href": "/c/cos_9.4.1",
+    "code": "cos_9.4.1"
+  },
+  {
+    "text": "도어록",
+    "href": "/c/cos_9.4.2",
+    "code": "cos_9.4.2"
+  },
+  {
+    "text": "생활/주거 설비",
+    "href": "https://www.costco.co.kr/c/cos_9.6",
+    "code": "cos_9.6"
+  },
+  {
+    "text": "욕실/수전",
+    "href": "/c/cos_9.6.4",
+    "code": "cos_9.6.4"
+  },
+  {
+    "text": "바닥/천장/벽지/보수용품",
+    "href": "/c/cos_9.6.3",
+    "code": "cos_9.6.3"
+  },
+  {
+    "text": "자동차용품",
+    "href": "https://www.costco.co.kr/c/cos_9.7",
+    "code": "cos_9.7"
+  },
+  {
+    "text": "자동차 전기/전자용품",
+    "href": "/c/cos_9.7.3",
+    "code": "cos_9.7.3"
+  },
+  {
+    "text": "세차용품",
+    "href": "/c/cos_9.7.4",
+    "code": "cos_9.7.4"
+  },
+  {
+    "text": "차량용품",
+    "href": "/c/cos_9.7.5",
+    "code": "cos_9.7.5"
+  },
+  {
+    "text": "자동차 오일/필터",
+    "href": "/c/cos_9.7.6",
+    "code": "cos_9.7.6"
+  },
+  {
+    "text": "식품",
+    "href": "https://www.costco.co.kr/c/cos_10",
+    "code": "cos_10"
+  },
+  {
+    "text": "쌀/잡곡",
+    "href": "https://www.costco.co.kr/c/cos_10.1",
+    "code": "cos_10.1"
+  },
+  {
+    "text": "쌀",
+    "href": "/c/cos_10.1.1",
+    "code": "cos_10.1.1"
+  },
+  {
+    "text": "잡곡",
+    "href": "/c/cos_10.1.2",
+    "code": "cos_10.1.2"
+  },
+  {
+    "text": "시리얼",
+    "href": "/c/cos_10.1.3",
+    "code": "cos_10.1.3"
+  },
+  {
+    "text": "커피/차",
+    "href": "https://www.costco.co.kr/c/cos_10.2",
+    "code": "cos_10.2"
+  },
+  {
+    "text": "원두/그라운드 커피",
+    "href": "/c/cos_10.2.7",
+    "code": "cos_10.2.7"
+  },
+  {
+    "text": "드립백 커피",
+    "href": "/c/cos_10.2.8",
+    "code": "cos_10.2.8"
+  },
+  {
+    "text": "인스턴트 커피",
+    "href": "/c/cos_10.2.2",
+    "code": "cos_10.2.2"
+  },
+  {
+    "text": "캡슐 커피",
+    "href": "/c/cos_10.2.3",
+    "code": "cos_10.2.3"
+  },
+  {
+    "text": "차/과일청",
+    "href": "/c/cos_10.2.4",
+    "code": "cos_10.2.4"
+  },
+  {
+    "text": "음료",
+    "href": "https://www.costco.co.kr/c/cos_10.11",
+    "code": "cos_10.11"
+  },
+  {
+    "text": "생수/탄산수",
+    "href": "/c/cos_10.2.6",
+    "code": "cos_10.2.6"
+  },
+  {
+    "text": "주스",
+    "href": "/c/cos_10.2.5",
+    "code": "cos_10.2.5"
+  },
+  {
+    "text": "두유/우유",
+    "href": "/c/cos_10.11.1",
+    "code": "cos_10.11.1"
+  },
+  {
+    "text": "코코아/선식/파우더",
+    "href": "/c/cos_10.11.2",
+    "code": "cos_10.11.2"
+  },
+  {
+    "text": "탄산/기타음료",
+    "href": "/c/cos_10.11.4",
+    "code": "cos_10.11.4"
+  },
+  {
+    "text": "가공식품",
+    "href": "https://www.costco.co.kr/c/cos_10.3",
+    "code": "cos_10.3"
+  },
+  {
+    "text": "통조림/캔",
+    "href": "/c/cos_10.3.1",
+    "code": "cos_10.3.1"
+  },
+  {
+    "text": "즉석식품",
+    "href": "/c/cos_10.3.3",
+    "code": "cos_10.3.3"
+  },
+  {
+    "text": "라면/면류",
+    "href": "/c/cos_10.3.5",
+    "code": "cos_10.3.5"
+  },
+  {
+    "text": "오일류",
+    "href": "/c/cos_10.3.4",
+    "code": "cos_10.3.4"
+  },
+  {
+    "text": "빵",
+    "href": "/c/cos_10.3.6",
+    "code": "cos_10.3.6"
+  },
+  {
+    "text": "건식품",
+    "href": "https://www.costco.co.kr/c/cos_10.4",
+    "code": "cos_10.4"
+  },
+  {
+    "text": "건과일/건채소",
+    "href": "/c/cos_10.4.1",
+    "code": "cos_10.4.1"
+  },
+  {
+    "text": "황태/건어물",
+    "href": "/c/cos_10.4.3",
+    "code": "cos_10.4.3"
+  },
+  {
+    "text": "김/미역/다시마",
+    "href": "/c/cos_10.4.4",
+    "code": "cos_10.4.4"
+  },
+  {
+    "text": "육포",
+    "href": "/c/cos_10.5.3",
+    "code": "cos_10.5.3"
+  },
+  {
+    "text": "과자/간식",
+    "href": "https://www.costco.co.kr/c/cos_10.5",
+    "code": "cos_10.5"
+  },
+  {
+    "text": "캔디/껌",
+    "href": "/c/cos_10.5.1",
+    "code": "cos_10.5.1"
+  },
+  {
+    "text": "쿠키/크래커",
+    "href": "/c/cos_10.5.2",
+    "code": "cos_10.5.2"
+  },
+  {
+    "text": "견과류",
+    "href": "/c/cos_10.5.5",
+    "code": "cos_10.5.5"
+  },
+  {
+    "text": "초콜릿 / 바",
+    "href": "/c/cos_10.5.4",
+    "code": "cos_10.5.4"
+  },
+  {
+    "text": "소스/양념",
+    "href": "https://www.costco.co.kr/c/cos_10.6",
+    "code": "cos_10.6"
+  },
+  {
+    "text": "소스/드레싱",
+    "href": "/c/cos_10.6.1",
+    "code": "cos_10.6.1"
+  },
+  {
+    "text": "꿀/시럽/잼",
+    "href": "/c/cos_10.6.2",
+    "code": "cos_10.6.2"
+  },
+  {
+    "text": "설탕/소금/밀가루/베이킹",
+    "href": "/c/cos_10.6.4",
+    "code": "cos_10.6.4"
+  },
+  {
+    "text": "양념/향신료",
+    "href": "/c/cos_10.6.3",
+    "code": "cos_10.6.3"
+  },
+  {
+    "text": "신선식품",
+    "href": "https://www.costco.co.kr/c/cos_10.10",
+    "code": "cos_10.10"
+  },
+  {
+    "text": "과일/채소",
+    "href": "/c/cos_10.10.1",
+    "code": "cos_10.10.1"
+  },
+  {
+    "text": "정육/계란",
+    "href": "/c/cos_10.10.2",
+    "code": "cos_10.10.2"
+  },
+  {
+    "text": "수산물",
+    "href": "/c/cos_10.10.7",
+    "code": "cos_10.10.7"
+  },
+  {
+    "text": "김치/반찬",
+    "href": "/c/cos_10.10.3",
+    "code": "cos_10.10.3"
+  },
+  {
+    "text": "냉장식품",
+    "href": "https://www.costco.co.kr/c/cos_10.13",
+    "code": "cos_10.13"
+  },
+  {
+    "text": "햄/소시지",
+    "href": "/c/cos_10.10.4",
+    "code": "cos_10.10.4"
+  },
+  {
+    "text": "치즈/버터",
+    "href": "/c/cos_10.10.5",
+    "code": "cos_10.10.5"
+  },
+  {
+    "text": "냉동식품",
+    "href": "https://www.costco.co.kr/c/cos_10.14",
+    "code": "cos_10.14"
+  },
+  {
+    "text": "씨푸드",
+    "href": "/c/cos_10.14.1",
+    "code": "cos_10.14.1"
+  },
+  {
+    "text": "음료/아이스크림",
+    "href": "/c/cos_10.14.2",
+    "code": "cos_10.14.2"
+  },
+  {
+    "text": "볶음밥/밥류",
+    "href": "/c/cos_10.14.3",
+    "code": "cos_10.14.3"
+  },
+  {
+    "text": "간식/만두/전/치즈",
+    "href": "/c/cos_10.14.4",
+    "code": "cos_10.14.4"
+  },
+  {
+    "text": "냉동 과일/채소",
+    "href": "/c/cos_10.14.5",
+    "code": "cos_10.14.5"
+  },
+  {
+    "text": "유기농식품",
+    "href": "https://www.costco.co.kr/c/cos_10.12",
+    "code": "cos_10.12"
+  },
+  {
+    "text": "문구/사무",
+    "href": "https://www.costco.co.kr/c/cos_11",
+    "code": "cos_11"
+  },
+  {
+    "text": "문구",
+    "href": "https://www.costco.co.kr/c/cos_11.6",
+    "code": "cos_11.6"
+  },
+  {
+    "text": "펜",
+    "href": "/c/cos_11.6.1",
+    "code": "cos_11.6.1"
+  },
+  {
+    "text": "연필/연필깎이/색연필",
+    "href": "/c/cos_11.6.2",
+    "code": "cos_11.6.2"
+  },
+  {
+    "text": "형광펜/마커",
+    "href": "/c/cos_11.6.3",
+    "code": "cos_11.6.3"
+  },
+  {
+    "text": "스케치북/노트",
+    "href": "/c/cos_11.6.4",
+    "code": "cos_11.6.4"
+  },
+  {
+    "text": "기타 문구",
+    "href": "/c/cos_11.6.6",
+    "code": "cos_11.6.6"
+  },
+  {
+    "text": "봉투/라벨",
+    "href": "/c/cos_11.6.7",
+    "code": "cos_11.6.7"
+  },
+  {
+    "text": "수정 테이프",
+    "href": "/c/cos_11.6.9",
+    "code": "cos_11.6.9"
+  },
+  {
+    "text": "아트&크래프트",
+    "href": "/c/cos_3.5.17",
+    "code": "cos_3.5.17"
+  },
+  {
+    "text": "사무기기",
+    "href": "https://www.costco.co.kr/c/cos_11.3",
+    "code": "cos_11.3"
+  },
+  {
+    "text": "계산기",
+    "href": "/c/cos_11.3.1",
+    "code": "cos_11.3.1"
+  },
+  {
+    "text": "코팅기",
+    "href": "/c/cos_11.3.2",
+    "code": "cos_11.3.2"
+  },
+  {
+    "text": "세단기",
+    "href": "/c/cos_11.3.3",
+    "code": "cos_11.3.3"
+  },
+  {
+    "text": "사무용품",
+    "href": "https://www.costco.co.kr/c/cos_11.7",
+    "code": "cos_11.7"
+  },
+  {
+    "text": "풀/접착제/테이프",
+    "href": "/c/cos_11.7.2",
+    "code": "cos_11.7.2"
+  },
+  {
+    "text": "스테이플러/클립",
+    "href": "/c/cos_11.7.3",
+    "code": "cos_11.7.3"
+  },
+  {
+    "text": "가위/칼/자",
+    "href": "/c/cos_11.7.4",
+    "code": "cos_11.7.4"
+  },
+  {
+    "text": "보드용품",
+    "href": "/c/cos_11.7.5",
+    "code": "cos_11.7.5"
+  },
+  {
+    "text": "사무정리용품",
+    "href": "https://www.costco.co.kr/c/cos_11.8",
+    "code": "cos_11.8"
+  },
+  {
+    "text": "파일/바인더/클립보드",
+    "href": "/c/cos_11.8.2",
+    "code": "cos_11.8.2"
+  },
+  {
+    "text": "책꽂이/선반",
+    "href": "/c/cos_11.8.3",
+    "code": "cos_11.8.3"
+  },
+  {
+    "text": "서류보관함",
+    "href": "/c/cos_11.8.4",
+    "code": "cos_11.8.4"
+  },
+  {
+    "text": "오피스 종이용품",
+    "href": "https://www.costco.co.kr/c/cos_11.5",
+    "code": "cos_11.5"
+  },
+  {
+    "text": "복사지",
+    "href": "/c/cos_11.5.1",
+    "code": "cos_11.5.1"
+  },
+  {
+    "text": "포스트잇",
+    "href": "/c/cos_11.5.3",
+    "code": "cos_11.5.3"
+  },
+  {
+    "text": "비즈니스 딜리버리",
+    "href": "https://www.costco.co.kr/c/cos_17",
+    "code": "cos_17"
+  },
+  {
+    "text": "사전 주문",
+    "href": "https://www.costco.co.kr/c/cos_22",
+    "code": "cos_22"
+  },
+  {
+    "text": "기프트 카드/티켓",
+    "href": "https://www.costco.co.kr/c/cos_23",
+    "code": "cos_23"
+  },
+  {
+    "text": "기프트 카드",
+    "href": "https://www.costco.co.kr/c/cos_23.1",
+    "code": "cos_23.1"
+  },
+  {
+    "text": "티켓",
+    "href": "https://www.costco.co.kr/c/cos_23.2",
+    "code": "cos_23.2"
+  },
+  {
+    "text": "아동/가족",
+    "href": "/c/cos_23.2.1",
+    "code": "cos_23.2.1"
+  },
+  {
+    "text": "레저/여행",
+    "href": "/c/cos_23.2.2",
+    "code": "cos_23.2.2"
+  },
+  {
+    "text": "상품권",
+    "href": "/c/cos_23.2.3",
+    "code": "cos_23.2.3"
+  }
+]

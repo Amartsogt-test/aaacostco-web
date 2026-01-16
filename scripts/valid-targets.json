@@ -1,0 +1,92 @@
+[
+    {
+        "name": "SpecialPriceOffers",
+        "code": "SpecialPriceOffers",
+        "type": "allCategories"
+    },
+    {
+        "name": "BuyersPick",
+        "code": "BuyersPick",
+        "type": "allCategories"
+    },
+    {
+        "name": "New",
+        "code": "whatsnew",
+        "type": "allCategories"
+    },
+    {
+        "name": "Kirkland Signature",
+        "code": "ks_all",
+        "type": "allCategories"
+    },
+    {
+        "name": "Electronics",
+        "code": "cos_1",
+        "type": "allCategories"
+    },
+    {
+        "name": "Appliances",
+        "code": "cos_14",
+        "type": "allCategories"
+    },
+    {
+        "name": "Furniture",
+        "code": "cos_2",
+        "type": "allCategories"
+    },
+    {
+        "name": "Kitchen",
+        "code": "cos_15",
+        "type": "allCategories"
+    },
+    {
+        "name": "Baby_Toys",
+        "code": "cos_3",
+        "type": "allCategories"
+    },
+    {
+        "name": "Sports",
+        "code": "cos_4",
+        "type": "allCategories"
+    },
+    {
+        "name": "Patio",
+        "code": "cos_5",
+        "type": "allCategories"
+    },
+    {
+        "name": "Fashion",
+        "code": "cos_6",
+        "type": "allCategories"
+    },
+    {
+        "name": "Jewelry",
+        "code": "cos_7",
+        "type": "allCategories"
+    },
+    {
+        "name": "Beauty",
+        "code": "cos_8",
+        "type": "allCategories"
+    },
+    {
+        "name": "Health",
+        "code": "cos_12",
+        "type": "allCategories"
+    },
+    {
+        "name": "Tools",
+        "code": "cos_9",
+        "type": "allCategories"
+    },
+    {
+        "name": "Food",
+        "code": "cos_10",
+        "type": "allCategories"
+    },
+    {
+        "name": "Office",
+        "code": "cos_11",
+        "type": "allCategories"
+    }
+]

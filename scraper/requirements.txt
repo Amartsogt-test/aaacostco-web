@@ -1,0 +1,5 @@
+playwright
+firebase-admin
+python-dotenv
+pandas
+openpyxl

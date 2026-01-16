@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Check if user exists in 'admins' collection
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/admins/$(request.auth.token.phone_number));
+    }
+
+    // Admins collection: 
+    // - No one can write (must be done manually by super-admin logic or Console for now)
+    // - Read allowed if you are reading your own doc (to verify status)
+    match /admins/{phone} {
+      allow read: if request.auth != null && request.auth.token.phone_number == phone;
+      allow write: if false; 
+    }
+
+    // Categories collection - allow public read
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Settings collection - allow public write for exchange rate sync
+    // TODO: Add proper authentication later
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Products collection - allow public write for admin operations
+    // TODO: Add proper authentication later
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Special product collections - allow public write for admin operations
+    match /products_sale/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /products_new/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /products_kirkland/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /products_featured/{productId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // Orders collection - allow anyone to create their orders
+    match /orders/{orderId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if true; // Temporary allowing for UI fix verification
+    }
+
+    // Chats collection - internal messaging system
+    match /chats/{conversationId} {
+      allow read, write: if true;
+      
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Users collection - Allow users to read/write their own data
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /{document=**} {
+      // Public read for shop
+      allow read: if true;
+      
+      // Write only if admin (for other collections)
+      allow write: if isAdmin();
+    }
+  }
+}
