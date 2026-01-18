@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react';
 import React, { Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const AdminContentModal = React.lazy(() => import('../components/AdminContentModal'));
+const AdminSettingsContent = React.lazy(() => import('../components/AdminSettingsContent'));
 
 export default function AdminSettings() {
     const navigate = useNavigate();
@@ -10,7 +10,7 @@ export default function AdminSettings() {
     return (
         <div className="min-h-screen bg-gray-50 pb-20">
             {/* Header */}
-            <div className="bg-white border-b border-gray-100 px-4 py-4 sticky top-0 z-30">
+            <div className="bg-white border-b border-gray-100 px-4 py-3 md:py-4 sticky top-0 z-30">
                 <div className="container mx-auto max-w-6xl">
                     <div className="flex items-center gap-4">
                         <button
@@ -26,10 +26,10 @@ export default function AdminSettings() {
                 </div>
             </div>
 
-            <div className="container mx-auto max-w-6xl p-4">
-                <div className="h-[calc(100vh-140px)]">
+            <div className="container mx-auto max-w-6xl p-0 md:p-4 h-[calc(100vh-70px)] md:h-auto">
+                <div className="h-full md:h-[calc(100vh-140px)]">
                     <Suspense fallback={<div className="flex justify-center items-center h-full">Уншиж байна...</div>}>
-                        <AdminContentModal isEmbedded={true} />
+                        <AdminSettingsContent isEmbedded={true} />
                     </Suspense>
                 </div>
             </div>

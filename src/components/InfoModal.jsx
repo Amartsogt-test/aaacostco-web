@@ -11,8 +11,10 @@ export default function InfoModal({ isOpen, onClose, initialTab = 'help', isEmbe
     useEffect(() => {
         if (isOpen || isEmbedded) {
             fetchSettings();
-            setActiveTab(initialTab); // eslint-disable-line react-hooks/set-state-in-effect
-            setExpandedSection(null); // eslint-disable-line react-hooks/set-state-in-effect
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setActiveTab(initialTab);
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setExpandedSection(null);
         }
     }, [isOpen, isEmbedded, initialTab, fetchSettings]);
 

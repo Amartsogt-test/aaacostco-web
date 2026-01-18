@@ -56,15 +56,19 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
         effectiveOldPriceInKRW = 0; // Hide the "old" price since it's now current
     }
 
+    // 🏪 Use warehouse price as main display price if available
+    const warehousePriceKRW = product.estimatedWarehousePrice || null;
+    const mainPriceKRW = warehousePriceKRW || effectivePriceInKRW;
+
     let displayPrice;
     if (currency === 'MNT') {
-        displayPrice = Math.round(effectivePriceInKRW * wonRate);
+        displayPrice = Math.round(mainPriceKRW * wonRate);
     } else {
-        displayPrice = effectivePriceInKRW;
+        displayPrice = mainPriceKRW;
     }
 
     let displayOldPrice = null;
-    if (effectiveOldPriceInKRW && effectiveOldPriceInKRW > effectivePriceInKRW) {
+    if (effectiveOldPriceInKRW && effectiveOldPriceInKRW > mainPriceKRW) {
         if (currency === 'MNT') {
             displayOldPrice = Math.round(effectiveOldPriceInKRW * wonRate);
         } else {

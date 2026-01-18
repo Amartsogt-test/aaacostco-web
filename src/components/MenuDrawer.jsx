@@ -11,6 +11,22 @@ export default function MenuDrawer() {
     const { categories, fetchCategories, resetSearch } = useProductStore();
     const [activeCategory, setActiveCategory] = useState(null);
 
+    // Construct fallback categories from static data
+    const fallbackCategories = MENU_DATA.map(m => ({
+        id: m.code,
+        label: m.label,
+        banner: m.banner,
+        count: 0,
+        subcategories: []
+    })).sort((a, b) => {
+        const numA = parseInt(a.id.replace('cos_', '')) || 999;
+        const numB = parseInt(b.id.replace('cos_', '')) || 999;
+        return numA - numB;
+    });
+
+    const displayCategories = categories.length > 0 ? categories : fallbackCategories;
+    const activeData = displayCategories.find(c => c.id === activeCategory);
+
     // Fetch categories on mount
     useEffect(() => {
         fetchCategories();
@@ -18,22 +34,22 @@ export default function MenuDrawer() {
 
     // Initialize active category when menu opens or categories change
     useEffect(() => {
-        if (categories && categories.length > 0 && !activeCategory) {
+        if (displayCategories && displayCategories.length > 0 && !activeCategory) {
             // Use setTimeout to push state update to next tick to avoid synchronous update warning
             const timer = setTimeout(() => {
-                setActiveCategory(categories[0].id);
+                setActiveCategory(displayCategories[0].id);
             }, 0);
             return () => clearTimeout(timer);
         }
-    }, [categories, activeCategory]);
+    }, [displayCategories, activeCategory]);
 
     // Lock body scroll when menu is open
     useEffect(() => {
         if (isMenuOpen) {
             document.body.style.overflow = 'hidden';
-            if (!activeCategory && categories.length > 0) {
+            if (!activeCategory && displayCategories.length > 0) {
                 const timer = setTimeout(() => {
-                    setActiveCategory(categories[0].id);
+                    setActiveCategory(displayCategories[0].id);
                 }, 0);
                 return () => clearTimeout(timer);
             }
@@ -43,23 +59,21 @@ export default function MenuDrawer() {
         return () => {
             document.body.style.overflow = 'unset';
         };
-    }, [isMenuOpen, categories, activeCategory]);
-
-    const activeData = categories.find(c => c.id === activeCategory);
+    }, [isMenuOpen, displayCategories, activeCategory]);
 
     return (
         <>
             {/* Overlay */}
             {isMenuOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-[60] transition-opacity"
+                    className="fixed inset-0 bg-black/50 z-[85] transition-opacity"
                     onClick={closeMenu}
                 />
             )}
 
             {/* Drawer Container - Sidebar */}
             <div
-                className={`fixed top-0 left-0 bottom-0 w-[90%] md:w-[800px] bg-white z-[70] transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl overflow-hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
+                className={`fixed top-0 left-0 bottom-0 w-full md:w-[800px] bg-white z-[90] transform transition-transform duration-300 ease-in-out flex flex-col shadow-2xl overflow-hidden ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
@@ -87,7 +101,7 @@ export default function MenuDrawer() {
                             <span className="text-sm font-bold">Нүүр</span>
                         </Link>
 
-                        {categories.map((category) => {
+                        {displayCategories.map((category) => {
                             // Resolve Icon at runtime from static Map
                             // Do NOT use category.icon from store because functions cannot be persisted/serialized
                             let Icon = null;
@@ -207,7 +221,7 @@ export default function MenuDrawer() {
                         ) : (
                             // Empty State or Loading
                             <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                                {categories.length > 0 ? "Ангилал сонгоно уу" : "Уншиж байна..."}
+                                {displayCategories.length > 0 ? "Ангилал сонгоно уу" : "Уншиж байна..."}
                             </div>
                         )}
                     </div>

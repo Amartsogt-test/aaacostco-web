@@ -241,7 +241,14 @@ async function run() {
                     if (p.id === '1638376') {
                         console.log(`!!! SPECIAL DEBUG: Updating 1638376 to ${result.weightKg}kg (Reason: ${result.reason}) !!!`);
                     }
-                    process.stdout.write(`✅ ${p.id.padEnd(10)}: ${result.weightKg}kg (${result.reason})\n`);
+
+                    // Calculate warehouse price (online price - shipping markup)
+                    const onlinePrice = p.price || p.originalPrice || 0;
+                    // Markup based on weight: heavy items have higher shipping cost
+                    const estimatedMarkup = result.weightKg > 5 ? 4000 : 2000;
+                    const warehousePrice = onlinePrice > estimatedMarkup ? onlinePrice - estimatedMarkup : onlinePrice;
+
+                    process.stdout.write(`✅ ${p.id.padEnd(10)}: ${result.weightKg}kg, 🏪${warehousePrice}₩ (${result.reason})\n`);
 
                     // Update Firestore
                     // Set both aiWeight (traceability) and weight (active use)
@@ -249,6 +256,8 @@ async function run() {
                         aiWeight: result.weightKg,
                         aiWeightReason: result.reason,
                         weight: result.weightKg, // APPLY DIRECTLY
+                        estimatedMarkupKrw: estimatedMarkup,
+                        estimatedWarehousePrice: warehousePrice,
                         updatedAt: new Date().toISOString()
                     });
                     updated++;

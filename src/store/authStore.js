@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 
 // Helper for Tier Calculation
 const calculateTier = (amount) => {
@@ -11,16 +13,29 @@ const calculateTier = (amount) => {
 export const useAuthStore = create(
     persist(
         (set) => ({
-            user: null, // { phone: string, name?: string, totalSpend?: number, tier?: 'Member' | 'Gold' | 'Platinum' }
+            user: null, // { phone: string, name?: string, totalSpend?: number, tier?: 'Member' | 'Gold' | 'Platinum', loginProvider?: 'facebook' | 'instagram', followStatus?: { facebook: null | boolean, instagram: null | boolean } }
             isAuthenticated: false,
             login: (userData) => {
                 const tierInfo = calculateTier(userData.totalSpend || 0);
                 set({
-                    user: { ...userData, ...tierInfo },
+                    user: {
+                        ...userData,
+                        ...tierInfo,
+                        followStatus: userData.followStatus || { facebook: null, instagram: null }
+                    },
                     isAuthenticated: true
                 });
             },
             logout: () => set({ user: null, isAuthenticated: false }),
+            updateFollowStatus: (platform, status) => set((state) => ({
+                user: state.user ? {
+                    ...state.user,
+                    followStatus: {
+                        ...state.user.followStatus,
+                        [platform]: status
+                    }
+                } : null
+            })),
             refreshUserSpend: async (phoneNumber) => {
                 const { orderService } = await import('../services/orderService');
                 const totalSpend = await orderService.calculateUserSpend(phoneNumber);
@@ -29,6 +44,20 @@ export const useAuthStore = create(
                 set(state => ({
                     user: state.user ? { ...state.user, totalSpend, ...tierInfo } : null
                 }));
+            },
+            syncUser: async (uid) => {
+                if (!uid) return;
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', uid));
+                    if (userDoc.exists()) {
+                        const userData = userDoc.data();
+                        set(state => ({
+                            user: state.user ? { ...state.user, ...userData } : null
+                        }));
+                    }
+                } catch (error) {
+                    console.error("Failed to sync user:", error);
+                }
             }
         }),
         {

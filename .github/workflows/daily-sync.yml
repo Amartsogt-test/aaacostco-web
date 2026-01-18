@@ -1,0 +1,74 @@
+name: Daily Costco Sync
+
+on:
+  schedule:
+    # Runs at 06:00 UTC every day (14:00 Mongolia time)
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env file
+        run: |
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+
+      - name: Setup Firebase credentials
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebase-service-account.json
+
+      - name: Run core:sync
+        run: npm run core:sync
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+
+      - name: Run core:tags
+        run: npm run core:tags
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+
+      - name: Run core:weight
+        run: npm run core:weight
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Run core:home-weights
+        run: npm run core:home-weights
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+
+      - name: Run core:translate
+        run: npm run core:translate
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      - name: Run core:search-index
+        run: npm run core:search-index
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+
+      - name: Run core:report
+        run: npm run core:report
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+
+      - name: Run core:bank-rates
+        run: npm run core:bank-rates
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json

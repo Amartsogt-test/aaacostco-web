@@ -58,7 +58,7 @@ export const aiService = {
 
             try {
                 return JSON.parse(text);
-            } catch (_jsonErr) {
+            } catch {
                 const jsonStr = text.replace(/```json|```/g, "").trim();
                 return JSON.parse(jsonStr);
             }
@@ -113,10 +113,10 @@ export const aiService = {
 
         try {
             return await tryRec("gemini-3-flash-preview");
-        } catch (error) {
+        } catch {
             try {
                 return await tryRec("gemini-1.5-flash");
-            } catch (e) {
+            } catch {
                 return "Таны хайсан барааг манайхаас оллоо. Сонгож үзээрэй.";
             }
         }
@@ -211,7 +211,7 @@ export const aiService = {
             const text = result.response.text();
             try {
                 return JSON.parse(text);
-            } catch (e) {
+            } catch {
                 const jsonStr = text.replace(/```json|```/g, "").trim();
                 return JSON.parse(jsonStr);
             }
@@ -223,7 +223,7 @@ export const aiService = {
             console.warn("⚠️ AI Weight: Gemini 3 failed, trying fallback...", error.message);
             try {
                 return await tryWeight("gemini-1.5-flash");
-            } catch (e) {
+            } catch {
                 console.error("❌ AI Weight: All models failed");
                 return null;
             }
@@ -281,10 +281,10 @@ export const aiService = {
 
         try {
             return await trySummary("gemini-3-flash-preview");
-        } catch (error) {
+        } catch {
             try {
                 return await trySummary("gemini-1.5-flash");
-            } catch (e) {
+            } catch {
                 return "Уучлаарай, AI тайлбар гаргахад алдаа гарлаа.";
             }
         }

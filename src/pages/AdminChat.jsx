@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, ArrowLeft, User, Clock, Pin, Heart, Plus, Image as ImageIcon, Mic, StopCircle, Gift, X } from 'lucide-react';
+import { MessageCircle, Send, ArrowLeft, User, Clock, Pin, Heart, Plus, Image as ImageIcon, Mic, StopCircle, Gift, X, Facebook, Instagram, AlertCircle } from 'lucide-react';
 import { chatService } from '../services/chatService';
 import { giftCardService } from '../services/giftCardService';
 import { db } from '../firebase';
@@ -324,8 +324,47 @@ export default function AdminChat() {
                                         <p className="text-xs text-gray-500">
                                             ID: {selectedConversation.userId?.slice(0, 15)}...
                                         </p>
+                                        {/* Follow Status Badges */}
+                                        {userData?.followStatus && (
+                                            <div className="flex items-center gap-1 mt-1">
+                                                {userData.followStatus.facebook !== null && (
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${userData.followStatus.facebook
+                                                            ? 'bg-blue-100 text-blue-700'
+                                                            : 'bg-red-100 text-red-600'
+                                                        }`}>
+                                                        <Facebook size={10} />
+                                                        {userData.followStatus.facebook ? 'Followed' : 'Unfollowed'}
+                                                    </span>
+                                                )}
+                                                {userData.followStatus.instagram !== null && (
+                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${userData.followStatus.instagram
+                                                            ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
+                                                            : 'bg-red-100 text-red-600'
+                                                        }`}>
+                                                        <Instagram size={10} />
+                                                        {userData.followStatus.instagram ? 'Followed' : 'Unfollowed'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
+
+                                {/* Follow Request Button - Only show if user hasn't followed */}
+                                {userData?.followStatus &&
+                                    (userData.followStatus.facebook === false || userData.followStatus.instagram === false) && (
+                                        <button
+                                            onClick={async () => {
+                                                const message = `📢 Сайн байна уу!\n\nТа манай Facebook/Instagram хуудсыг дагавал шинэ бараа, хямдралын мэдээллийг шууд хүлээн авах боломжтой.\n\n👉 Facebook: https://www.facebook.com/costcomongolia\n👉 Instagram: https://www.instagram.com/costcomongolia\n\nБаярлалаа! 🙏`;
+                                                await chatService.sendMessage(selectedConversation.id, message, true);
+                                            }}
+                                            className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600 transition shadow-sm"
+                                            title="Дагах хүсэлт илгээх"
+                                        >
+                                            <AlertCircle size={14} />
+                                            Follow Request
+                                        </button>
+                                    )}
 
                                 {/* Pinned Messages Toggle */}
                                 <button

@@ -252,15 +252,32 @@ export default function AdminOrders() {
                                                                     Барааны жагсаалт
                                                                 </h4>
                                                                 <div className="divide-y divide-gray-100 mb-4">
-                                                                    {order.items.map((item, idx) => (
-                                                                        <div key={idx} className="py-2 flex justify-between text-sm">
-                                                                            <div className="text-gray-600">
-                                                                                <span className="font-medium text-gray-900">{item.name}</span>
-                                                                                <span className="text-gray-400 ml-2">x{item.quantity}</span>
+                                                                    {order.items.map((item, idx) => {
+                                                                        const productInfo = products.find(p => p.name === item.name);
+                                                                        const productLink = productInfo?.url || productInfo?.costcoUrl || productInfo?.productLink || '';
+
+                                                                        return (
+                                                                            <div key={idx} className="py-2 flex justify-between text-sm items-center">
+                                                                                <div className="text-gray-600 flex items-center gap-2">
+                                                                                    <span className="font-medium text-gray-900">{item.name}</span>
+                                                                                    <span className="text-gray-400">x{item.quantity}</span>
+                                                                                    {productLink && (
+                                                                                        <a
+                                                                                            href={productLink}
+                                                                                            target="_blank"
+                                                                                            rel="noopener noreferrer"
+                                                                                            className="text-blue-500 hover:text-blue-700 p-1 hover:bg-blue-50 rounded"
+                                                                                            title="Барааны линк руу үсрэх"
+                                                                                            onClick={(e) => e.stopPropagation()}
+                                                                                        >
+                                                                                            <ExternalLink size={14} />
+                                                                                        </a>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="tabular-nums text-gray-700">{(item.price * item.quantity).toLocaleString()}₩</div>
                                                                             </div>
-                                                                            <div className="tabular-nums text-gray-700">{(item.price * item.quantity).toLocaleString()}₩</div>
-                                                                        </div>
-                                                                    ))}
+                                                                        );
+                                                                    })}
                                                                 </div>
 
                                                                 <div className="mb-4 p-3 bg-gray-50 rounded border border-gray-100 text-sm">
@@ -307,56 +324,7 @@ export default function AdminOrders() {
                     </>
                 )}
 
-                {/* Sales Summary Section */}
-                <div className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-8 ${isSummaryMode ? 'border-none shadow-none h-full' : ''} mt-8`}>
-                    <div className="flex justify-between items-center mb-0">
 
-                        {isSummaryMode && (
-                            <button onClick={() => window.close()} className="text-gray-400 hover:text-red-500 p-4">
-                                <XCircle size={20} />
-                            </button>
-                        )}
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead className="bg-gray-200 border-b border-gray-100">
-                                <tr>
-                                    <th className="py-3 px-4 font-bold text-gray-600 text-sm">Барааны нэр</th>
-                                    <th className="py-3 px-4 font-bold text-gray-600 text-sm text-left">Зарагдсан тоо</th>
-                                    <th className="py-3 px-4 font-bold text-gray-600 text-sm text-left">Линк</th>
-                                    <th className="py-3 px-4 font-bold text-gray-600 text-sm text-left">{stats.totalRevenue.toLocaleString()}₩</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {productStatsArray.map((product, idx) => (
-                                    <tr key={idx} className="hover:bg-gray-50">
-                                        <td className="py-3 px-4 font-medium text-gray-800">{product.name}</td>
-                                        <td className="py-3 px-4 text-left">
-                                            <div className="flex items-center justify-start gap-2">
-                                                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold text-xs">
-                                                    {product.quantity} ш
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4 text-left">
-                                            {product.productLink ? (
-                                                <a href={product.productLink} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 inline-flex items-center justify-start">
-                                                    <ExternalLink size={16} />
-                                                </a>
-                                            ) : (
-                                                <span className="text-gray-300">-</span>
-                                            )}
-                                        </td>
-                                        <td className="py-3 px-4 text-left tabular-nums text-gray-600">
-                                            {product.revenue.toLocaleString()}₩
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
 
             </div>
         </div>

@@ -6,8 +6,7 @@ import Layout from './components/Layout';
 
 import ScrollToTop from './components/ScrollToTop';
 
-// Lazy load components to prevent initialization order issues
-// const Layout = lazy(() => import('./components/Layout'));
+// Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
 const Cart = lazy(() => import('./pages/Cart'));
 const Saved = lazy(() => import('./pages/Saved'));
@@ -33,29 +32,20 @@ const DataDeletion = lazy(() => import('./pages/DataDeletion'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const Chat = lazy(() => import('./pages/Chat'));
 
-// Modal-as-Page components (embedded mode)
-const InfoModal = lazy(() => import('./components/InfoModal'));
-const PaymentModal = lazy(() => import('./components/PaymentModal'));
-const BranchModal = lazy(() => import('./components/BranchModal'));
-const CartMenuModal = lazy(() => import('./components/CartMenuModal'));
-const QuickScanModal = lazy(() => import('./components/QuickScanModal'));
-const ScannerModal = lazy(() => import('./components/ScannerModal'));
-const LocationPickerModal = lazy(() => import('./components/LocationPickerModal'));
-const AdminBannerModal = lazy(() => import('./components/AdminBannerModal'));
-const AdminContentModal = lazy(() => import('./components/AdminContentModal'));
-const AdminMenuImagesModal = lazy(() => import('./components/AdminMenuImagesModal'));
+// Full Page components (converted from modals)
+const InfoPage = lazy(() => import('./pages/InfoPage'));
+const PaymentPage = lazy(() => import('./pages/PaymentPage'));
+const BranchPage = lazy(() => import('./pages/BranchPage'));
+const CartMenuPage = lazy(() => import('./pages/CartMenuPage'));
+const QuickScanPage = lazy(() => import('./pages/QuickScanPage'));
+const ScannerPage = lazy(() => import('./pages/ScannerPage'));
+const LocationPage = lazy(() => import('./pages/LocationPage'));
+const SalesSummaryPage = lazy(() => import('./pages/SalesSummaryPage'));
 
-// Wrapper for InfoModal page
-const InfoPage = () => <InfoModal isEmbedded={true} />;
-const PaymentPage = () => <PaymentModal isEmbedded={true} />;
-const BranchPage = () => <BranchModal isEmbedded={true} />;
-const CartMenuPage = () => <CartMenuModal isEmbedded={true} isOpen={true} />;
-const ScanPage = () => <QuickScanModal isEmbedded={true} isOpen={true} />;
-const ScannerPage = () => <ScannerModal isEmbedded={true} isOpen={true} />;
-const LocationPage = () => <LocationPickerModal isEmbedded={true} isOpen={true} />;
-const AdminBannerPage = () => <AdminBannerModal isEmbedded={true} isOpen={true} />;
-const AdminContentPage = () => <AdminContentModal isEmbedded={true} isOpen={true} />;
-const AdminMenuImagesPage = () => <AdminMenuImagesModal isEmbedded={true} isOpen={true} />;
+// Admin Full Pages
+const AdminBanner = lazy(() => import('./pages/AdminBanner'));
+const AdminContent = lazy(() => import('./pages/AdminContent'));
+const AdminMenuImagesPage = lazy(() => import('./pages/AdminMenuImagesPage'));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -108,14 +98,15 @@ function App() {
             <Route path="about" element={<AboutUs />} />
             <Route path="chat" element={<Chat />} />
 
-            {/* Modal-as-Page Routes */}
+            {/* Full Page Routes (converted from modals) */}
             <Route path="info" element={<InfoPage />} />
             <Route path="payment" element={<PaymentPage />} />
             <Route path="branch" element={<BranchPage />} />
             <Route path="cart-menu" element={<CartMenuPage />} />
-            <Route path="scan" element={<ScanPage />} />
+            <Route path="scan" element={<QuickScanPage />} />
             <Route path="scanner" element={<ScannerPage />} />
             <Route path="location" element={<LocationPage />} />
+            <Route path="sales-summary" element={<SalesSummaryPage />} />
 
             <Route element={<AdminRoute />}>
               <Route path="admin" element={<AdminPortal />} />
@@ -127,9 +118,9 @@ function App() {
               <Route path="admin/inactive-products" element={<AdminInactiveProducts />} />
               <Route path="admin/gift-cards" element={<AdminGiftCards />} />
               <Route path="admin/settings" element={<AdminSettings />} />
-              {/* Admin Modal-as-Page Routes */}
-              <Route path="admin/banner" element={<AdminBannerPage />} />
-              <Route path="admin/content" element={<AdminContentPage />} />
+              {/* Admin Full Pages */}
+              <Route path="admin/banner" element={<AdminBanner />} />
+              <Route path="admin/content" element={<AdminContent />} />
               <Route path="admin/menu-images" element={<AdminMenuImagesPage />} />
             </Route>
           </Route>
@@ -140,3 +131,4 @@ function App() {
 }
 
 export default App;
+

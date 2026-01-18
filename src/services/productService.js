@@ -670,30 +670,45 @@ export const productService = {
     // Fetch single product by ID (Doc ID or productId field)
     async getProductById(id) {
         try {
-            // 1. Try by Doc ID
-            const docRef = doc(db, COLLECTION_NAME, id);
-            const docSnap = await getDoc(docRef);
+            const findExact = async (targetId) => {
+                // 1. Try by Doc ID
+                const docRef = doc(db, COLLECTION_NAME, targetId);
+                const docSnap = await getDoc(docRef);
 
-            if (docSnap.exists()) {
-                return { id: docSnap.id, ...docSnap.data() };
-            }
+                if (docSnap.exists()) {
+                    return { id: docSnap.id, ...docSnap.data() };
+                }
 
-            // 2. Try by 'productId' field (numeric or string)
-            const productsRef = collection(db, COLLECTION_NAME);
+                // 2. Try by 'productId' field (numeric or string)
+                const productsRef = collection(db, COLLECTION_NAME);
 
-            // Try string match
-            let q = query(productsRef, where("productId", "==", id), limit(1));
-            let snapshot = await getDocs(q);
+                // Try string match
+                let q = query(productsRef, where("productId", "==", targetId), limit(1));
+                let snapshot = await getDocs(q);
 
-            if (snapshot.empty && !isNaN(id)) {
-                // Try number match
-                q = query(productsRef, where("productId", "==", Number(id)), limit(1));
-                snapshot = await getDocs(q);
-            }
+                if (snapshot.empty && !isNaN(targetId)) {
+                    // Try number match
+                    q = query(productsRef, where("productId", "==", Number(targetId)), limit(1));
+                    snapshot = await getDocs(q);
+                }
 
-            if (!snapshot.empty) {
-                const doc = snapshot.docs[0];
-                return { id: doc.id, ...doc.data() };
+                if (!snapshot.empty) {
+                    const doc = snapshot.docs[0];
+                    return { id: doc.id, ...doc.data() };
+                }
+                return null;
+            };
+
+            // First Attempt: Exact Match
+            let result = await findExact(id);
+            if (result) return result;
+
+            // Second Attempt: If ends with '0', try stripping it (EAN-13 padding / Check digit issue)
+            if (typeof id === 'string' && id.endsWith('0') && id.length > 5) {
+                const stripped = id.slice(0, -1);
+                console.log(`Initial lookup failed for ${id}, trying stripped: ${stripped}`);
+                result = await findExact(stripped);
+                if (result) return result;
             }
 
             return null;

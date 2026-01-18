@@ -5,18 +5,17 @@ import { useCartStore } from '../store/cartStore';
 import { useProductStore } from '../store/productStore';
 import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
-import { useOrderStore } from '../store/orderStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { calculateFinalPrice } from '../utils/productUtils';
-import PaymentModal from './PaymentModal';
 import ConfirmationModal from './ConfirmationModal';
-import LocationPickerModal from './LocationPickerModal';
+
 
 // Updated Cart Item Component
 // eslint-disable-next-line no-unused-vars
 function CartItem({ item, updateQuantity, onDeleteClick, onMoveClick, MoveIcon, moveLabel, wonRate, currency, currencySymbol, shippingType, settings }) {
-    // Calculate the final price including shipping based on shipping type
-    const basePriceKRW = item.price?.value || item.price || 0;
+    // 🏪 Use warehouse price as base if available
+    const onlinePriceKRW = item.price?.value || item.price || 0;
+    const basePriceKRW = item.estimatedWarehousePrice || onlinePriceKRW;
     const unitPriceMNT = calculateFinalPrice(item, basePriceKRW, settings?.transportationRates, wonRate, shippingType);
     const totalPriceMNT = unitPriceMNT * item.quantity;
 
@@ -94,23 +93,36 @@ function CartItem({ item, updateQuantity, onDeleteClick, onMoveClick, MoveIcon, 
 
 export default function CartContent({ onClose }) {
     // ... (state remains same)
-    const [isPaymentOpen, setIsPaymentOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
     const [deleteFromCart, setDeleteFromCart] = useState(null); // 'ground' or 'air'
 
-    const [recipientName, setRecipientName] = useState('');
-    const [recipientPhone, setRecipientPhone] = useState('');
-    const [recipientPhone2, setRecipientPhone2] = useState('');
+    // Updated Store Access
+    const cartStore = useCartStore();
+    const {
+        checkoutState = {},
+        setCheckoutState
+    } = cartStore;
 
-    // Delivery & Branch State
-    const [deliveryMode, setDeliveryMode] = useState('pickup'); // 'pickup' | 'delivery'
-    const [selectedBranch, setSelectedBranch] = useState('');
-    const [isMapOpen, setIsMapOpen] = useState(false);
-    const [mapMode, setMapMode] = useState('branch'); // 'branch' | 'delivery'
-    const [deliveryLocation, setDeliveryLocation] = useState(null);
-    const [deliveryAddressInfo, setDeliveryAddressInfo] = useState('');
+    // Mapping store state to local variables for easier migration
+    const {
+        recipientName = '',
+        recipientPhone = '',
+        recipientPhone2 = '',
+        deliveryMode = 'pickup',
+        selectedBranch = '',
+        deliveryLocation = null,
+        deliveryAddressInfo = ''
+    } = checkoutState || {};
+
+    // Setters wrap setCheckoutState
+    const setRecipientName = (val) => setCheckoutState({ recipientName: val });
+    const setRecipientPhone = (val) => setCheckoutState({ recipientPhone: val });
+    const setRecipientPhone2 = (val) => setCheckoutState({ recipientPhone2: val });
+    const setDeliveryMode = (val) => setCheckoutState({ deliveryMode: val });
+    const setDeliveryAddressInfo = (val) => setCheckoutState({ deliveryAddressInfo: val });
+    const setSelectedBranch = (val) => setCheckoutState({ selectedBranch: val }); // Though better to use LocationPage logic
 
     // Dual cart system
     const {
@@ -121,8 +133,7 @@ export default function CartContent({ onClose }) {
         removeFromGround,
         removeFromAir,
         moveToAir,
-        moveToGround,
-        clearCart
+        moveToGround
     } = useCartStore();
 
     // ... (rest of logic same until render)
@@ -180,81 +191,7 @@ export default function CartContent({ onClose }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
-    const handleConfirmOrder = async () => {
-        // ... (same as original, verify moveToAir/Ground doesn't break this)
-        try {
-            const allItems = [...groundItems.map(i => ({ ...i, shippingMethod: 'ground' })), ...airItems.map(i => ({ ...i, shippingMethod: 'air' }))];
 
-            if (!allItems || allItems.length === 0) {
-                alert("Сагс хоосон байна.");
-                return;
-            }
-
-            const isGuest = !user;
-            const guestId = `guest-${new Date().getTime()}`;
-
-            const newOrder = {
-                userId: isGuest ? guestId : (user.uid || ''),
-                customer: isGuest ? (recipientName || 'Guest') : (user.name || user.email || user.phone || 'Guest'),
-                recipientName: recipientName || '',
-                recipientPhone: recipientPhone || '',
-                recipientPhone2: recipientPhone2 || '',
-                // Delivery / Branch Details
-                deliveryMode: deliveryMode,
-                branch: deliveryMode === 'pickup' ? selectedBranch : null,
-                recipientAddress: deliveryMode === 'pickup'
-                    ? `${selectedBranch === 'main' ? 'Төв салбар' : selectedBranch === 'branch2' ? '2-р салбар' : '3-р салбар'} `
-                    : `Хүргэлт: ${deliveryAddressInfo} (${deliveryLocation ? `${deliveryLocation.lat.toFixed(4)}, ${deliveryLocation.lng.toFixed(4)}` : 'Байршил сонгоогүй'})`,
-                deliveryLocation: deliveryMode === 'delivery' ? deliveryLocation : null,
-                deliveryAddressInfo: deliveryMode === 'delivery' ? deliveryAddressInfo : null,
-                deliveryFee: deliveryMode === 'delivery' ? 5000 : 0,
-
-                groundItemsCount: groundItems.length,
-                airItemsCount: airItems.length,
-                items: allItems.map(item => ({
-                    name: item?.name || 'Бараа',
-                    quantity: item?.quantity || 1,
-                    price: item?.price?.value || item?.price || 0,
-                    image: item?.image || '',
-                    id: item?.id || '',
-                    shippingMethod: item?.shippingMethod || 'ground'
-                })),
-                total: total || 0,
-                status: 'Processing',
-                date: new Date().toISOString()
-            };
-
-            // ... (rest of order logic)
-            const phoneForId = (user && user.phone) ? user.phone : recipientPhone;
-            const phoneDigits = phoneForId.replace(/\D/g, '');
-            const cleanPhone = phoneDigits.startsWith('976') && phoneDigits.length === 11 ? phoneDigits.slice(3) : phoneDigits;
-
-            const now = new Date();
-            const timestamp = now.getDate().toString().padStart(2, '0') +
-                now.getHours().toString().padStart(2, '0') +
-                now.getMinutes().toString().padStart(2, '0');
-
-            const customOrderId = `${timestamp}-${cleanPhone.slice(-4)}`;
-
-            await useOrderStore.getState().createOrder(newOrder, customOrderId);
-
-            clearCart();
-            setIsPaymentOpen(false);
-
-            if (onClose) onClose();
-
-            if (isGuest) {
-                alert('Захиалга амжилттай үүслээ! Та бүртгүүлээгүй тул захиалгын түүх хадгалагдахгүйг анхаарна уу.');
-                navigate('/');
-            } else {
-                alert('Захиалга амжилттай үүслээ! Таны захиалгыг шалгаад баталгаажуулах болно.');
-                navigate('/orders');
-            }
-        } catch (error) {
-            console.error("Order creation error:", error);
-            alert(`Алдаа гарлаа: ${error.message || error} `);
-        }
-    };
 
 
     const handleDeleteClick = (itemId, cartType) => {
@@ -442,8 +379,7 @@ export default function CartContent({ onClose }) {
                                         </select>
                                         <button
                                             onClick={() => {
-                                                setMapMode('branch');
-                                                setIsMapOpen(true);
+                                                navigate('/location?mode=branch');
                                             }}
                                             className="p-2 bg-blue-50 text-blue-600 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
                                             title="Газрын зураг харах"
@@ -460,8 +396,7 @@ export default function CartContent({ onClose }) {
                                         <label className="text-xs font-medium text-gray-700 block mb-1">Хүргүүлэх хаяг (Газрын зураг)</label>
                                         <button
                                             onClick={() => {
-                                                setMapMode('delivery');
-                                                setIsMapOpen(true);
+                                                navigate('/location?mode=delivery');
                                             }}
                                             className={`w-full flex items-center justify-between px-3 py-2.5 border rounded-lg text-sm transition-colors ${deliveryLocation
                                                 ? 'bg-green-50 border-green-200 text-green-800'
@@ -508,7 +443,12 @@ export default function CartContent({ onClose }) {
                     {/* Integrated Payment Button */}
                     <div className="pt-2 pb-8">
                         <button
-                            onClick={() => setIsPaymentOpen(true)}
+                            onClick={() => navigate('/payment', {
+                                state: {
+                                    totalAmountFormatted: `${total.toLocaleString()}${currencySymbol}`,
+                                    totalValue: total
+                                }
+                            })}
                             disabled={!recipientName || recipientPhone.length < 8}
                             className={`w-full py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm ${(!recipientName || recipientPhone.length < 8) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
                         >
@@ -519,15 +459,6 @@ export default function CartContent({ onClose }) {
                 </div>
             </div>
 
-            <PaymentModal
-                isOpen={isPaymentOpen}
-                onClose={() => setIsPaymentOpen(false)}
-                totalAmount={`${total.toLocaleString()}${currencySymbol} `}
-                recipientPhone={recipientPhone}
-                recipientPhone2={recipientPhone2}
-                onConfirm={handleConfirmOrder}
-            />
-
             <ConfirmationModal
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
@@ -536,21 +467,7 @@ export default function CartContent({ onClose }) {
                 message="Та энэ барааг сагснаас устгахдаа итгэлтэй байна уу?"
             />
 
-            <LocationPickerModal
-                isOpen={isMapOpen}
-                onClose={() => setIsMapOpen(false)}
-                mode={mapMode}
-                initialLocation={deliveryLocation}
-                selectedBranchId={selectedBranch}
-                onSelect={(result) => {
-                    if (mapMode === 'branch') {
-                        setSelectedBranch(result);
-                    } else {
-                        setDeliveryLocation(result);
-                    }
-                    setIsMapOpen(false);
-                }}
-            />
+
 
             <ConfirmationModal
                 isOpen={isWarningModalOpen}

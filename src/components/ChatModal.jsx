@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/authStore';
 
 
 export default function ChatModal({ isSidebar = false, isFullScreen = false, onClose }) {
-    const { messages, sendMessage, sendAdminMessage, closeChat, isLoading, markAsRead, pendingProductMessage, clearPendingMessage, togglePinMessage, toggleLikeMessage, sendAttachment, loadMoreMessages, messageLimit, isAiLoading } = useChatStore();
+    const { messages, sendMessage, sendAdminMessage, closeChat, isLoading, markAsRead, pendingProductMessage, clearPendingMessage: _clearPendingMessage, togglePinMessage, toggleLikeMessage, sendAttachment, loadMoreMessages, messageLimit, isAiLoading } = useChatStore();
     const { user: _user } = useAuthStore();
     const [input, setInput] = useState('');
     const [isMediaMenuOpen, setIsMediaMenuOpen] = useState(false);
@@ -15,6 +15,10 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
     const [isCompact, _setIsCompact] = useState(false); // Default to Sidebar (false) on Desktop
 
     const [showPinned, setShowPinned] = useState(false);
+    const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showFollowPrompt, setShowFollowPrompt] = useState(false);
+    const [pendingLoginUser, setPendingLoginUser] = useState(null);
+    const [pendingLoginPlatform, setPendingLoginPlatform] = useState(null); // 'facebook' or 'instagram'
     // Filter pinned messages
     const pinnedMessages = messages.filter(m => m.pinned);
 
@@ -76,6 +80,16 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
 
             botText = 'Сайн байна уу? Би таныг админ руу шилжүүллээ. Та барааныхаа линкийг энд бичээд үлдээнэ үү. Бид шалгаад танд удахгүй хариу өгөх болно. Баярлалаа!';
         } else if (type === 'ADMIN') {
+            // Check if user is logged in with social auth
+            const { user, isAuthenticated } = useAuthStore.getState();
+            const hasSocialLogin = isAuthenticated && user?.loginProvider;
+
+            if (!hasSocialLogin) {
+                // User not logged in with social - show login modal
+                setShowLoginModal(true);
+                return;
+            }
+
             userText = 'Админтай чатлах';
             botText = 'Сайн байна уу? Танд юугаар туслах вэ? Та асуултаа бичээд үлдээгээрэй. Бид удахгүй хариу өгөх болно.';
             // NEW: Explicitly request admin support
@@ -171,7 +185,13 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
 
     const [showReminder, setShowReminder] = useState(true);
 
-    // Auto-hide removed as per user request ("until user closes it")
+    // Auto-hide after 2 seconds
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setShowReminder(false);
+        }, 2000);
+        return () => clearTimeout(timer);
+    }, []);
 
     return (
         <div className={`
@@ -192,13 +212,6 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
             <div className="bg-[#F9FAFB] text-black px-4 py-3 flex items-center justify-between relative z-10 border-b border-gray-100">
                 <div className="flex items-center gap-3">
                     <h3 className="font-bold">Admin chat</h3>
-                    <button
-                        onClick={() => setShowReminder(prev => !prev)}
-                        className="text-xs px-3 py-1.5 rounded-full border transition flex items-center gap-1 bg-red-600 text-white border-red-600 hover:bg-red-700"
-                    >
-                        Санамж
-                        <ChevronDown size={14} className={`transition-transform duration-200 ${showReminder ? 'rotate-180' : ''}`} />
-                    </button>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Pinned Messages Toggle */}
@@ -224,7 +237,7 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                                 closeChat(); // Normal mode: close modal
                             }
                         }}
-                        className="p-1 hover:bg-gray-100 rounded-full transition lg:hidden"
+                        className="p-1 hover:bg-gray-100 rounded-full transition"
                         title="Хаах"
                     >
                         <X size={20} />
@@ -232,29 +245,46 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                 </div>
             </div>
 
-            {/* Disclaimer Banner */}
-            {showReminder && (
-                <div className="bg-yellow-50 px-4 py-3 border-b border-yellow-100 text-xs text-gray-700 leading-relaxed animate-in fade-in slide-in-from-top-2 duration-300 relative">
-                    <p className="font-bold mb-1 text-yellow-800">Санамж</p>
-                    <p className="mb-2">Costco-ийн онлайн дэлгүүр болон бодит дэлгүүрийн үнэ зөрүүтэй байх тохиолдол гардаг.</p>
-                    <ul className="space-y-1 list-none pl-1">
-                        <li>• Зарим бараа онлайнд хямд бол зарим нь дэлгүүрт хямд байдаг.</li>
-                        <li>• Онлайн дэлгүүрт хямдарсан байхад, бодит дэлгүүр хямдраагүй тохиолдолд байдаг.</li>
-                        <li>• Бид танд аль хямд үнээр нь тооцоолж авч өгөх болно.</li>
-                    </ul>
+            {/* Disclaimer Banner & Collapsed Handle */}
+            <div className="relative z-20">
+                {/* Banner - Collapses when hidden */}
+                <div className={`overflow-hidden transition-all duration-1000 ease-in-out ${showReminder ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <div className="bg-yellow-100 px-4 py-3 border-b border-yellow-100 text-xs text-gray-700 leading-relaxed relative">
+                        <p className="font-bold mb-1 text-yellow-800">Санамж</p>
+                        <p className="mb-2">Costco-ийн онлайн дэлгүүр болон бодит дэлгүүрийн үнэ зөрүүтэй байх тохиолдол гардаг.</p>
+                        <ul className="space-y-1 list-none pl-1">
+                            <li>• Зарим бараа онлайнд хямд бол зарим нь дэлгүүрт хямд байдаг.</li>
+                            <li>• Онлайн дэлгүүрт хямдарсан байхад, бодит дэлгүүр хямдраагүй тохиолдолд байдаг.</li>
+                            <li>• Бид танд аль хямд үнээр нь тооцоолж авч өгөх болно.</li>
+                        </ul>
 
-                    {/* Collapse Button */}
-                    <div className="flex justify-center mt-2">
-                        <button
-                            onClick={() => setShowReminder(false)}
-                            className="p-1 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors border border-red-600 shadow-sm"
-                            title="Хаах"
-                        >
-                            <ChevronDown size={16} className="rotate-180" />
-                        </button>
+                        {/* Collapse Button */}
+                        <div className="flex justify-center mt-2">
+                            <button
+                                onClick={() => setShowReminder(false)}
+                                className="p-1 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors border border-red-600 shadow-sm"
+                                title="Хаах"
+                            >
+                                <ChevronDown size={16} className="rotate-180" />
+                            </button>
+                        </div>
                     </div>
                 </div>
-            )}
+
+                {/* Handle - Expands when hidden */}
+                <div className={`overflow-hidden transition-all duration-1000 ease-in-out ${!showReminder ? 'max-h-[40px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <button
+                        onClick={() => setShowReminder(true)}
+                        className="w-full bg-yellow-100 hover:bg-yellow-200 border-b border-yellow-200 py-1 flex items-center justify-center transition-colors group"
+                        title="Санамж харах"
+                    >
+                        <div className="bg-red-600 text-white px-3 py-0.5 rounded-full flex items-center gap-1 shadow-sm text-xs font-bold">
+                            <span>Санамж</span>
+                            <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
+                        </div>
+                    </button>
+                </div>
+            </div>
 
             {/* Content Area (Pinned + Messages) */}
             <div className="flex-1 relative flex flex-col min-h-0 bg-gray-100">
@@ -337,6 +367,188 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                         <div className="flex items-center justify-center h-full">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                         </div>
+                    ) : showLoginModal ? (
+                        /* Inline Login UI inside Chat */
+                        <div className="flex flex-col items-center justify-center h-full px-6 py-8">
+                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                                <MessageCircleIcon className="w-8 h-8 text-blue-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">Админтай чатлахын тулд нэвтэрнэ үү</h3>
+
+                            <div className="w-full max-w-xs space-y-3 mt-4">
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const { signInWithPopup, FacebookAuthProvider } = await import('firebase/auth');
+                                            const { auth, db } = await import('../firebase');
+                                            const { doc, getDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
+                                            const provider = new FacebookAuthProvider();
+                                            provider.addScope('public_profile');
+                                            provider.addScope('email');
+
+                                            const result = await signInWithPopup(auth, provider);
+                                            const user = result.user;
+
+                                            const userRef = doc(db, 'users', user.uid);
+                                            const userDoc = await getDoc(userRef);
+
+                                            const userData = {
+                                                uid: user.uid,
+                                                name: user.displayName,
+                                                email: user.email,
+                                                photoURL: user.photoURL,
+                                                loginProvider: 'facebook',
+                                                lastLogin: serverTimestamp()
+                                            };
+
+                                            if (!userDoc.exists()) {
+                                                userData.followStatus = { facebook: null, instagram: null };
+                                                userData.createdAt = serverTimestamp();
+                                            }
+
+                                            await setDoc(userRef, userData, { merge: true });
+
+                                            // Store user data for later login after follow confirmation
+                                            setPendingLoginUser({
+                                                ...userData,
+                                                followStatus: userDoc.exists() ? userDoc.data().followStatus : { facebook: null, instagram: null }
+                                            });
+
+                                            setShowLoginModal(false);
+                                            setPendingLoginPlatform('facebook');
+                                            setShowFollowPrompt(true); // Show follow prompt instead of proceeding
+                                        } catch (error) {
+                                            console.error('Facebook login error:', error);
+                                        }
+                                    }}
+                                    className="w-full py-3 px-4 bg-[#1877F2] text-white font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-[#166FE5] transition shadow-lg"
+                                >
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
+                                    Facebook-ээр нэвтрэх
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        // Instagram doesn't have OAuth, so create a temporary user
+                                        const instagramUser = {
+                                            name: 'Instagram User',
+                                            loginProvider: 'instagram',
+                                            followStatus: { facebook: null, instagram: null }
+                                        };
+                                        setPendingLoginUser(instagramUser);
+                                        setPendingLoginPlatform('instagram');
+                                        setShowLoginModal(false);
+                                        setShowFollowPrompt(true);
+                                    }}
+                                    className="w-full py-3 px-4 bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] text-white font-bold rounded-xl flex items-center justify-center gap-3 hover:opacity-90 transition shadow-lg"
+                                >
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
+                                    Instagram-ээр нэвтрэх
+                                </button>
+                            </div>
+
+                            <p className="text-xs text-gray-400 mt-6 text-center">
+                                Нэвтрэснээр та үйлчилгээний нөхцөлийг зөвшөөрч байна
+                            </p>
+
+                            <button
+                                onClick={() => setShowLoginModal(false)}
+                                className="mt-4 text-sm text-gray-500 hover:text-gray-700"
+                            >
+                                Буцах
+                            </button>
+                        </div>
+                    ) : showFollowPrompt ? (
+                        /* FOLLOW PROMPT - Shows after Facebook/Instagram login */
+                        <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10">
+                            {/* Platform-specific icon */}
+                            {pendingLoginPlatform === 'instagram' ? (
+                                <div className="w-20 h-20 bg-gradient-to-br from-[#833AB4] via-[#FD1D1D] to-[#F77737] rounded-full flex items-center justify-center mb-5 shadow-lg">
+                                    <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
+                                </div>
+                            ) : (
+                                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mb-5 shadow-lg">
+                                    <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                                    </svg>
+                                </div>
+                            )}
+
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                Сайн байна уу, {pendingLoginUser?.name?.split(' ')[0] || 'Хэрэглэгч'}! 👋
+                            </h3>
+                            <p className="text-gray-500 mb-6 text-sm max-w-xs">
+                                Чатлахын тулд манай {pendingLoginPlatform === 'instagram' ? 'Instagram' : 'Facebook'} хуудсыг дагаарай. Шинэ бараа, урамшуулал, хямдралын мэдээг авах боломжтой!
+                            </p>
+
+                            <div className="w-full max-w-xs space-y-3">
+                                {/* Open social media page button */}
+                                <button
+                                    onClick={() => window.open(
+                                        pendingLoginPlatform === 'instagram'
+                                            ? 'https://www.instagram.com/costcomongolia'
+                                            : 'https://www.facebook.com/costcomongolia',
+                                        '_blank'
+                                    )}
+                                    className={`w-full py-3 px-4 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition shadow-lg ${pendingLoginPlatform === 'instagram'
+                                            ? 'bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] hover:opacity-90'
+                                            : 'bg-[#1877F2] hover:bg-[#166FE5]'
+                                        }`}
+                                >
+                                    {pendingLoginPlatform === 'instagram' ? (
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
+                                    ) : (
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
+                                    )}
+                                    {pendingLoginPlatform === 'instagram' ? 'Instagram' : 'Facebook'} хуудас нээх
+                                </button>
+
+                                {/* Confirm follow button */}
+                                <button
+                                    onClick={async () => {
+                                        // User confirmed they followed - update Firestore and login
+                                        const { doc, setDoc } = await import('firebase/firestore');
+                                        const { db } = await import('../firebase');
+
+                                        if (pendingLoginUser?.uid) {
+                                            await setDoc(doc(db, 'users', pendingLoginUser.uid), {
+                                                followStatus: { [pendingLoginPlatform]: true }
+                                            }, { merge: true });
+                                        }
+
+                                        const { login, updateFollowStatus } = useAuthStore.getState();
+                                        login(pendingLoginUser);
+                                        updateFollowStatus(pendingLoginPlatform, true);
+
+                                        setShowFollowPrompt(false);
+                                        setPendingLoginUser(null);
+                                        setPendingLoginPlatform(null);
+                                        handleQuickReply('ADMIN');
+                                    }}
+                                    className="w-full py-3 px-4 bg-green-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-lg"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                    Дагасан ✓
+                                </button>
+
+                                {/* Skip button */}
+                                <button
+                                    onClick={() => {
+                                        // Skip - login without confirming follow
+                                        const { login } = useAuthStore.getState();
+                                        login(pendingLoginUser);
+                                        setShowFollowPrompt(false);
+                                        setPendingLoginUser(null);
+                                        setPendingLoginPlatform(null);
+                                        handleQuickReply('ADMIN');
+                                    }}
+                                    className="w-full py-2 text-gray-400 text-sm hover:text-gray-600 transition"
+                                >
+                                    Дараа дагахий
+                                </button>
+                            </div>
+                        </div>
                     ) : messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
                             <MessageCircleIcon className="w-12 h-12 mb-2 opacity-50" />
@@ -350,7 +562,7 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                                 id={`msg-${msg.id}`}
                                 className={`flex ${msg.isFromAdmin ? 'justify-start' : 'justify-end'} group transition-all duration-500`}
                             >
-                                <div className={`relative px-4 py-2 rounded-2xl max-w-[85%] break-words break-all ${msg.isFromAdmin
+                                <div className={`relative px-4 py-2 rounded-2xl max-w-[85%] break-words ${msg.isFromAdmin
                                     ? 'bg-white border text-gray-800 rounded-bl-none shadow-sm'
                                     : 'bg-blue-600/50 text-blue-900 rounded-br-none shadow-sm'
                                     } ${msg.pinned ? 'ring-2 ring-yellow-400 ring-offset-1' : ''}`}>

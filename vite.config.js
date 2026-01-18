@@ -6,16 +6,16 @@ import { VitePWA } from 'vite-plugin-pwa'
 export default defineConfig({
   plugins: [
     react(),
-    // VitePWA({
-    //   registerType: 'autoUpdate',
-    //   includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
-    //   manifest: false,
-    //   workbox: {
-    //     skipWaiting: true,
-    //     clientsClaim: true,
-    //     cleanupOutdatedCaches: true
-    //   }
-    // })
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      manifest: false, // We use a simpler strategy or have a separate manifest file
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true
+      }
+    })
   ],
   build: {
     // Enable minification

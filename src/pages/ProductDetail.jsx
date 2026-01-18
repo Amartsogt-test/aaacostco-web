@@ -115,6 +115,7 @@ export default function ProductDetail() {
     let displayPrice = 0;
     let displayOldPrice = null;
     let priceInKRW = 0;
+    let warehousePriceKRW = 0; // 🏪 Warehouse price for shipping calculations
 
     if (product) {
         // Expiration Check Logic (New)
@@ -130,6 +131,9 @@ export default function ProductDetail() {
             priceInKRW = oldPriceInKRW;
             oldPriceInKRW = 0;
         }
+
+        // 🏪 Warehouse price = estimatedWarehousePrice or online price
+        warehousePriceKRW = product.estimatedWarehousePrice || priceInKRW;
 
         if (currency === 'MNT') {
             displayPrice = Math.round(priceInKRW * wonRate);
@@ -399,10 +403,16 @@ export default function ProductDetail() {
                         </div>
 
                         <div className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                            {/* Price Section */}
+                            {/* Price Section - Warehouse Price as Main */}
                             <div className="flex items-end gap-3 mb-2">
                                 <div className="text-4xl font-bold text-costco-red tracking-tight">
-                                    {displayPrice.toLocaleString()}{currencySymbol}
+                                    {/* Show warehouse price if available, else show online price */}
+                                    {product.estimatedWarehousePrice
+                                        ? (currency === 'MNT'
+                                            ? Math.round(product.estimatedWarehousePrice * wonRate).toLocaleString()
+                                            : product.estimatedWarehousePrice.toLocaleString())
+                                        : displayPrice.toLocaleString()
+                                    }{currencySymbol}
                                 </div>
 
                                 {/* New Badge */}
@@ -425,21 +435,35 @@ export default function ProductDetail() {
                                 )}
                             </div>
 
-                            {/* Estimated Warehouse Price (New) */}
+                            {/* Store Price Label */}
                             {product.estimatedWarehousePrice && (
-                                <div className="mb-4 flex items-center gap-2">
-                                    <div className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded uppercase flex items-center gap-1">
-                                        <ShieldCheck size={12} />
-                                        Дэлгүүрийн үндсэн үнэ (Ойролцоогоор)
-                                    </div>
-                                    <div className="text-lg font-bold text-green-700">
-                                        {currency === 'MNT'
-                                            ? Math.round(product.estimatedWarehousePrice * wonRate).toLocaleString()
-                                            : product.estimatedWarehousePrice.toLocaleString()
-                                        }{currencySymbol}
+                                <div className="mb-3 flex items-center gap-2">
+                                    <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded uppercase">
+                                        🏪 Дэлгүүрийн үнэ
+                                    </span>
+                                </div>
+                            )}
+
+                            {/* Online Price (Secondary) */}
+                            {product.estimatedWarehousePrice && (
+                                <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <span className="text-blue-600 font-medium">🌐 Онлайн:</span>
+                                        <span className="font-bold text-gray-700">
+                                            {displayPrice.toLocaleString()}{currencySymbol}
+                                        </span>
                                     </div>
                                 </div>
                             )}
+
+                            {/* Note about availability */}
+                            <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-xs text-yellow-800">
+                                <p className="font-medium mb-1">💡 Санамж:</p>
+                                <ul className="list-disc list-inside space-y-1 text-yellow-700">
+                                    <li>Дэлгүүрт байхгүй бол онлайнаар захиалах боломжтой.</li>
+                                    <li>Үнэ өөрчлөгдөх боломжтой.</li>
+                                </ul>
+                            </div>
 
                             {/* Discount Date Info (Moved here) */}
                             {product.discountEndDate && (
@@ -517,7 +541,8 @@ export default function ProductDetail() {
                                 <h3 className="font-bold text-gray-500 uppercase tracking-wide mb-2">Тээврийн сонголтууд (Дэлгэрэнгүй)</h3>
 
                                 {['ground', 'air'].map(type => {
-                                    const breakdown = getPriceBreakdown(product, priceInKRW, settings?.transportationRates, wonRate, type, quantity);
+                                    // 🏪 Use warehouse price for shipping calculation
+                                    const breakdown = getPriceBreakdown(product, warehousePriceKRW, settings?.transportationRates, wonRate, type, quantity);
                                     if (!breakdown) return null;
 
                                     // Calculate variant-specific cartItemId

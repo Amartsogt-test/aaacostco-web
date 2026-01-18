@@ -2,9 +2,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
 import { ChevronLeft, Plus, Trash2, Edit, Search, ScanBarcode, MessageSquare, CircleDollarSign, AlertTriangle, Minus, ArrowRightLeft, RotateCcw, Archive, Filter, Eye, EyeOff, XCircle, Database, LayoutGrid, Table as TableIcon, Package, ExternalLink, TrendingUp, Save, Check, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import ScannerModal from '../components/ScannerModal';
 import ConfirmationModal from '../components/ConfirmationModal';
-import SalesSummaryModal from '../components/SalesSummaryModal';
 
 
 
@@ -16,8 +14,6 @@ export default function AdminDashboard() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('Featured');
     const [activeTab, setActiveTab] = useState('active'); // 'active', 'inactive', 'deleted'
-    const [isScannerOpen, setIsScannerOpen] = useState(false);
-    const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
     const [viewMode] = useState(isStandalone ? 'spreadsheet' : 'list'); // 'list' or 'spreadsheet'
 
     // Confirmation Modal State
@@ -177,11 +173,6 @@ export default function AdminDashboard() {
         });
     };
 
-    const handleScan = (code) => {
-        setSearchTerm(code);
-        setIsScannerOpen(false);
-    };
-
     const handleEditStart = (product, field) => {
         setEditingCell({ id: product.id, field });
         setEditValue(product[field] || '');
@@ -260,7 +251,7 @@ export default function AdminDashboard() {
                         </div>
 
                         <button
-                            onClick={() => setIsScannerOpen(true)}
+                            onClick={() => navigate('/scanner')}
                             className="bg-gray-100 p-2 rounded-lg hover:bg-gray-200 transition"
                             title="Баркод уншуулах"
                         >
@@ -268,69 +259,72 @@ export default function AdminDashboard() {
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <div className="flex bg-gray-100 p-1 rounded-lg">
+                    <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
+                        {/* Row 2: Tabs */}
+                        <div className="grid grid-cols-3 gap-1 bg-gray-100 p-1 rounded-lg w-full md:w-auto">
                             <button
                                 onClick={() => setActiveTab('active')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'active' ? 'bg-white text-costco-blue shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                className={`py-1.5 px-2 rounded-md text-sm font-semibold transition-all text-center ${activeTab === 'active' ? 'bg-white text-costco-blue shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                             >
                                 Active
                             </button>
                             <button
                                 onClick={() => setActiveTab('inactive')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'inactive' ? 'bg-white text-costco-blue shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                className={`py-1.5 px-2 rounded-md text-sm font-semibold transition-all text-center ${activeTab === 'inactive' ? 'bg-white text-costco-blue shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                             >
                                 Inactive
                             </button>
                             <button
                                 onClick={() => setActiveTab('deleted')}
-                                className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'deleted' ? 'bg-white text-costco-blue shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                                className={`py-1.5 px-2 rounded-md text-sm font-semibold transition-all text-center ${activeTab === 'deleted' ? 'bg-white text-costco-blue shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                             >
                                 Delete
                             </button>
                         </div>
 
-                        <div className="h-6 w-px bg-gray-300 mx-1"></div>
+                        {/* Divider (Desktop Only) */}
+                        <div className="hidden md:block h-6 w-px bg-gray-300 mx-1"></div>
 
-                        <div className="flex items-center gap-2">
+                        {/* Row 3: Actions */}
+                        <div className="grid grid-cols-4 gap-2 w-full md:w-auto">
                             <button
-                                onClick={() => setIsSalesModalOpen(true)}
-                                className="bg-green-50 text-green-700 h-9 px-4 rounded-lg font-bold hover:bg-green-100 transition flex items-center gap-1 shadow-sm text-xs"
+                                onClick={() => navigate('/sales-summary')}
+                                className="bg-green-50 text-green-700 h-9 rounded-lg font-bold hover:bg-green-100 transition flex items-center justify-center gap-1 shadow-sm text-xs"
                                 title="Борлуулалтын тайлан"
                             >
                                 <TrendingUp size={16} />
-                                <span className="hidden md:inline px-1">Тайлан</span>
+                                <span className="hidden xl:inline px-1">Тайлан</span>
                             </button>
 
                             <button
                                 onClick={() => navigate('/admin/add-product')}
-                                className="bg-costco-blue text-white h-9 px-4 rounded-lg font-bold hover:bg-blue-700 transition flex items-center gap-1 shadow-sm text-xs"
+                                className="bg-costco-blue text-white h-9 rounded-lg font-bold hover:bg-blue-700 transition flex items-center justify-center gap-1 shadow-sm text-xs"
                                 title="Бараа нэмэх"
                             >
-                                <span className="hidden md:inline px-1">Бараа</span>
                                 <Plus size={16} />
+                                <span className="hidden xl:inline px-1">Бараа</span>
                             </button>
 
                             <button
                                 onClick={() => navigate('/admin/inactive-products')}
-                                className="bg-white text-gray-700 border border-gray-300 h-9 px-4 rounded-lg font-bold hover:bg-gray-50 transition flex items-center gap-1 shadow-sm text-xs"
+                                className="bg-white text-gray-700 border border-gray-300 h-9 rounded-lg font-bold hover:bg-gray-50 transition flex items-center justify-center gap-1 shadow-sm text-xs"
                                 title="Идэвхгүй бараанууд"
                             >
                                 <EyeOff size={16} />
-                                <span className="hidden md:inline px-1">Идэвхгүй</span>
+                                <span className="hidden xl:inline px-1">Идэвхгүй</span>
                             </button>
 
-                            <div className="flex bg-gray-200 rounded-lg p-1 h-9 items-center">
+                            <div className="flex bg-gray-200 rounded-lg p-1 h-9 items-center justify-center">
                                 <button
                                     onClick={handleOpenSpreadsheet}
-                                    className={`p-1.5 rounded transition ${viewMode === 'spreadsheet' ? 'bg-white shadow text-costco-blue' : 'text-gray-500 hover:text-gray-700'}`}
+                                    className={`p-1.5 rounded transition flex-1 flex justify-center ${viewMode === 'spreadsheet' ? 'bg-white shadow text-costco-blue' : 'text-gray-500 hover:text-gray-700'}`}
                                     title="Open Spreadsheet View"
                                 >
                                     <TableIcon size={16} />
                                 </button>
                                 <button
-                                    onClick={() => { }} // Assuming standard view is default/only option here for now
-                                    className={`p-1.5 rounded transition ${viewMode !== 'spreadsheet' ? 'bg-white shadow text-costco-blue' : 'text-gray-500 hover:text-gray-700'}`}
+                                    onClick={() => { }}
+                                    className={`p-1.5 rounded transition flex-1 flex justify-center ${viewMode !== 'spreadsheet' ? 'bg-white shadow text-costco-blue' : 'text-gray-500 hover:text-gray-700'}`}
                                     title="List View"
                                 >
                                     <LayoutGrid size={16} />
@@ -591,23 +585,12 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-            <ScannerModal
-                isOpen={isScannerOpen}
-                onClose={() => setIsScannerOpen(false)}
-                onScan={handleScan}
-            />
-
             <ConfirmationModal
                 isOpen={confirmModal.isOpen}
                 onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
                 onConfirm={confirmModal.onConfirm}
                 title={confirmModal.title}
                 message={confirmModal.message}
-            />
-
-            <SalesSummaryModal
-                isOpen={isSalesModalOpen}
-                onClose={() => setIsSalesModalOpen(false)}
             />
         </div>
     );

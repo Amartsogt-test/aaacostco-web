@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { ShoppingCart, Menu, User, MessageCircle, ArrowRightLeft, Home } from 'lucide-react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useProductStore } from '../store/productStore';
 import { useUIStore } from '../store/uiStore';
@@ -14,12 +14,13 @@ import SearchFilterBar from './SearchFilterBar';
 
 export default function Header({ layoutStyle }) {
     const location = useLocation();
+    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const _isAdmin = location.pathname.startsWith('/admin');
     const view = searchParams.get('view');
     const _isStandalone = view === 'spreadsheet' || view === 'summary';
     const cartCount = useCartStore(state => state.totalItems());
-    const { toggleCurrency, currency, toggleMenu, toggleCart, closeCart, isCartOpen, closeMenu } = useUIStore();
+    const { toggleCurrency, currency, toggleMenu, closeCart, isCartOpen, closeMenu } = useUIStore();
     const { wonRate, resetSearch } = useProductStore();
     const { user } = useAuthStore();
     const { isOpen: isChatOpen, closeChat } = useChatStore();
@@ -96,7 +97,7 @@ export default function Header({ layoutStyle }) {
         <header>
             {/* Combined Bottom Bar: Search + Navigation */}
             <div
-                style={layoutStyle}
+                style={{ ...layoutStyle, paddingBottom: 'env(safe-area-inset-bottom)' }}
                 className="fixed bottom-0 bg-white/95 backdrop-blur-md shadow-[0_-2px_20px_rgba(0,0,0,0.08)] border-t border-gray-100 z-[80] flex flex-col transition-all duration-300"
             >
                 {(showSearchFilter && !isCartOpen) && <SearchFilterBar />}
@@ -152,12 +153,35 @@ export default function Header({ layoutStyle }) {
                                         <span className="text-[10px] font-semibold text-gray-600">Цэс</span>
                                     </button>
 
-
+                                    {/* Exchange Rate (Ханш) */}
+                                    <button
+                                        onClick={() => {
+                                            toggleCurrency();
+                                            setCurrencyActive(true);
+                                        }}
+                                        className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl hover:bg-gray-100 transition-all group"
+                                    >
+                                        <div className={`${isCurrencyActive
+                                            ? "p-1.5 rounded-xl bg-gradient-to-br from-costco-blue to-blue-600 text-white shadow-sm transition-all"
+                                            : "p-1.5 rounded-xl bg-gray-100 text-gray-600 group-hover:bg-gray-200 group-hover:scale-110 transition-all"
+                                            }`}>
+                                            <ArrowRightLeft size={18} />
+                                        </div>
+                                        <span className={`text-[9px] font-bold whitespace-nowrap ${isCurrencyActive ? 'text-costco-blue' : 'text-gray-500'}`}>
+                                            {(!wonRate || wonRate <= 0)
+                                                ? '...'
+                                                : (currency === 'MNT'
+                                                    ? `${wonRate}₮`
+                                                    : `${(1 / wonRate).toFixed(2)}₩`
+                                                )
+                                            }
+                                        </span>
+                                    </button>
 
                                     {/* Cart */}
                                     <button
                                         onClick={() => {
-                                            toggleCart();
+                                            navigate('/cart-menu');
                                             setCurrencyActive(false);
                                             closeMenu(); // Close menu if open
                                         }}
@@ -184,31 +208,6 @@ export default function Header({ layoutStyle }) {
                                 </>
                             );
                         })()}
-
-                        {/* Exchange Rate */}
-                        <button
-                            onClick={() => {
-                                toggleCurrency();
-                                setCurrencyActive(true);
-                            }}
-                            className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl hover:bg-gray-100 transition-all group"
-                        >
-                            <div className={`${isCurrencyActive
-                                ? "p-1.5 rounded-xl bg-gradient-to-br from-costco-blue to-blue-600 text-white shadow-sm transition-all"
-                                : "p-1.5 rounded-xl bg-gray-100 text-gray-600 group-hover:bg-gray-200 group-hover:scale-110 transition-all"
-                                }`}>
-                                <ArrowRightLeft size={18} />
-                            </div>
-                            <span className={`text-[9px] font-bold whitespace-nowrap ${isCurrencyActive ? 'text-costco-blue' : 'text-gray-500'}`}>
-                                {(!wonRate || wonRate <= 0)
-                                    ? '...'
-                                    : (currency === 'MNT'
-                                        ? `${wonRate}₮`
-                                        : `${(1 / wonRate).toFixed(2)}₩`
-                                    )
-                                }
-                            </span>
-                        </button>
                     </div>
                 </div>
             </div>

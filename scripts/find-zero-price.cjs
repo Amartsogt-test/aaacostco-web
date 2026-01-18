@@ -17,10 +17,15 @@ async function findZeroPricedProducts() {
     let snapshotLegacy = await db.collection('products').where('price', '==', 0).get();
     console.log(`Query (top-level price == 0): Found ${snapshotLegacy.size} products.`);
 
+    // Check estimatedWarehousePrice == 0
+    let snapshotWarehouse = await db.collection('products').where('estimatedWarehousePrice', '==', 0).get();
+    console.log(`Query (estimatedWarehousePrice == 0): Found ${snapshotWarehouse.size} products.`);
+
     // Combine results
     const allDocs = new Map();
     snapshotValue.forEach(doc => allDocs.set(doc.id, doc));
     snapshotLegacy.forEach(doc => allDocs.set(doc.id, doc));
+    snapshotWarehouse.forEach(doc => allDocs.set(doc.id, doc));
 
     if (allDocs.size === 0) {
         console.log('No matching documents found.');

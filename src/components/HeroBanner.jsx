@@ -19,35 +19,44 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
         line3: 'төгрөг шилжүүлж байна'
     });
 
-    useEffect(() => {
-        const fetchBanners = async () => {
-            try {
-                const data = await productService.getSettings(settingId);
-                if (data && data.items && Array.isArray(data.items)) {
-                    // Filter active ones or just take all if we assume they are active
-                    setBanners(data.items.slice(0, 5));
-                } else if (data && data.url) {
-                    // Fallback for old single banner format
-                    setBanners([{ url: data.url, type: data.type || 'image', title: data.title }]);
-                }
-                // Load exchange rate text if exists
-                if (data && data.exchangeRateText) {
-                    setExchangeRateText(data.exchangeRateText);
-                }
-            } catch (error) {
-                console.error("Failed to fetch home banners:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchBanners();
-    }, []);
+    // Total slides = exchange rate slide + image banners
+    const totalSlides = banners.length + 1;
 
-    // Auto-rotate with variable duration
+    useEffect(() => {
+        // Subscribe to real-time updates
+        const unsubscribe = productService.onSettingsChange(settingId, (data) => {
+            if (data && data.items && Array.isArray(data.items)) {
+                // Filter active ones or just take all if we assume they are active
+                setBanners(data.items.slice(0, 5));
+            } else if (data && data.url) {
+                // Fallback for old single banner format
+                setBanners([{ url: data.url, type: data.type || 'image', title: data.title }]);
+            } else {
+                setBanners([]);
+            }
+
+            // Load exchange rate text if exists
+            if (data && data.exchangeRateText) {
+                setExchangeRateText(data.exchangeRateText);
+            }
+
+            setLoading(false);
+        });
+
+        return () => unsubscribe && unsubscribe();
+    }, [settingId]);
+
+    // Auto-rotate with variable duration (also handles index reset)
     useEffect(() => {
         // Include exchange rate slide in count
         const totalSlides = banners.length + 1;
         if (totalSlides <= 1) return;
+
+        // Reset index if out of bounds (e.g. after banner deletion)
+        if (currentIndex >= totalSlides) {
+            const timer = setTimeout(() => setCurrentIndex(0), 0);
+            return () => clearTimeout(timer);
+        }
 
         const currentItem = currentIndex === 0
             ? { duration: 6 } // Exchange rate slide shows for 6 seconds
@@ -59,7 +68,7 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
         }, duration);
 
         return () => clearTimeout(timer);
-    }, [currentIndex, banners.length]);
+    }, [currentIndex, banners, banners.length]);
 
     // Touch handlers for swipe
     const handleTouchStart = (e) => {
@@ -92,11 +101,10 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
         );
     }
 
-    // Total slides = exchange rate slide + image banners
-    const totalSlides = banners.length + 1;
+
 
     // Replace {rate} with actual rate in line2
-    const displayLine2 = exchangeRateText.line2.replace('{rate}', wonRate?.toFixed(2) || '...');
+    const displayLine2 = (exchangeRateText?.line2 || '').replace('{rate}', wonRate?.toFixed(2) || '...');
 
     return (
         <div
@@ -125,37 +133,40 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
                 </div>
 
                 {/* Image/Video Banners */}
-                {banners.map((item, index) => (
-                    <div key={index} className="relative w-full shrink-0 aspect-[21/9] sm:aspect-[24/7]">
-                        {item.type === 'video' ? (
-                            <video
-                                src={item.url}
-                                autoPlay
-                                muted
-                                loop
-                                playsInline
-                                className="absolute inset-0 w-full h-full object-cover"
-                            />
-                        ) : (
-                            <img
-                                src={item.url}
-                                alt={item.title || `Banner ${index + 1}`}
-                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${index + 1 === currentIndex ? 'opacity-100' : 'opacity-0'}`}
-                                loading={index === 0 ? "eager" : "lazy"}
-                                fetchPriority={index === 0 ? "high" : "auto"}
-                            />
-                        )}
+                {banners.map((item, index) => {
+                    if (!item) return null;
+                    return (
+                        <div key={index} className="relative w-full shrink-0 aspect-[21/9] sm:aspect-[24/7]">
+                            {item.type === 'video' ? (
+                                <video
+                                    src={item.url}
+                                    autoPlay
+                                    muted
+                                    loop
+                                    playsInline
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                />
+                            ) : (
+                                <img
+                                    src={item.url}
+                                    alt={item.title || `Banner ${index + 1}`}
+                                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${index + 1 === currentIndex ? 'opacity-100' : 'opacity-0'}`}
+                                    loading={index === 0 ? "eager" : "lazy"}
+                                    fetchPriority={index === 0 ? "high" : "auto"}
+                                />
+                            )}
 
-                        {/* Optional Overlay Text */}
-                        {item.title && (
-                            <div className="absolute inset-0 bg-black/10 flex items-center justify-center pointer-events-none">
-                                <h2 className="text-white text-2xl md:text-4xl font-bold drop-shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                    {item.title}
-                                </h2>
-                            </div>
-                        )}
-                    </div>
-                ))}
+                            {/* Optional Overlay Text */}
+                            {item.title && (
+                                <div className="absolute inset-0 bg-black/10 flex items-center justify-center pointer-events-none">
+                                    <h2 className="text-white text-2xl md:text-4xl font-bold drop-shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        {item.title}
+                                    </h2>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Pagination Dots */}

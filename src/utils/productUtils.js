@@ -257,11 +257,45 @@ export const getPriceBreakdown = (product, basePriceKRW, rates, wonRate, shippin
         basePriceKRW: totalBasePriceKRW,
         totalKRW,
         finalMNT,
-        // formatted strings for convenience
         weightDisplay: `${totalWeightKg.toFixed(1)}kg`,
         rateDisplay: `${ratePerKg.toLocaleString()}₩`,
         shippingDisplay: `${shippingCostKRW.toLocaleString()}₩`,
         baseDisplay: `${totalBasePriceKRW.toLocaleString()}₩`,
         totalDisplay: `${totalKRW.toLocaleString()}₩`
     };
+};
+
+/**
+ * Cleans the scanned barcode based on user-defined rules.
+ * 1. Remove trailing '0' (Always)
+ * 2. Remove leading '0' (Only if it starts with '0'. '1' prefix is kept.)
+ * 
+ * @param {string} code - The raw scanned code
+ * @returns {string} The cleaned code
+ */
+export const cleanBarcode = (code) => {
+    if (!code) return code;
+    let cleaned = code.trim();
+
+    // 🚀 NEW RULE (2025-01-17): Specific handling for 8-digit barcodes
+    if (cleaned.length === 8) {
+        // Rule 1: Starts with '1' -> Remove last '0' (Result: 7 digits)
+        // e.g., 1xxxxxx0 -> 1xxxxxx
+        if (cleaned.startsWith('1') && cleaned.endsWith('0')) {
+            return cleaned.slice(0, -1);
+        }
+
+        // Rule 2: Starts with '0' -> Remove first and last '0' (Result: 6 digits)
+        // e.g., 0xxxxxx0 -> xxxxxx
+        if (cleaned.startsWith('0') && cleaned.endsWith('0')) {
+            return cleaned.slice(1, -1);
+        }
+    }
+
+    // Default: Remove leading '0' for other formats (e.g. UPC-A, EAN-13 padding)
+    if (cleaned.startsWith('0')) {
+        cleaned = cleaned.substring(1);
+    }
+
+    return cleaned;
 };

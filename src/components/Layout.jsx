@@ -4,12 +4,11 @@ import Toast from './Toast';
 import MenuDrawer from './MenuDrawer';
 import ChatButton from './ChatButton';
 import { useChatStore } from '../store/chatStore';
-import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
 import React, { Suspense, lazy, useRef, useState, useLayoutEffect } from 'react';
 
 const ChatModal = lazy(() => import('./ChatModal'));
-const CartMenuModal = lazy(() => import('./CartMenuModal'));
+
 
 
 export default function Layout() {
@@ -20,7 +19,6 @@ export default function Layout() {
     const isStandalone = view === 'spreadsheet' || view === 'summary';
 
     const { isOpen: isChatOpen } = useChatStore();
-    const { isCartOpen, closeCart } = useUIStore();
     const { user } = useAuthStore(); // Access user for permanent sidebar check
 
     // -- NEW: Layout Measurement Logic --
@@ -67,20 +65,12 @@ export default function Layout() {
             {/* Main Content Wrapper - Centered group */}
             <div className="flex flex-col lg:flex-row w-full transition-all duration-300 gap-6 px-0 sm:px-4 justify-center">
                 <main ref={mainWrapperRef} className="w-full min-w-0 relative max-w-5xl">
-                    {isCartOpen ? (
-                        <div className="w-full h-full min-h-[500px] animate-in fade-in slide-in-from-bottom-4 duration-300">
-                            <Suspense fallback={<div className="h-96 w-full flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div></div>}>
-                                <CartMenuModal isOpen={true} onClose={closeCart} isEmbedded={true} />
-                            </Suspense>
-                        </div>
-                    ) : (
-                        <Outlet />
-                    )}
+                    <Outlet />
                 </main>
 
                 {/* Desktop Chat Sidebar - Sticky positioning to sit next to content */}
-                {/* Logic: Show if Chat is Open OR if User is Admin (Permanent) */}
-                {((isChatOpen || user?.isAdmin)) && (
+                {/* Logic: Show if Chat is Open */}
+                {(isChatOpen) && (
                     <>
                         {/* Desktop Sidebar - Always show for Admin or if Toggled */}
                         <aside className="hidden lg:flex w-[400px] shrink-0 flex-col h-screen sticky top-0 z-50 bg-white shadow-xl border-l border-gray-100">

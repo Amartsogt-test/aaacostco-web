@@ -8,6 +8,8 @@ export default function DebugPage() {
     const [error, setError] = useState(null);
     const [projectId, setProjectId] = useState('Unknown');
 
+    const [showOnlyZero, setShowOnlyZero] = useState(false);
+
     useEffect(() => {
         async function fetchData() {
             try {
@@ -34,6 +36,9 @@ export default function DebugPage() {
         fetchData();
     }, []);
 
+    const zeroPriceProducts = products.filter(p => p.price == 0);
+    const displayProducts = showOnlyZero ? zeroPriceProducts : products;
+
     return (
         <div className="p-8 bg-white min-h-screen">
             <h1 className="text-2xl font-bold mb-4">Firestore Debug Page</h1>
@@ -43,6 +48,15 @@ export default function DebugPage() {
                 <p><strong>Collection:</strong> products</p>
                 <p><strong>Status:</strong> {loading ? 'Loading...' : error ? 'Error' : 'Success'}</p>
                 <p><strong>Total Documents:</strong> {products.length}</p>
+                <div className="mt-4 p-4 bg-yellow-100 border border-yellow-300 rounded text-red-700 font-bold flex items-center justify-between">
+                    <span>⚠️ 0 Үнэтэй бараа: {zeroPriceProducts.length}</span>
+                    <button
+                        onClick={() => setShowOnlyZero(!showOnlyZero)}
+                        className="px-4 py-2 bg-red-600 text-white rounded shadow text-sm hover:bg-red-700"
+                    >
+                        {showOnlyZero ? 'Бүгдийг харах' : 'Зөвхөн 0 үнэтэйг харах'}
+                    </button>
+                </div>
             </div>
 
             {error && (
@@ -57,16 +71,16 @@ export default function DebugPage() {
                         <th className="border p-2">ID</th>
                         <th className="border p-2">Name</th>
                         <th className="border p-2">Price</th>
-                        <th className="border p-2">Created At</th>
+                        <th className="border p-2">Category</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {products.map(p => (
-                        <tr key={p.id} className="border-b hover:bg-gray-50">
+                    {displayProducts.map(p => (
+                        <tr key={p.id} className={`border-b hover:bg-gray-50 ${p.price == 0 ? 'bg-red-50' : ''}`}>
                             <td className="border p-2 font-mono text-xs">{p.id}</td>
                             <td className="border p-2">{p.name || 'No Name'}</td>
-                            <td className="border p-2">{p.price}</td>
-                            <td className="border p-2 text-xs">{p.createdAt || 'N/A'}</td>
+                            <td className="border p-2 font-bold text-red-600">{p.price} ₮</td>
+                            <td className="border p-2 text-xs">{p.categoryCode || 'N/A'}</td>
                         </tr>
                     ))}
                 </tbody>

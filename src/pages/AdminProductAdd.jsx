@@ -16,7 +16,7 @@ const KIcon = ({ size = 24, className }) => (
         <text x="12" y="18" textAnchor="middle" fontSize="22" fontWeight="900" fontFamily="sans-serif">K</text>
     </svg>
 );
-import ScannerModal from '../components/ScannerModal';
+
 
 export default function AdminProductAdd() {
     const navigate = useNavigate();
@@ -25,7 +25,6 @@ export default function AdminProductAdd() {
     const editId = searchParams.get('id');
 
     const { addProduct, updateProduct, products, categories, addCategory, addSubCategory, filters, fetchFilters } = useProductStore();
-    const [isScannerOpen, setIsScannerOpen] = useState(false);
 
     // Fetch filters if missing
     useEffect(() => {
@@ -59,42 +58,81 @@ export default function AdminProductAdd() {
         weight: ''
     });
 
-    // Populate form if editing
+    // Populate form if editing - FETCH FRESH DATA
     useEffect(() => {
-        if (editId) {
-            const productToEdit = products.find(p => p.id == editId);
-            if (productToEdit) {
-                setFormData({
-                    barcode: productToEdit.barcode || '',
-                    name: productToEdit.name || '',
-                    name_en: productToEdit.name_en || '',
-                    price: productToEdit.basePrice || productToEdit.price,
-                    discountPrice: productToEdit.discount ? productToEdit.price : '',
-                    discountEndDate: productToEdit.discountEndDate || '',
-                    category: productToEdit.category || defaultCategory,
-                    subCategory: productToEdit.subCategory || '',
-                    additionalCategories: productToEdit.additionalCategories || [],
-                    image: productToEdit.image || '',
-                    video: productToEdit.video || '',
-                    description: productToEdit.description || '',
-                    productLink: productToEdit.productLink || productToEdit.costcoUrl || '',
-                    unitPrice: productToEdit.unitPrice || '',
-                    rating: productToEdit.rating || productToEdit.averageRating || '',
-                    reviewCount: productToEdit.reviewCount || '',
-                    stock: productToEdit.stock || 'inStock',
-                    status: productToEdit.status || 'active',
-                    weight: productToEdit.weight || ''
-                });
+        const loadProduct = async () => {
+            if (editId) {
+                try {
+                    // 1. Try to find in store first for instant load
+                    const cachedProduct = products.find(p => p.id == editId);
+                    if (cachedProduct) {
+                        setFormData(prev => ({
+                            ...prev,
+                            barcode: cachedProduct.barcode || '',
+                            name: cachedProduct.name || '',
+                            name_en: cachedProduct.name_en || '',
+                            price: cachedProduct.basePrice || cachedProduct.price,
+                            discountPrice: cachedProduct.discount ? cachedProduct.price : '',
+                            discountEndDate: cachedProduct.discountEndDate || '',
+                            category: cachedProduct.category || defaultCategory,
+                            subCategory: cachedProduct.subCategory || '',
+                            additionalCategories: cachedProduct.additionalCategories || [],
+                            image: cachedProduct.image || '',
+                            video: cachedProduct.video || '',
+                            description: cachedProduct.description || '',
+                            productLink: cachedProduct.productLink || cachedProduct.costcoUrl || '',
+                            unitPrice: cachedProduct.unitPrice || '',
+                            rating: cachedProduct.rating || cachedProduct.averageRating || '',
+                            reviewCount: cachedProduct.reviewCount || '',
+                            stock: cachedProduct.stock || 'inStock',
+                            status: cachedProduct.status || 'active',
+                            weight: cachedProduct.weight || ''
+                        }));
+                    }
 
-                if (productToEdit.basePrice) {
-                    setFormData(prev => ({
-                        ...prev,
-                        price: productToEdit.basePrice,
-                        discountPrice: productToEdit.discount ? productToEdit.price : ''
-                    }));
+                    // 2. Fetch FRESH data from server to ensure accuracy (e.g. price updates)
+                    const { productService } = await import('../services/productService');
+                    const freshProduct = await productService.getProductById(editId);
+
+                    if (freshProduct) {
+                        console.log("🔄 Loaded fresh data for edit:", freshProduct);
+                        setFormData(prev => ({
+                            ...prev,
+                            barcode: freshProduct.barcode || '',
+                            name: freshProduct.name || '',
+                            name_en: freshProduct.name_en || '',
+                            price: freshProduct.basePrice || freshProduct.price?.value || freshProduct.price || 0, // Handle object or number
+                            discountPrice: freshProduct.discount ? (freshProduct.price?.value || freshProduct.price) : '',
+                            discountEndDate: freshProduct.discountEndDate || '',
+                            category: freshProduct.category || defaultCategory,
+                            subCategory: freshProduct.subCategory || '',
+                            additionalCategories: freshProduct.additionalCategories || [],
+                            image: freshProduct.image || '',
+                            video: freshProduct.video || '',
+                            description: freshProduct.description || '',
+                            productLink: freshProduct.productLink || freshProduct.costcoUrl || '',
+                            unitPrice: freshProduct.unitPrice || '',
+                            rating: freshProduct.rating || freshProduct.averageRating || '',
+                            reviewCount: freshProduct.reviewCount || '',
+                            stock: freshProduct.stock || 'inStock',
+                            status: freshProduct.status || 'active',
+                            weight: freshProduct.weight || ''
+                        }));
+
+                        if (freshProduct.basePrice) {
+                            setFormData(prev => ({
+                                ...prev,
+                                price: freshProduct.basePrice,
+                                discountPrice: freshProduct.discount ? (freshProduct.price?.value || freshProduct.price) : ''
+                            }));
+                        }
+                    }
+                } catch (err) {
+                    console.error("Failed to load product for edit:", err);
                 }
             }
-        }
+        };
+        loadProduct();
     }, [editId, products, defaultCategory]);
 
     // Simple state for adding new category
@@ -206,11 +244,6 @@ export default function AdminProductAdd() {
         }
     };
 
-    const handleScan = (code) => {
-        setFormData(prev => ({ ...prev, barcode: code }));
-        setIsScannerOpen(false);
-    };
-
     // Category Management
     const handleAddCategory = () => {
         if (!newCategoryName.trim()) return;
@@ -270,12 +303,8 @@ export default function AdminProductAdd() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8 px-4">
-            <ScannerModal
-                isOpen={isScannerOpen}
-                onClose={() => setIsScannerOpen(false)}
-                onScan={handleScan}
-            />
+        <div className="min-h-screen bg-gray-50 py-4 px-3 sm:py-8 sm:px-4">
+
 
             <div className="max-w-2xl mx-auto">
                 <button
@@ -286,7 +315,7 @@ export default function AdminProductAdd() {
                     Буцах
                 </button>
 
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-8">
                     <h1 className="text-2xl font-bold text-gray-900 mb-8 flex items-center gap-3">
                         <div className="bg-costco-blue/10 p-2 rounded-lg text-costco-blue">
                             <Upload size={24} />
@@ -305,16 +334,17 @@ export default function AdminProductAdd() {
                                     type="text"
                                     value={formData.barcode}
                                     onChange={e => setFormData({ ...formData, barcode: e.target.value })}
-                                    className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-costco-blue focus:border-transparent outline-none transition tabular-nums tracking-wider"
-                                    placeholder="Barcode энд бичигдэнэ..."
+                                    className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-costco-blue focus:border-transparent outline-none transition tabular-nums tracking-wider w-full min-w-0"
+                                    placeholder="Barcode бичих..."
                                 />
                                 <button
                                     type="button"
-                                    onClick={() => setIsScannerOpen(true)}
-                                    className="bg-costco-blue/10 text-costco-blue px-4 rounded-xl hover:bg-costco-blue hover:text-white transition flex items-center gap-2 font-bold"
+                                    onClick={() => navigate('/scanner')}
+                                    className="bg-costco-blue/10 text-costco-blue px-4 rounded-xl hover:bg-costco-blue hover:text-white transition flex items-center gap-2 font-bold whitespace-nowrap"
                                 >
                                     <ScanBarcode size={20} />
-                                    Уншуулах
+                                    <span className="hidden sm:inline">Уншуулах</span>
+                                    <span className="sm:hidden">Scan</span>
                                 </button>
                             </div>
                         </div>

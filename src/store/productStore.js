@@ -627,7 +627,7 @@ export const useProductStore = create(
                             // Try pre-built index first
                             index = await productService.getSearchIndex();
                             if (index) setSearchIndexCache(index);
-                        } catch (_e) {
+                        } catch {
                             console.warn("Index load failed, falling back to server");
                         }
                     }
@@ -637,7 +637,7 @@ export const useProductStore = create(
                 // Internal helper to perform search on index
                 const doLocalSearch = (searchTokens, sourceIndex) => {
                     return sourceIndex.filter(p => {
-                        const nameContent = `${p.name} ${p.name_mn || ""} ${p.englishName || ""} ${p.brand || ""} ${p.code || ""}`.toLowerCase();
+                        const nameContent = `${p.name} ${p.name_mn || ""} ${p.englishName || ""} ${p.brand || ""} ${p.code || ""} ${p.id}`.toLowerCase();
                         return searchTokens.every(t => nameContent.includes(t));
                     }).map(p => ({
                         ...p,
@@ -661,6 +661,20 @@ export const useProductStore = create(
                             isLoading: true,
                             isAiSearching: true // Show "AI thinking" indicator
                         });
+                    } else if (initialResults.length === 0) {
+                        // 🟡 FALLBACK: If local index has no results, try server-side
+                        // (Especially important if index is stale or product is new)
+                        console.log("Local index miss, trying server-side fallback...");
+                        const serverResults = await productService.searchServerSide(term);
+                        if (serverResults.length > 0) {
+                            initialResults = serverResults;
+                            set({
+                                products: serverResults,
+                                totalCount: serverResults.length,
+                                isLoading: true,
+                                isAiSearching: true
+                            });
+                        }
                     }
                 } else {
                     // Fallback to Server Side if no index
@@ -712,7 +726,7 @@ export const useProductStore = create(
                         // 2. Expanded match
 
                         const expandedResults = index.filter(p => {
-                            const nameContent = `${p.name} ${p.name_mn || ""} ${p.englishName || ""} ${p.brand || ""} ${p.categoryName || ""} ${p.description_mn || ""}`.toLowerCase();
+                            const nameContent = `${p.name} ${p.name_mn || ""} ${p.englishName || ""} ${p.brand || ""} ${p.categoryName || ""} ${p.description_mn || ""} ${p.code || ""} ${p.id}`.toLowerCase();
                             return uniqueTokens.some(t => nameContent.includes(t));
                         }).map(p => ({
                             ...p,

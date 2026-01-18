@@ -21,7 +21,7 @@ class ErrorBoundary extends React.Component {
             return (
                 <div style={{ padding: '20px', color: 'red' }}>
                     <h1>Something went wrong.</h1>
-                    <details style={{ whiteSpace: 'pre-wrap' }}>
+                    <details style={{ whiteSpace: 'pre-wrap' }} open>
                         {this.state.error && this.state.error.toString()}
                         <br />
                         {this.state.errorInfo && this.state.errorInfo.componentStack}

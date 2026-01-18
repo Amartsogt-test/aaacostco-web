@@ -1,11 +1,11 @@
 import React from 'react';
-import { Crown } from 'lucide-react';
+import { Crown, LogOut, Phone } from 'lucide-react';
 
-export default function LoyaltyCard({ user }) {
+export default function LoyaltyCard({ user, onLogout }) {
     if (!user) return null;
 
     return (
-        <div className="bg-white shadow-sm border border-gray-100 rounded-2xl p-6 text-gray-900 relative overflow-hidden group">
+        <div className="bg-white shadow-sm md:border border-gray-100 rounded-none md:rounded-2xl p-4 md:p-6 text-gray-900 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition">
                 <Crown size={80} className="text-gray-900" />
             </div>
@@ -28,7 +28,7 @@ export default function LoyaltyCard({ user }) {
                 </div>
 
                 {user?.nextTier ? (
-                    <div>
+                    <div className="mb-6">
                         <div className="flex justify-between text-xs mb-1.5 opacity-90">
                             <span>Дараагийн түвшин: <strong>{user.nextTier}</strong></span>
                             <span>{(user.remain || 0).toLocaleString()}₮ дутуу</span>
@@ -41,11 +41,31 @@ export default function LoyaltyCard({ user }) {
                         </div>
                     </div>
                 ) : (
-                    <div className="text-sm bg-blue-50 text-blue-700 rounded-lg py-2 px-3 inline-flex items-center gap-2 font-medium">
+                    <div className="mb-6 text-sm bg-blue-50 text-blue-700 rounded-lg py-2 px-3 inline-flex items-center gap-2 font-medium">
                         <Crown size={14} />
                         Та хамгийн өндөр түвшинд байна!
                     </div>
                 )}
+
+                {/* Footer: Phone & Logout */}
+                <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-gray-600 font-medium">
+                        <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400">
+                            <Phone size={14} />
+                        </div>
+                        <span>{(user?.phone || user?.phoneNumber || 'Дугааргүй').replace(/^\+976/, '')}</span>
+                    </div>
+
+                    {onLogout && (
+                        <button
+                            onClick={onLogout}
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 rounded-lg transition"
+                        >
+                            <LogOut size={14} />
+                            Гарах
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );

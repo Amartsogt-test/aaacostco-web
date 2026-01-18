@@ -5,11 +5,9 @@ import { useAuthStore } from '../store/authStore';
 import { db } from '../firebase';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useProductStore } from '../store/productStore';
-import SalesSummaryModal from '../components/SalesSummaryModal';
 
-const QuickScanModal = React.lazy(() => import('../components/QuickScanModal'));
 
-export default function AdminPortal() {
+const AdminPortal = () => {
     const navigate = useNavigate();
     const { user } = useAuthStore();
     const isAdmin = user?.isAdmin;
@@ -22,9 +20,6 @@ export default function AdminPortal() {
     const [prevGolomtRates, setPrevGolomtRates] = useState(null);
     const [prevTdbRates, setPrevTdbRates] = useState(null);
     const [prevKhanRates, setPrevKhanRates] = useState(null);
-
-    const [isSalesModalOpen, setIsSalesModalOpen] = useState(false);
-    const [isQuickScanOpen, setIsQuickScanOpen] = useState(false);
 
     useEffect(() => {
         subscribeToWonRate();
@@ -94,9 +89,9 @@ export default function AdminPortal() {
         // styleClass now separates colors: e.g. "text-green-700 bg-green-50 border-green-200"
 
         return (
-            <div className={`rounded-xl p-3 flex flex-col justify-center items-center border ${styleClass} transition-transform active:scale-95`}>
-                <div className="text-[9px] font-bold tracking-wider mb-0.5 opacity-70 uppercase">{label}</div>
-                <div className="text-xl font-black flex items-end gap-1 leading-none">
+            <div className={`rounded-xl p-1 flex items-center gap-3 ${styleClass} transition-transform active:scale-95`}>
+                <div className="text-[10px] font-bold tracking-wider opacity-60 uppercase">{label}</div>
+                <div className="text-xl font-black leading-none">
                     {current}
                 </div>
             </div>
@@ -113,52 +108,13 @@ export default function AdminPortal() {
 
     return (
         <div className="min-h-screen bg-gray-50 pb-20">
-            {/* Header */}
-            <div className="bg-white border-b border-gray-100 px-4 py-6 mb-6">
-                <div className="container mx-auto max-w-lg">
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        Админ Портал
-                    </h1>
-                    <p className="text-gray-500 text-sm mt-1">Системийн тохиргоо болон удирдлага</p>
-                </div>
-            </div>
 
-            <div className="container mx-auto max-w-lg px-4 space-y-6">
-                {/* 1. Turbo Edit */}
-                <button
-                    onClick={() => setIsQuickScanOpen(true)}
-                    className="w-full bg-white rounded-2xl shadow-sm border border-blue-100 p-5 flex items-center justify-between group hover:border-blue-300 transition-all"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-costco-blue group-hover:scale-110 transition-transform">
-                            <Scan size={24} />
-                        </div>
-                        <div className="text-left">
-                            <h3 className="font-bold text-costco-blue">Турбо Засвар (Баркод)</h3>
-                            <p className="text-gray-400 text-xs">Хурдан засварлах</p>
-                        </div>
-                    </div>
-                    <ChevronRight size={20} className="text-blue-200 group-hover:text-costco-blue transition-colors" />
-                </button>
 
-                {/* 2. Data Sync */}
-                <button
-                    onClick={handleUpdateData}
-                    className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex items-center justify-between group hover:border-blue-300 transition-all font-semibold text-gray-700"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-gray-500 group-hover:text-costco-blue transition-colors">
-                            <RefreshCw size={24} />
-                        </div>
-                        <span className="text-lg">Өгөгдөл шинэчлэх</span>
-                    </div>
-                    <ChevronRight size={20} className="text-gray-200 group-hover:text-costco-blue transition-colors" />
-                </button>
-
-                {/* Exchange Rates Grid */}
-                <div className="space-y-3">
+            <div className="container mx-auto max-w-lg px-4 space-y-2 pt-6">
+                {/* Group 4: Exchange Rates & Adjuster */}
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50 p-1">
                     {golomtRates && (
-                        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="py-0.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <a
                                     href="https://www.golomtbank.com/exchange"
@@ -172,14 +128,14 @@ export default function AdminPortal() {
                                 </a>
                             </div>
                             <div className="flex items-center gap-3">
-                                {renderRateCell("Авах", golomtRates.nonCashBuy, prevGolomtRates?.nonCashBuy, "text-green-700 bg-green-50/50 border-green-100 w-24")}
-                                {renderRateCell("Зарах", golomtRates.nonCashSell, prevGolomtRates?.nonCashSell, "text-blue-700 bg-blue-50/50 border-blue-100 w-24")}
+                                {renderRateCell("Авах", golomtRates.nonCashBuy, prevGolomtRates?.nonCashBuy, "text-green-700 w-24")}
+                                {renderRateCell("Зарах", golomtRates.nonCashSell, prevGolomtRates?.nonCashSell, "text-blue-700 w-24")}
                             </div>
                         </div>
                     )}
 
                     {tdbRates && (
-                        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="py-0.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <a
                                     href="https://www.tdbm.mn/mn/exchange-rates"
@@ -193,14 +149,14 @@ export default function AdminPortal() {
                                 </a>
                             </div>
                             <div className="flex items-center gap-3">
-                                {renderRateCell("Авах", tdbRates.nonCashBuy, prevTdbRates?.nonCashBuy, "text-green-700 bg-green-50/50 border-green-100 w-24")}
-                                {renderRateCell("Зарах", tdbRates.nonCashSell, prevTdbRates?.nonCashSell, "text-blue-700 bg-blue-50/50 border-blue-100 w-24")}
+                                {renderRateCell("Авах", tdbRates.nonCashBuy, prevTdbRates?.nonCashBuy, "text-green-700 w-24")}
+                                {renderRateCell("Зарах", tdbRates.nonCashSell, prevTdbRates?.nonCashSell, "text-blue-700 w-24")}
                             </div>
                         </div>
                     )}
 
                     {khanRates && (
-                        <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="py-0.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <a
                                     href="https://www.khanbank.com/personal/rates/exchange-rate"
@@ -214,130 +170,138 @@ export default function AdminPortal() {
                                 </a>
                             </div>
                             <div className="flex items-center gap-3">
-                                {renderRateCell("Авах", khanRates.nonCashBuy, prevKhanRates?.nonCashBuy, "text-green-700 bg-green-50/50 border-green-100 w-24")}
-                                {renderRateCell("Зарах", khanRates.nonCashSell, prevKhanRates?.nonCashSell, "text-blue-700 bg-blue-50/50 border-blue-100 w-24")}
+                                {renderRateCell("Авах", khanRates.nonCashBuy, prevKhanRates?.nonCashBuy, "text-green-700 w-24")}
+                                {renderRateCell("Зарах", khanRates.nonCashSell, prevKhanRates?.nonCashSell, "text-blue-700 w-24")}
                             </div>
                         </div>
                     )}
+
+                    <div className="py-0.5 px-4 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={handleRefresh}
+                                className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-costco-blue hover:bg-blue-100 transition-colors"
+                                title="Банкны ханш автоматаар татах"
+                            >
+                                <TrendingUp size={20} />
+                            </button>
+                            <span className="font-bold text-gray-700">Банкны ханш шинэчлэх</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => adjustRate(-0.01)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-all">
+                                <Minus size={18} />
+                            </button>
+                            <input
+                                type="number"
+                                value={tempRate}
+                                onChange={(e) => setTempRate(e.target.value)}
+                                onBlur={saveRate}
+                                onKeyDown={(e) => e.key === 'Enter' && saveRate()}
+                                className="w-16 bg-transparent text-center font-black text-gray-800 outline-none text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <button onClick={() => adjustRate(0.01)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-all">
+                                <Plus size={18} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Rate Adjuster Card */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
+                {/* 2. Data Sync */}
+                <button
+                    onClick={handleUpdateData}
+                    className="w-full bg-white rounded-3xl shadow-sm border border-gray-100 p-1.5 flex items-center justify-between group hover:border-blue-300 transition-all font-semibold text-gray-700"
+                >
                     <div className="flex items-center gap-3">
-                        <button
-                            onClick={handleRefresh}
-                            className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-costco-blue hover:bg-blue-100 transition-colors"
-                            title="Банкны ханш автоматаар татах"
-                        >
-                            <TrendingUp size={20} />
-                        </button>
-                        <span className="font-bold text-gray-700">Банкны ханш шинэчлэх</span>
+                        <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-500 group-hover:text-costco-blue transition-colors">
+                            <RefreshCw size={20} />
+                        </div>
+                        <span className="text-base font-bold">Өгөгдөл шинэчлэх</span>
                     </div>
+                    <ChevronRight size={18} className="text-gray-200 group-hover:text-costco-blue transition-colors" />
+                </button>
 
-                    <div className="flex items-center bg-gray-100 rounded-xl p-1.5 border border-transparent shadow-inner">
-                        <button onClick={() => adjustRate(-0.01)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all shadow-sm">
-                            <Minus size={18} />
-                        </button>
-                        <input
-                            type="number"
-                            value={tempRate}
-                            onChange={(e) => setTempRate(e.target.value)}
-                            onBlur={saveRate}
-                            onKeyDown={(e) => e.key === 'Enter' && saveRate()}
-                            className="w-16 bg-transparent text-center font-black text-gray-800 outline-none text-lg"
-                        />
-                        <button onClick={() => adjustRate(0.01)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all shadow-sm">
-                            <Plus size={18} />
-                        </button>
-                    </div>
-                </div>
+
+
+
+
+
 
                 {/* Main Action Menu */}
+                {/* Group 1: Orders & Sales */}
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
-                    <button onClick={() => setIsSalesModalOpen(true)} className="w-full flex items-center justify-between p-5 hover:bg-blue-50 transition-colors group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-blue-50 text-costco-blue rounded-xl flex items-center justify-center">
-                                <TrendingUp size={20} />
+                    <button onClick={() => navigate('/admin/orders')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
+                                <Package size={18} />
                             </div>
-                            <span className="text-lg font-bold text-gray-700">Борлуулалтын мэдээ</span>
+                            <span className="text-base font-bold text-gray-700">Захиалга</span>
                         </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
 
-                    <button onClick={() => navigate('/admin/orders')} className="w-full flex items-center justify-between p-5 hover:bg-blue-50 transition-colors group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
-                                <Package size={20} />
+                    <button onClick={() => navigate('/sales-summary')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-blue-50 text-costco-blue rounded-xl flex items-center justify-center">
+                                <TrendingUp size={18} />
                             </div>
-                            <span className="text-lg font-bold text-gray-700">Захиалга</span>
+                            <span className="text-base font-bold text-gray-700">Борлуулалт</span>
                         </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                    </button>
+                </div>
+
+
+
+                {/* Group 2: Products */}
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                    <button onClick={() => navigate('/scanner')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center text-costco-blue group-hover:scale-110 transition-transform">
+                                <Scan size={18} />
+                            </div>
+                            <div className="text-left">
+                                <h3 className="font-bold text-gray-700 text-base">Турбо Засвар (Баркод)</h3>
+                            </div>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                    </button>
+                    <button onClick={() => navigate('/admin/add-product')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
+                                <Plus size={18} />
+                            </div>
+                            <span className="text-base font-bold text-gray-700">Бараа нэмэх</span>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
 
-                    <button onClick={() => navigate('/admin/products')} className="w-full flex items-center justify-between p-5 hover:bg-blue-50 transition-colors group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
-                                <ShieldCheck size={20} />
+                    <button onClick={() => navigate('/admin/products')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
+                                <ShieldCheck size={18} />
                             </div>
-                            <span className="text-lg font-bold text-gray-700">Барааны жагсаалт</span>
+                            <span className="text-base font-bold text-gray-700">Барааны жагсаалт</span>
                         </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
+                </div>
 
-                    <button onClick={() => navigate('/admin/add-product')} className="w-full flex items-center justify-between p-5 hover:bg-blue-50 transition-colors group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
-                                <Plus size={20} />
+                {/* Group 3: Settings */}
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                    <button onClick={() => navigate('/admin/settings')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
+                                <FileText size={18} />
                             </div>
-                            <span className="text-lg font-bold text-gray-700">Бараа нэмэх</span>
+                            <span className="text-base font-bold text-gray-700">Сайтын мэдээлэл</span>
                         </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
-                    </button>
-
-                    <button onClick={() => navigate('/admin/banner')} className="w-full flex items-center justify-between p-5 hover:bg-blue-50 transition-colors group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
-                                <ImageIcon size={20} />
-                            </div>
-                            <span className="text-lg font-bold text-gray-700">Баннер удирдах</span>
-                        </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
-                    </button>
-
-                    <button onClick={() => navigate('/admin/menu-images')} className="w-full flex items-center justify-between p-5 hover:bg-blue-50 transition-colors group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
-                                <ImageIcon size={20} />
-                            </div>
-                            <span className="text-lg font-bold text-gray-700">Цэсний зураг</span>
-                        </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
-                    </button>
-
-                    <button onClick={() => navigate('/admin/settings')} className="w-full flex items-center justify-between p-5 hover:bg-blue-50 transition-colors group">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center group-hover:bg-blue-100 group-hover:text-costco-blue transition-colors">
-                                <FileText size={20} />
-                            </div>
-                            <span className="text-lg font-bold text-gray-700">Сайтын мэдээлэл</span>
-                        </div>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
                 </div>
             </div>
-
-            {/* Modals */}
-            <SalesSummaryModal
-                isOpen={isSalesModalOpen}
-                onClose={() => setIsSalesModalOpen(false)}
-            />
-
-            <Suspense fallback={null}>
-                <QuickScanModal
-                    isOpen={isQuickScanOpen}
-                    onClose={() => setIsQuickScanOpen(false)}
-                />
-            </Suspense>
         </div>
     );
 }
+
+export default AdminPortal;

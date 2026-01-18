@@ -8,6 +8,33 @@ export const useCartStore = create(
             groundItems: [],
             airItems: [],
 
+            // Checkout State (Global)
+            checkoutState: {
+                recipientName: '',
+                recipientPhone: '',
+                recipientPhone2: '',
+                deliveryMode: 'pickup', // 'pickup' | 'delivery'
+                selectedBranch: '',
+                deliveryLocation: null,
+                deliveryAddressInfo: '',
+            },
+
+            setCheckoutState: (newState) => set((state) => ({
+                checkoutState: { ...state.checkoutState, ...newState }
+            })),
+
+            resetCheckoutState: () => set({
+                checkoutState: {
+                    recipientName: '',
+                    recipientPhone: '',
+                    recipientPhone2: '',
+                    deliveryMode: 'pickup',
+                    selectedBranch: '',
+                    deliveryLocation: null,
+                    deliveryAddressInfo: '',
+                }
+            }),
+
             // Add to Ground cart (газраар авах)
             addToGround: (product, selectedOptions = null, quantity = 1) => {
                 const items = get().groundItems;

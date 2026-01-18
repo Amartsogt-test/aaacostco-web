@@ -76,15 +76,18 @@ export default function ChatButton() {
     // Always render, let CSS handle positioning/hiding if needed.
     // User specifically asked for "right side button".
 
+    // Check if we are on a dedicated chat page
+    const isChatRoute = location.pathname === '/chat' || location.pathname.startsWith('/admin/chat');
+
     // User Request: Remove the "X" minimize button when chat is open.
-    // Since this button acts as the minimize button when open, we hide it completely.
-    if (isOpen) return null;
+    // Also remove it if we are on the dedicated chat route (buttons are redundant there)
+    if (isOpen || isChatRoute) return null;
 
     return (
         <button
             id="floating-chat-toggle"
             onClick={toggleChat}
-            className={`lg:hidden fixed ${isSearchPage ? 'bottom-48' : 'bottom-32'} right-6 z-[100] p-4 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center
+            className={`fixed ${isSearchPage ? 'bottom-48' : 'bottom-32'} right-6 z-[100] p-4 rounded-full shadow-lg transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center
                 ${isOpen ? 'bg-white text-gray-800 border border-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
             aria-label="Toggle Chat"
         >

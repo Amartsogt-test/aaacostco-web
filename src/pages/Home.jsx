@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
-import { useParams, useLocation, useNavigationType } from 'react-router-dom';
+import { useParams, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import HeroBanner from '../components/HeroBanner';
 import { useProductStore } from '../store/productStore';
 import { useChatStore } from '../store/chatStore';
+import { cleanBarcode } from '../utils/productUtils';
 
 
 
@@ -13,9 +14,21 @@ export default function Home() {
         products, isLoading,
         setFilters, totalCount, currentPage, changePage,
         currentTag, setTagFilter, resetSearch,
-        searchTerm, isSearching, searchProducts
+        searchTerm, isSearching, searchProducts, setSearchTerm
     } = useProductStore();
     const { isOpen: isChatOpen } = useChatStore();
+
+    const [searchParams] = useSearchParams();
+    const rawQuery = searchParams.get('q');
+    const query = cleanBarcode(rawQuery);
+
+    // Initialize search from URL query param
+    useEffect(() => {
+        if (query && query !== searchTerm) {
+            setSearchTerm(query);
+            searchProducts(query, { preservePage: false });
+        }
+    }, [query, setSearchTerm, searchProducts]);
 
     const { mainId, subId } = useParams();
 
@@ -104,7 +117,7 @@ export default function Home() {
             return (
                 p.status !== 'deleted' &&
                 p.status !== 'inactive' &&
-                (price > 0 || priceKRW > 0 || finalPrice > 0)
+                (searchTerm ? true : (price > 0 || priceKRW > 0 || finalPrice > 0))
             );
         });
 
@@ -386,3 +399,4 @@ export default function Home() {
         </div >
     );
 }
+
