@@ -1,13 +1,11 @@
-import { ExternalLink, RefreshCw, LogOut, User, ChevronRight, CheckCircle, ShieldCheck, Plus, Minus, TrendingUp, Crown, Package, Image as ImageIcon, FileText, Scan, HelpCircle, Info, Phone } from 'lucide-react';
+import { LogOut, ShieldCheck, ChevronRight } from 'lucide-react';
 import buildInfo from '../buildInfo.json';
 import { useNavigate } from 'react-router-dom';
 import React, { useEffect, Suspense } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { auth, db } from '../firebase';
-import { FacebookAuthProvider, linkWithPopup } from 'firebase/auth';
+import { auth } from '../firebase'; // Keep auth for signOut if needed, or move to store
 import { useSettingsStore } from '../store/settingsStore';
 
-import { doc, setDoc } from 'firebase/firestore';
 const LoyaltyCard = React.lazy(() => import('../components/LoyaltyCard'));
 
 
@@ -36,86 +34,6 @@ export default function Profile() {
         }
     }, [isAuthenticated, navigate]);
 
-    const _handleFacebookConnect = async () => {
-        try {
-            const ADMIN_PHONE = import.meta.env.VITE_ADMIN_PHONE || '00880088';
-            const isAdminBypass = user?.phone?.includes(ADMIN_PHONE) || user?.uid?.includes(ADMIN_PHONE);
-            if (isAdminBypass) {
-                console.log("⚠️ TEST USER DETECTED: Simulating Facebook Link Success");
-                const fakeFbUser = {
-                    displayName: 'Bilguun Admin',
-                    photoURL: 'https://graph.facebook.com/100000000000000/picture', // Dummy or explicit URL
-                    providerData: [{ uid: 'facebook:test:23568947' }]
-                };
-
-                const newData = {
-                    name: fakeFbUser.displayName,
-                    photoURL: fakeFbUser.photoURL,
-                    fbUid: fakeFbUser.providerData[0]?.uid,
-                    isFacebookLinked: true
-                };
-
-                if (user?.uid) {
-                    const userRef = doc(db, 'users', user.uid);
-                    await setDoc(userRef, newData, { merge: true });
-                }
-
-                const updatedUser = { ...user, ...newData };
-                useAuthStore.getState().login(updatedUser);
-
-                alert('Facebook амжилттай холбогдлоо! (Test Mode)');
-                return;
-            }
-
-            console.log("🔵 Starting Facebook Link...");
-            console.log("🔵 auth.currentUser:", auth.currentUser);
-            console.log("🔵 user from store:", user);
-
-            if (!auth.currentUser) {
-                console.error("❌ No Firebase auth.currentUser - cannot link Facebook");
-                alert('Firebase хэрэглэгч олдсонгүй. Дахин нэвтэрнэ үү.');
-                return;
-            }
-
-            const provider = new FacebookAuthProvider();
-            console.log("🔵 Calling linkWithPopup...");
-            const result = await linkWithPopup(auth.currentUser, provider);
-            console.log("🔵 linkWithPopup result:", result);
-
-            // Link successful
-            const fbUser = result.user;
-            const newData = {
-                name: fbUser.displayName,
-                photoURL: fbUser.photoURL,
-                fbUid: fbUser.providerData[0]?.uid
-            };
-
-            // Update Firestore
-            if (user?.uid) {
-                const userRef = doc(db, 'users', user.uid);
-                await setDoc(userRef, newData, { merge: true });
-            }
-
-            // Update Local State
-            const updatedUser = { ...user, ...newData };
-            useAuthStore.getState().login(updatedUser);
-
-            // Also update localStorage manual persistence if used in other places
-            // (AuthStore persist middleware usually handles this, but we force update)
-            alert('Facebook амжилттай холбогдлоо!');
-
-        } catch (error) {
-            console.error("Facebook Link Error:", error);
-            if (error.code === 'auth/credential-already-in-use') {
-                alert('Энэ Facebook хаяг өөр хэрэглэгчтэй холбогдсон байна.');
-            } else if (error.code === 'auth/popup-closed-by-user') {
-                // Ignore
-            } else {
-                alert('Facebook холбоход алдаа гарлаа: ' + error.message);
-            }
-        }
-    };
-
     const handleLogout = () => {
         logout();
         auth.signOut();
@@ -139,8 +57,6 @@ export default function Profile() {
                     <div className="flex flex-col items-center gap-2">
                         {/* Facebook Connect Button Removed */}
                     </div>
-
-
                 </div>
 
                 <button
@@ -150,9 +66,12 @@ export default function Profile() {
                 >
                     <LogOut size={18} />
                 </button>
-            </div >
 
-            {/* Loyalty Tier Card */}
+
+            </div>
+        </div>
+
+            {/* Loyalty Tier Card */ }
             <div className="container mx-auto max-w-lg px-0 md:px-4" >
                 <Suspense fallback={<div className="h-32 bg-gray-50 animate-pulse rounded-2xl" />}>
                     <LoyaltyCard user={user} onLogout={handleLogout} />
@@ -258,10 +177,10 @@ export default function Profile() {
                 </div>
             </div>
 
-            {/* Build Info */}
-            <div className="text-center pb-8 opacity-30 text-xs font-mono">
-                ver: {buildInfo.buildTime}
-            </div>
-        </div>
+    {/* Build Info */ }
+    <div className="text-center pb-8 opacity-30 text-xs font-mono">
+        ver: {buildInfo.buildTime}
+    </div>
+        </div >
     );
 }

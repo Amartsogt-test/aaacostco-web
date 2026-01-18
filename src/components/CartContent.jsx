@@ -113,7 +113,9 @@ export default function CartContent({ onClose }) {
         deliveryMode = 'pickup',
         selectedBranch = '',
         deliveryLocation = null,
-        deliveryAddressInfo = ''
+        deliveryAddressInfo = '',
+        koreaAddress = '',
+        koreaPhone = ''
     } = checkoutState || {};
 
     // Setters wrap setCheckoutState
@@ -122,6 +124,8 @@ export default function CartContent({ onClose }) {
     const setRecipientPhone2 = (val) => setCheckoutState({ recipientPhone2: val });
     const setDeliveryMode = (val) => setCheckoutState({ deliveryMode: val });
     const setDeliveryAddressInfo = (val) => setCheckoutState({ deliveryAddressInfo: val });
+    const setKoreaAddress = (val) => setCheckoutState({ koreaAddress: val });
+    const setKoreaPhone = (val) => setCheckoutState({ koreaPhone: val });
     const setSelectedBranch = (val) => setCheckoutState({ selectedBranch: val }); // Though better to use LocationPage logic
 
     // Dual cart system
@@ -146,7 +150,8 @@ export default function CartContent({ onClose }) {
     // Calculate shipping-inclusive subtotals for each section
     const calculateSectionTotal = (items, shippingType) => {
         return items.reduce((sum, item) => {
-            const basePriceKRW = item.price?.value || item.price || 0;
+            const onlinePriceKRW = item.price?.value || item.price || 0;
+            const basePriceKRW = item.estimatedWarehousePrice || onlinePriceKRW;
             const unitPriceMNT = calculateFinalPrice(item, basePriceKRW, settings?.transportationRates, wonRate, shippingType);
             return sum + (unitPriceMNT * item.quantity);
         }, 0);
@@ -360,6 +365,15 @@ export default function CartContent({ onClose }) {
                                 >
                                     Хүргэлтээр авах
                                 </button>
+                                <button
+                                    onClick={() => setDeliveryMode('korea_local')}
+                                    className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${deliveryMode === 'korea_local'
+                                        ? 'bg-white text-blue-600 shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                        }`}
+                                >
+                                    🇰🇷 Korea Local
+                                </button>
                             </div>
 
                             {deliveryMode === 'pickup' ? (
@@ -388,7 +402,7 @@ export default function CartContent({ onClose }) {
                                         </button>
                                     </div>
                                 </div>
-                            ) : (
+                            ) : deliveryMode === 'delivery' ? (
                                 /* Delivery Mode */
                                 <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
                                     {/* Location Picker */}
@@ -412,7 +426,6 @@ export default function CartContent({ onClose }) {
                                             {deliveryLocation && <span className="text-xs font-bold bg-green-200 px-2 py-0.5 rounded text-green-800">OK</span>}
                                         </button>
                                     </div>
-
                                     {/* Additional Address Info */}
                                     <div>
                                         <label className="text-xs font-medium text-gray-700 block mb-1">Дэлгэрэнгүй хаяг / Орц, давхар</label>
@@ -422,6 +435,35 @@ export default function CartContent({ onClose }) {
                                             placeholder="Жишээ нь: 54-р байр 2-р орц, 5 давхар, код: 1234"
                                             rows={2}
                                             className="w-full px-3 py-2 border rounded text-sm focus:ring-1 focus:ring-costco-blue outline-none resize-none"
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Korea Local Mode */
+                                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mb-2">
+                                        <p className="text-[10px] text-blue-700 font-bold italic">
+                                            ⚠️ Солонгос доторх хүргэлт: Солонгосын хаяг болон утасны дугаараа оруулна уу.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-gray-700 block mb-1">Korean Address (Солонгос хаяг)</label>
+                                        <textarea
+                                            value={koreaAddress}
+                                            onChange={(e) => setKoreaAddress(e.target.value)}
+                                            placeholder="Example: 서울특별시 강남구 테헤란로 123, 405호"
+                                            rows={2}
+                                            className="w-full px-3 py-2 border rounded text-sm focus:ring-1 focus:ring-costco-blue outline-none resize-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-gray-700 block mb-1">Korean Phone (Солонгос утас)</label>
+                                        <input
+                                            type="tel"
+                                            value={koreaPhone}
+                                            onChange={(e) => setKoreaPhone(e.target.value)}
+                                            placeholder="010-1234-5678"
+                                            className="w-full px-3 py-2 border rounded text-sm focus:ring-1 focus:ring-costco-blue outline-none"
                                         />
                                     </div>
                                 </div>
@@ -449,8 +491,8 @@ export default function CartContent({ onClose }) {
                                     totalValue: total
                                 }
                             })}
-                            disabled={!recipientName || recipientPhone.length < 8}
-                            className={`w-full py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm ${(!recipientName || recipientPhone.length < 8) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
+                            disabled={!recipientName || (deliveryMode !== 'korea_local' && recipientPhone.length < 8) || (deliveryMode === 'korea_local' && !koreaAddress)}
+                            className={`w-full py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 text-sm ${(!recipientName || (deliveryMode !== 'korea_local' && recipientPhone.length < 8) || (deliveryMode === 'korea_local' && !koreaAddress)) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
                         >
                             Нийт {total.toLocaleString()}{currencySymbol} төлөх
                             <ArrowRight size={16} />

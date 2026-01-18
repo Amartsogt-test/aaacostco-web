@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import React, { Suspense, lazy, useRef, useState, useLayoutEffect } from 'react';
 
 const ChatModal = lazy(() => import('./ChatModal'));
+const AdminChat = lazy(() => import('../pages/AdminChat'));
 
 
 
@@ -18,7 +19,7 @@ export default function Layout() {
     const view = searchParams.get('view');
     const isStandalone = view === 'spreadsheet' || view === 'summary';
 
-    const { isOpen: isChatOpen } = useChatStore();
+    const { isOpen: isChatOpen, closeChat } = useChatStore();
     const { user } = useAuthStore(); // Access user for permanent sidebar check
 
     // -- NEW: Layout Measurement Logic --
@@ -75,7 +76,11 @@ export default function Layout() {
                         {/* Desktop Sidebar - Always show for Admin or if Toggled */}
                         <aside className="hidden lg:flex w-[400px] shrink-0 flex-col h-screen sticky top-0 z-50 bg-white shadow-xl border-l border-gray-100">
                             <Suspense fallback={<div className="w-full h-full bg-gray-50 animate-pulse" />}>
-                                <ChatModal isSidebar={true} />
+                                {user?.isAdmin ? (
+                                    <AdminChat isSidebar={true} onClose={closeChat} />
+                                ) : (
+                                    <ChatModal isSidebar={true} />
+                                )}
                             </Suspense>
                         </aside>
 
@@ -84,7 +89,11 @@ export default function Layout() {
                             <div className="lg:hidden fixed top-0 left-0 right-0 overflow-hidden" style={{ zIndex: 100, height: 'calc(100vh - 76px)' }}>
                                 <div className="w-full h-full bg-white shadow-2xl flex flex-col overflow-hidden">
                                     <Suspense fallback={<div className="w-full h-full bg-gray-50 animate-pulse" />}>
-                                        <ChatModal isSidebar={true} />
+                                        {user?.isAdmin ? (
+                                            <AdminChat isSidebar={true} onClose={closeChat} />
+                                        ) : (
+                                            <ChatModal isSidebar={true} />
+                                        )}
                                     </Suspense>
                                 </div>
                             </div>

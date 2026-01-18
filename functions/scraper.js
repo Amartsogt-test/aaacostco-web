@@ -81,6 +81,13 @@ function mapAllFields(raw, catCode) {
     const basePriceValue = (raw.basePrice && typeof raw.basePrice === 'object') ? raw.basePrice.value : priceValue;
     product.price = priceValue;
     product.originalPrice = basePriceValue;
+
+    // 🏪 Store Price Estimation (Offline Price)
+    // Most items on Costco Online have a hidden shipping markup of ~2,000 KRW.
+    // High value items (>100k) usually have 0 markup.
+    const defaultMarkup = (product.price > 100000) ? 0 : 2000;
+    product.estimatedWarehousePrice = Math.max(0, product.price - defaultMarkup);
+
     product.hasDiscount = product.originalPrice > product.price;
 
     if (raw.images && Array.isArray(raw.images)) {

@@ -5,6 +5,7 @@ export const useSettingsStore = create((set, get) => ({
     settings: null,
     isLoading: false,
     error: null,
+    currencyRates: null,
 
     fetchSettings: async () => {
         if (get().settings) return; // Already loaded
@@ -26,6 +27,8 @@ export const useSettingsStore = create((set, get) => ({
         });
     },
 
+    unsubscribeFromCurrency: null, // to keep track if needed
+
     updateSettings: async (newData) => {
         try {
             await settingsService.updateSettings(newData);
@@ -33,6 +36,21 @@ export const useSettingsStore = create((set, get) => ({
             set(state => ({
                 settings: { ...state.settings, ...newData }
             }));
+        } catch (err) {
+            console.error(err);
+            throw err;
+        }
+    },
+
+    subscribeToCurrencyRates: () => {
+        return settingsService.subscribeToCurrency((data) => {
+            set({ currencyRates: data || {} });
+        });
+    },
+
+    refreshBankRates: async () => {
+        try {
+            await settingsService.triggerBankRefresh();
         } catch (err) {
             console.error(err);
             throw err;

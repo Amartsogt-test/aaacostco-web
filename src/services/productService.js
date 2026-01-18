@@ -560,6 +560,7 @@ export const productService = {
                         originalPrice: d.originalPrice || d.originalPriceKRW || 0,
                         stock: d.stock,
                         status: d.status,
+                        estimatedWarehousePrice: d.estimatedWarehousePrice, // NEW: Include for search results
                         updatedAt: d.updatedAt // Keep for sorting
                     };
                 })
@@ -801,32 +802,70 @@ export const productService = {
                 return [exactMatch];
             }
 
-            // Strategy 2: Prefix Search (Faster than full metadata fetch)
-            // Note: This is case-sensitive! We can try Capitalized and Lowercase.
-            const productsRef = collection(db, COLLECTION_NAME);
-
-            // Cap at 20 for speed
-            const q = query(
-                productsRef,
-                where('name', '>=', term),
-                where('name', '<=', term + '\uf8ff'),
-                limit(20)
+            // Strategy 2: Search code field (fast, indexed)
+            // Note: This requires an index on 'code'
+            const qCode = query(
+                collection(db, COLLECTION_NAME),
+                where('code', '==', term),
+                where('status', '==', 'active'),
+                limit(5)
             );
-            const snapshot = await getDocs(q);
-
-            if (!snapshot.empty) {
-                return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const snapCode = await getDocs(qCode);
+            if (!snapCode.empty) {
+                return snapCode.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             }
 
-            // Strategy 3: REMOVED.
-            // We rely on the Client-Side Index (in productStore) for deep full-text search.
-            // The Server-Side search should stay FAST (ID or Prefix only).
+            // Strategy 3: Search by name (StartsWith - case sensitive in Firestore!)
+            // Firestore doesn't support generic fuzzy search.
+            // We rely on 'searchKeywords' array if we implemented it, or just basic prefix match.
+            // For now, let's just return nothing and rely on client index.
+            // Or try a basic 'name' >= term && 'name' <= term + '\uf8ff'
+            const termCap = term.charAt(0).toUpperCase() + term.slice(1);
+            const qName = query(
+                collection(db, COLLECTION_NAME),
+                where('name', '>=', termCap),
+                where('name', '<=', termCap + '\uf8ff'),
+                where('status', '==', 'active'),
+                limit(20)
+            );
+            const snapName = await getDocs(qName);
 
-            return [];
+            return snapName.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
         } catch (error) {
             console.error("Server-side search failed:", error);
             return [];
         }
+    },
+
+    // 🚀 NEW: Trigger Cloud Function for Product Sync
+    async triggerProductSync() {
+        try {
+            const { functions } = await import('../firebase');
+            const { httpsCallable } = await import('firebase/functions');
+            const syncFn = httpsCallable(functions, 'syncProducts', { timeout: 540000 }); // 9m timeout
+            await syncFn();
+            return true;
+        } catch (error) {
+            console.error("Sync trigger failed:", error);
+            throw error;
+        }
+    },
+
+    // 🚀 NEW: Listen to Sync Status
+    subscribeToSyncStatus(callback) {
+        // We use dynamic imports in methods to keep initial bundle size small if possible,
+        // but for onSnapshot we need it often. 'db' is already imported at top.
+        const { onSnapshot, doc } = require('firebase/firestore'); // or use import if top-level available
+        // Since we utilize top-level imports for other methods, let's consistency use dynamic or top-level.
+        // The file uses top-level imports for `doc`, `onSnapshot`.
+
+        const docRef = doc(db, 'system', 'syncStatus');
+        return onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                callback(docSnap.data());
+            }
+        });
     },
 
     // 🚀 NEW: Fetch pre-built search index from Firestore (chunked for large datasets)
@@ -873,7 +912,9 @@ export const productService = {
                         hasDiscount: item.d,
                         status: item.s,
                         categoryCode: item.cat,
-                        additionalCategories: item.ac
+                        additionalCategories: item.ac,
+                        estimatedWarehousePrice: item.w || 0, // NEW
+                        estimatedMarkupKrw: item.mk || 0     // NEW
                     }));
                     allItems.push(...expandedItems);
                 }

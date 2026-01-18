@@ -7,10 +7,10 @@ import buildInfo from '../buildInfo.json';
 const PAGE_SIZE = 40;
 
 // Cache configuration for instant home page loading
-const HOME_CACHE_KEY = 'costco_home_products_v5'; // Changed key to force refresh with new fields
+const HOME_CACHE_KEY = 'costco_home_products_v7'; // Bumped for short description
 const CACHE_VERSION_KEY = 'costco_cache_version';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const SEARCH_INDEX_CACHE_KEY = 'costco_search_index_v2';
+const SEARCH_INDEX_CACHE_KEY = 'costco_search_index_v4';
 const SEARCH_INDEX_TTL_MS = 60 * 60 * 1000; // 1 hour for search index
 
 // Check if cache version matches - if not, clear all caches
@@ -73,7 +73,9 @@ const setHomeCache = (products, categoryCounts) => {
             categoryCode: p.categoryCode,
             weight: p.weight,
             aiWeight: p.aiWeight, // NEW: Include aiWeight
-            classifications: p.classifications // NEW: Include specs for weight parsing
+            estimatedWarehousePrice: p.estimatedWarehousePrice, // NEW: Needed for ProductCard price logic
+            classifications: p.classifications, // NEW: Include specs for weight parsing
+            shortDescription: p.shortDescription // NEW: Persisted AI summary
         }));
 
         localStorage.setItem(HOME_CACHE_KEY, JSON.stringify({
@@ -269,7 +271,7 @@ export const useProductStore = create(
                                 // Removed slice to allow Global Sort in Home.jsx
                                 const _startIndex = 0; // Unused but kept for reference
                                 const endIndex = PAGE_SIZE;
-                                // const pageItems = cached.products.slice(startIndex, endIndex);
+
 
                                 set({
                                     products: cached.products, // Send FULL list
@@ -290,7 +292,7 @@ export const useProductStore = create(
                                         // Only update UI if data changed significantly
                                         if (freshProducts.length !== cached.products.length ||
                                             freshProducts[0]?.id !== cached.products[0]?.id) {
-                                            // const freshPageItems = freshProducts.slice(0, PAGE_SIZE);
+
                                             set({
                                                 products: freshProducts, // Send FULL list
 
@@ -351,9 +353,7 @@ export const useProductStore = create(
                         // Client-side pagination for Home Stream
                         // WE DO NOT SLICE HERE anymore. We send ALL products to Home.jsx
                         // so it can perform GLOBAL SORT before slicing.
-                        // const startIndex = (page - 1) * PAGE_SIZE;
-                        // const endIndex = startIndex + PAGE_SIZE;
-                        // const pageItems = allSpecialProducts.slice(startIndex, endIndex);
+
 
                         set({
                             products: allSpecialProducts, // Send FULL list
@@ -688,78 +688,10 @@ export const useProductStore = create(
                     });
                 }
 
-                // ---------------------------------------------------------
-                // 🚀 STAGE 3: SMART AI SEARCH (Background Expansion)
-                // ---------------------------------------------------------
-                try {
-                    const { aiService } = await import('../services/aiService');
+                // (AI SEARCH REMOVED PER USER REQUEST)
 
-                    // This is the "Slow" part - runs in background
-                    const aiTerms = await aiService.smartSearch(term);
-
-                    // Combine all keywords
-                    const smartTokens = [
-                        lowerTerm,
-                        aiTerms.keywords?.toLowerCase(),
-                        aiTerms.mongolianKeywords?.toLowerCase()
-                    ].filter(Boolean).flatMap(t => t.split(/\s+/)).filter(t => t.length > 2);
-
-                    const uniqueTokens = [...new Set(smartTokens)];
-                    console.log("🤖 Smart Search Terms:", uniqueTokens);
-
-                    if (uniqueTokens.length === 0) {
-                        set({ isLoading: false, isAiSearching: false });
-                        return;
-                    }
-
-                    // Re-run search with expanded terms
-                    let finalResults = [];
-                    if (index && index.length > 0) {
-                        // We use 'some' for smart tokens to be broader (fuzzy-ish), 
-                        // or we can stick to 'every' for precision. 
-                        // Let's use a hybrid: Raw terms are MUST, AI terms are SHOULD.
-                        // For simplicity, let's just search for ANY match of the expanded set
-                        // but rank exact matches higher (implicit in list order usually).
-
-                        // Actually, let's just use the robust logic:
-                        // 1. Exact match (Priority)
-                        // 2. Expanded match
-
-                        const expandedResults = index.filter(p => {
-                            const nameContent = `${p.name} ${p.name_mn || ""} ${p.englishName || ""} ${p.brand || ""} ${p.categoryName || ""} ${p.description_mn || ""} ${p.code || ""} ${p.id}`.toLowerCase();
-                            return uniqueTokens.some(t => nameContent.includes(t));
-                        }).map(p => ({
-                            ...p,
-                            price: p.price || p.priceKRW || 0,
-                            originalPrice: p.originalPrice || p.originalPriceKRW || p.basePrice || 0
-                        }));
-
-                        // Merge with initial results (avoid duplicates)
-                        const seenIds = new Set(initialResults.map(p => p.id));
-                        const newItems = expandedResults.filter(p => !seenIds.has(p.id));
-                        finalResults = [...initialResults, ...newItems];
-
-                    } else {
-                        // If we had to use server side earlier, we probably can't easily do AI expansion 
-                        // efficiently without a server endpoint. 
-                        // But we can try to client-filter the server results if we fetched enough? 
-                        // Or just skip.
-                        finalResults = initialResults;
-                    }
-
-                    // 🟢 FINAL UI UPDATE
-                    set({
-                        products: finalResults,
-                        totalCount: finalResults.length,
-                        isLoading: false,
-                        isAiSearching: false
-                    });
-
-                } catch (error) {
-                    console.error("AI Search failed:", error);
-                    // Ensure we turn off loading even if AI fails
-                    set({ isLoading: false, isAiSearching: false });
-                }
+                // Finish loading immediately after Stage 2
+                set({ isLoading: false, isAiSearching: false });
             },
 
             setTagFilter: async (tag) => {

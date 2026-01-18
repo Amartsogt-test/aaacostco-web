@@ -57,8 +57,8 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
     }
 
     // 🏪 Use warehouse price as main display price if available
-    const warehousePriceKRW = product.estimatedWarehousePrice || null;
-    const mainPriceKRW = warehousePriceKRW || effectivePriceInKRW;
+    // We only use the explicitly stored estimatedWarehousePrice to avoid accidental losses
+    const mainPriceKRW = product.estimatedWarehousePrice || effectivePriceInKRW;
 
     let displayPrice;
     if (currency === 'MNT') {
@@ -230,8 +230,8 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                                 </span>
                             )}
 
-                            {/* Discount Percentage Badge */}
-                            {(product.discount || displayOldPrice) && (
+                            {/* Discount Percentage Badge - Only show if ACTUALLY on sale (hasDiscount) */}
+                            {(product.discount || (displayOldPrice && product.hasDiscount)) && (
                                 <span className="text-sm font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
                                     {product.discount
                                         ? (typeof product.discount === 'number' ? `-${product.discount}%` : product.discount)
@@ -249,8 +249,8 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                         {/* Shipping Prices / Quick Add Buttons */}
                         <div className="flex flex-col gap-1 mt-1">
                             {['ground', 'air'].map(type => {
-                                // Calculate price
-                                const finalPrice = calculateFinalPrice(product, effectivePriceInKRW, settings?.transportationRates, wonRate, type);
+                                // Calculate price - USE STORE PRICE (mainPriceKRW)
+                                const finalPrice = calculateFinalPrice(product, mainPriceKRW, settings?.transportationRates, wonRate, type);
 
                                 // Use component-level flash state
                                 const isAdded = addedFlash[type];

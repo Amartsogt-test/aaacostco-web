@@ -35,7 +35,9 @@ async function buildSearchIndex() {
             d: data.hasDiscount || false,  // hasDiscount
             s: data.status || 'active',    // status
             cat: data.categoryCode || '',  // categoryCode
-            ac: data.additionalCategories || []  // additionalCategories
+            ac: data.additionalCategories || [], // additionalCategories
+            w: data.estimatedWarehousePrice || 0, // NEW: estimatedWarehousePrice
+            mk: data.estimatedMarkupKrw || 0  // NEW: estimatedMarkupKrw
         });
     });
 

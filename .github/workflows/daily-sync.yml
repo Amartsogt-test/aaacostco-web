@@ -58,6 +58,12 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
+      - name: Run AI Daily Pipeline (Generate Descriptions & Fixes)
+        run: node scripts/generate-daily.cjs
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
       - name: Run core:search-index
         run: npm run core:search-index
         env:

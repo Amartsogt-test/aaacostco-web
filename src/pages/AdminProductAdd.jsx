@@ -95,7 +95,6 @@ export default function AdminProductAdd() {
                     const freshProduct = await productService.getProductById(editId);
 
                     if (freshProduct) {
-                        console.log("🔄 Loaded fresh data for edit:", freshProduct);
                         setFormData(prev => ({
                             ...prev,
                             barcode: freshProduct.barcode || '',
@@ -157,12 +156,6 @@ export default function AdminProductAdd() {
         try {
             const basePrice = Number(formData.price);
             const salePrice = formData.discountPrice ? Number(formData.discountPrice) : null;
-
-            console.log('DEBUG: Updating Product Payload:', {
-                id: editId,
-                additionalCategories: formData.additionalCategories.filter(Boolean),
-                fullData: formData
-            });
 
             const productData = {
                 barcode: formData.barcode,

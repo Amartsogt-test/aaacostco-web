@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { httpsCallable } from 'firebase/functions';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { functions, db } from '../firebase';
+import { productService } from '../services/productService';
 import { RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react';
 
 export default function AdminSync() {
@@ -18,8 +16,7 @@ export default function AdminSync() {
         setIsStarted(true);
         setError(null);
         try {
-            const syncProducts = httpsCallable(functions, 'syncProducts', { timeout: 540000 }); // 9 minutes timeout
-            await syncProducts();
+            await productService.triggerProductSync();
         } catch (err) {
             console.error(err);
             setError(err.message);
@@ -28,10 +25,8 @@ export default function AdminSync() {
 
     // Listen to real-time status
     useEffect(() => {
-        const unsub = onSnapshot(doc(db, 'system', 'syncStatus'), (docSnap) => {
-            if (docSnap.exists()) {
-                setStatus(docSnap.data());
-            }
+        const unsub = productService.subscribeToSyncStatus((data) => {
+            setStatus(data);
         });
         return () => unsub();
     }, []);

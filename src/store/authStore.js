@@ -58,6 +58,77 @@ export const useAuthStore = create(
                 } catch (error) {
                     console.error("Failed to sync user:", error);
                 }
+            },
+            linkFacebook: async (currentUser) => {
+                const { auth, db } = await import('../firebase');
+                try {
+                    // Dynamic imports 
+                    const { doc, setDoc } = await import('firebase/firestore');
+                    const { FacebookAuthProvider, linkWithPopup } = await import('firebase/auth');
+
+                    const ADMIN_PHONE = import.meta.env.VITE_ADMIN_PHONE || '00880088';
+                    const user = currentUser;
+                    const isAdminBypass = user?.phone?.includes(ADMIN_PHONE) || user?.uid?.includes(ADMIN_PHONE);
+
+                    if (isAdminBypass) {
+                        const fakeFbUser = {
+                            displayName: 'Bilguun Admin',
+                            photoURL: 'https://graph.facebook.com/100000000000000/picture',
+                            providerData: [{ uid: 'facebook:test:23568947' }]
+                        };
+                        const newData = {
+                            name: fakeFbUser.displayName,
+                            photoURL: fakeFbUser.photoURL,
+                            fbUid: fakeFbUser.providerData[0]?.uid,
+                            isFacebookLinked: true
+                        };
+
+                        if (user?.uid) {
+                            const userRef = doc(db, 'users', user.uid);
+                            await setDoc(userRef, newData, { merge: true });
+                        }
+
+                        set(state => ({
+                            user: state.user ? { ...state.user, ...newData } : null
+                        }));
+                        return { success: true, message: 'Facebook амжилттай холбогдлоо! (Test Mode)' };
+                    }
+
+                    if (!auth.currentUser) {
+                        return { success: false, message: 'Firebase хэрэглэгч олдсонгүй.' };
+                    }
+
+                    const provider = new FacebookAuthProvider();
+                    const result = await linkWithPopup(auth.currentUser, provider);
+                    const fbUser = result.user;
+                    const newData = {
+                        name: fbUser.displayName,
+                        photoURL: fbUser.photoURL,
+                        fbUid: fbUser.providerData[0]?.uid,
+                        isFacebookLinked: true
+                    };
+
+                    if (user?.uid) {
+                        const userRef = doc(db, 'users', user.uid);
+                        await setDoc(userRef, newData, { merge: true });
+                    }
+
+                    set(state => ({
+                        user: state.user ? { ...state.user, ...newData } : null
+                    }));
+
+                    return { success: true, message: 'Facebook амжилттай холбогдлоо!' };
+
+                } catch (error) {
+                    console.error("Facebook Link Error:", error);
+                    let msg = 'Facebook холбоход алдаа гарлаа: ' + error.message;
+                    if (error.code === 'auth/credential-already-in-use') {
+                        msg = 'Энэ Facebook хаяг өөр хэрэглэгчтэй холбогдсон байна.';
+                    } else if (error.code === 'auth/popup-closed-by-user') {
+                        msg = 'Cancelled';
+                    }
+                    return { success: false, message: msg };
+                }
             }
         }),
         {

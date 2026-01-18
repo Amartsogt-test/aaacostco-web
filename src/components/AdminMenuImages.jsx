@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Upload, Save, RotateCcw } from 'lucide-react';
-import { db, storage } from '../firebase';
-import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { adminService } from '../services/adminService';
 import { MENU_DATA } from '../data/menuData';
 
 export default function AdminMenuImages({ isEmbedded = false }) {
@@ -17,16 +15,7 @@ export default function AdminMenuImages({ isEmbedded = false }) {
         const loadBanners = async () => {
             setLoading(true);
             try {
-                const banners = {};
-                const promises = MENU_DATA.map(async (cat) => {
-                    const docRef = doc(db, 'categories', cat.code);
-                    const snap = await getDoc(docRef);
-                    if (snap.exists() && snap.data().banner) {
-                        banners[cat.code] = snap.data().banner;
-                    }
-                });
-
-                await Promise.all(promises);
+                const banners = await adminService.getCategoryBanners(MENU_DATA);
                 setDbBanners(banners);
                 setCategories(MENU_DATA);
             } catch (error) {
@@ -46,10 +35,7 @@ export default function AdminMenuImages({ isEmbedded = false }) {
 
         setUploading(prev => ({ ...prev, [categoryCode]: true }));
         try {
-            // Upload to Firebase Storage
-            const storageRef = ref(storage, `menu-images/${categoryCode}_${Date.now()}`);
-            await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(storageRef);
+            const downloadURL = await adminService.uploadBannerImage(file, categoryCode);
 
             // Update unsaved changes state
             setUnsavedChanges(prev => ({
@@ -71,8 +57,7 @@ export default function AdminMenuImages({ isEmbedded = false }) {
 
         setUploading(prev => ({ ...prev, [categoryCode]: true }));
         try {
-            const docRef = doc(db, 'categories', categoryCode);
-            await setDoc(docRef, { banner: newUrl }, { merge: true });
+            await adminService.saveBanner(categoryCode, newUrl);
 
             // Update local state
             setDbBanners(prev => ({
@@ -99,9 +84,7 @@ export default function AdminMenuImages({ isEmbedded = false }) {
 
         setUploading(prev => ({ ...prev, [categoryCode]: true }));
         try {
-            const docRef = doc(db, 'categories', categoryCode);
-            const { deleteField } = await import('firebase/firestore');
-            await updateDoc(docRef, { banner: deleteField() });
+            await adminService.resetBanner(categoryCode);
 
             setDbBanners(prev => {
                 const next = { ...prev };

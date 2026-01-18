@@ -33,11 +33,10 @@ export default function AdminDashboard() {
     // Inline Editing State
     const [editingCell, setEditingCell] = useState(null); // { id, field }
     const [editValue, setEditValue] = useState('');
-    // const [savingId, setSavingId] = useState(null); // Removed unused state
+
 
     const { products, deleteProduct, setProductStatus, fetchProducts, updateProduct, categories } = useProductStore();
-    // const { currency } = useUIStore(); // Unused
-    // const { user } = useAuthStore(); // Unused
+
 
     useEffect(() => {
         fetchProducts();

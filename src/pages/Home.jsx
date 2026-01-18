@@ -45,7 +45,6 @@ export default function Home() {
                 // OPTIMIZATION: If we already have products and the term hasn't changed (restoration),
                 // DO NOT re-search. This mimics "cache" behavior.
                 if (!isTermChanged && products.length > 0 && isSearching) {
-                    console.log('Skipping redundant search (restored state)');
                     return;
                 }
 
@@ -239,8 +238,6 @@ export default function Home() {
             const key = `scroll_pos_${location.pathname}`;
             const savedPosition = sessionStorage.getItem(key);
 
-            console.log('Attempting restore:', { savedPosition, isLoading, count: filteredProducts.length });
-
             if (savedPosition) {
                 const y = parseInt(savedPosition, 10);
                 window.scrollTo(0, y);
@@ -350,7 +347,7 @@ export default function Home() {
                                 {[...Array(totalPages)].map((_, idx) => {
                                     const p = idx + 1;
                                     // Removed strict 'canGoTo' check. Any page is accessible now via offset.
-                                    // const canGoTo = p === 1 || !!cursors[p]; 
+
 
                                     // Show 1, Last, and surrounding pages (increased range: +/- 5 for desktop, +/- 1 for mobile)
                                     // Logic: Always show 1..totalPages if small.

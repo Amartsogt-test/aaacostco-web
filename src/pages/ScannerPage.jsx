@@ -69,7 +69,6 @@ export default function ScannerPage() {
                     };
 
                     const handleScanSuccess = (decodedText) => {
-                        console.log("Scan success:", decodedText);
                         const cleaned = cleanBarcode(decodedText);
                         stopScanner();
                         if (user?.isAdmin) {
@@ -95,7 +94,6 @@ export default function ScannerPage() {
                 console.error("Error starting scanner:", err);
                 retryCount++;
                 if (retryCount < maxRetries) {
-                    console.log(`Retrying... (${retryCount}/${maxRetries})`);
                     setTimeout(startScanner, 300); // Reduced retry delay
                 } else {
                     setCameraError('Камер нээхэд алдаа гарлаа. Хуудсыг refresh хийнэ үү.');

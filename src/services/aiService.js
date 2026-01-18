@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Fetch the API Key. Note: In a client-side Vite app, 
 // environment variables must be prefixed with VITE_.
 const getApiKey = () => import.meta.env.VITE_GEMINI_API_KEY || "";
+const GEMINI_MODEL = "gemini-2.0-flash-exp";
 
 export const aiService = {
     /**
@@ -65,9 +66,9 @@ export const aiService = {
         };
 
         try {
-            return await tryModel("gemini-3-flash-preview");
+            return await tryModel(GEMINI_MODEL);
         } catch (error) {
-            console.warn("⚠️ AI Shopper: Gemini 3 failed, falling back...", error.message);
+            console.warn(`⚠️ AI Shopper: ${GEMINI_MODEL} failed, falling back...`, error.message);
             try {
                 return await tryModel("gemini-1.5-flash", false);
             } catch (fallbackError) {
@@ -112,7 +113,7 @@ export const aiService = {
         };
 
         try {
-            return await tryRec("gemini-3-flash-preview");
+            return await tryRec(GEMINI_MODEL);
         } catch {
             try {
                 return await tryRec("gemini-1.5-flash");
@@ -190,13 +191,15 @@ export const aiService = {
                - Typical snack box: 0.5-1.5kg
                - Typical multi-vitamins: 0.3-0.5kg
             
-            6. WAREHOUSE PRICE ESTIMATION:
-               Costco Online prices include a shipping markup (배송비). 
-               Estimate this hidden markup in KRW based on product type:
-               - Electronics/Laptops/Watches/Expensive items (> 100,000 KRW): 0 KRW
-               - Standard food/grocery items: 2000 KRW
-               - Heavy/Bulky (Water, Large Detergent > 5kg): 3000-5000 KRW
-               - If unsure: 2000 KRW
+             6. WAREHOUSE PRICE ESTIMATION (Online markup vs Store price):
+                Costco Online prices often include a shipping markup (배송비). 
+                However, NOT all products are cheaper in-store. 
+                Estimate the "Shipping Markup" (배송비) in KRW:
+                - Electronics, Laptops, Mobile, Luxury Watches, High-end Appliances: Usually 0 KRW markup (Online Price = Store Price).
+                - Heavy/Bulky Food, Water, Detergent, Large Packs (>5kg): Usually 3,000 - 5,000 KRW markup.
+                - Standard Grocery/Daily Essentials: Usually 2,000 KRW markup.
+                - If the product is already marked as "Sale/Discounted" online, the markup might be 0.
+                - If unsure if it's cheaper in-store: Use 0 KRW (Safer to assume no discount).
 
             Return JSON only:
             {
@@ -218,9 +221,9 @@ export const aiService = {
         };
 
         try {
-            return await tryWeight("gemini-3-flash-preview");
+            return await tryWeight(GEMINI_MODEL);
         } catch (error) {
-            console.warn("⚠️ AI Weight: Gemini 3 failed, trying fallback...", error.message);
+            console.warn(`⚠️ AI Weight: ${GEMINI_MODEL} failed, trying fallback...`, error.message);
             try {
                 return await tryWeight("gemini-1.5-flash");
             } catch {
@@ -236,6 +239,11 @@ export const aiService = {
     async generateProductSummary(product) {
         const apiKey = getApiKey();
         if (!apiKey) return "AI тохиргоо хийгдээгүй байна.";
+
+        // 1. Use persisted short description if available (Instant, No API)
+        if (product.shortDescription && product.shortDescription.length > 5) {
+            return product.shortDescription;
+        }
 
         const productContext = `
             Name (MN): ${product.name_mn || product.name || ''}
@@ -280,12 +288,17 @@ export const aiService = {
         };
 
         try {
-            return await trySummary("gemini-3-flash-preview");
+            return await trySummary(GEMINI_MODEL);
         } catch {
             try {
                 return await trySummary("gemini-1.5-flash");
             } catch {
-                return "Уучлаарай, AI тайлбар гаргахад алдаа гарлаа.";
+                // Fallback to static summary if AI fails
+                const name = product.name_mn || product.name;
+                const price = (product.price || 0).toLocaleString();
+                const desc = (product.description_mn || product.description_en || product.description || '').substring(0, 300);
+
+                return `✨ **${name}**\n\n💰 Үнэ: ${price}₮\n\n📝 ${desc}${desc.length > 300 ? '...' : ''}`;
             }
         }
     }

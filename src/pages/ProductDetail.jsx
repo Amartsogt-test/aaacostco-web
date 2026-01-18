@@ -13,7 +13,7 @@ export default function ProductDetail() {
     const { id } = useParams();
     const products = useProductStore(state => state.products);
     const categories = useProductStore(state => state.categories);
-    // const { user } = useAuthStore(); // Removed unused var
+
     // Fix: Compare as strings to handle both numeric (manual) and string (scraped) IDs
     const storeProduct = products.find(p => String(p.id) === id);
 
@@ -427,8 +427,8 @@ export default function ProductDetail() {
                                         {displayOldPrice.toLocaleString()}{currencySymbol}
                                     </div>
                                 )}
-                                {/* Discount Percentage */}
-                                {displayOldPrice && displayOldPrice > displayPrice && (
+                                {/* Discount Percentage - Only if hasDiscount */}
+                                {displayOldPrice && displayOldPrice > displayPrice && (product.hasDiscount || product.discount) && (
                                     <span className="text-lg font-bold text-red-500 bg-red-100 px-2 py-1 rounded mb-1">
                                         -{Math.round((1 - displayPrice / displayOldPrice) * 100)}%
                                     </span>

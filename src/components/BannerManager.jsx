@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, GripVertical, Image as ImageIcon, Plus, RefreshCw, Trash2, Upload, Film } from 'lucide-react';
-import { db, storage } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { adminService } from '../services/adminService';
 
 export default function BannerManager({ isEmbedded = false }) {
     const navigate = useNavigate();
@@ -26,16 +24,10 @@ export default function BannerManager({ isEmbedded = false }) {
 
     const fetchBanners = async () => {
         try {
-            const snap = await getDoc(doc(db, 'settings', 'home_banner'));
-            if (snap.exists()) {
-                const data = snap.data();
-                // Ensure duration is number
-                setBanners((data.items || []).map(item => ({ ...item, duration: Number(item.duration) || 5 })));
-
-                // Load exchange rate text if exists
-                if (data.exchangeRateText) {
-                    setExchangeRateText(data.exchangeRateText);
-                }
+            const { items, exchangeRateText: text } = await adminService.getHomeBanners();
+            setBanners((items || []).map(item => ({ ...item, duration: Number(item.duration) || 5 })));
+            if (text) {
+                setExchangeRateText(text);
             }
         } catch (error) {
             console.error("Error fetching banners:", error);
@@ -57,11 +49,8 @@ export default function BannerManager({ isEmbedded = false }) {
 
         setIsUploading(true);
         try {
+            const url = await adminService.uploadHomeBanner(file);
             const fileType = file.type.startsWith('video/') ? 'video' : 'image';
-            const fileName = `banners/${Date.now()}_${file.name}`;
-            const storageRef = ref(storage, fileName);
-            const snapshot = await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(snapshot.ref);
 
             const newItem = {
                 url,
@@ -101,11 +90,7 @@ export default function BannerManager({ isEmbedded = false }) {
         setIsSaving(true);
         try {
             console.log("Saving banners:", banners);
-            await setDoc(doc(db, 'settings', 'home_banner'), {
-                items: banners,
-                exchangeRateText: exchangeRateText,
-                updatedAt: new Date().toISOString()
-            }); // Overwrite, no merge: true
+            await adminService.saveHomeBanners(banners, exchangeRateText);
 
             // Re-fetch to verify
             await fetchBanners();
@@ -127,10 +112,8 @@ export default function BannerManager({ isEmbedded = false }) {
         e.target.value = '';
         setIsUploading(true);
         try {
+            const url = await adminService.uploadHomeBanner(file);
             const fileType = file.type.startsWith('video/') ? 'video' : 'image';
-            const storageRef = ref(storage, `banners/${Date.now()}_${file.name}`);
-            const snapshot = await uploadBytes(storageRef, file);
-            const url = await getDownloadURL(snapshot.ref);
 
             setBanners(prev => {
                 const newBanners = [...prev];

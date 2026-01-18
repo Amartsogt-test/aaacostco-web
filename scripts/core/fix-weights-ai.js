@@ -43,7 +43,7 @@ if (!apiKey) {
 }
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({
-    model: "gemini-3-flash-preview",
+    model: "gemini-2.0-flash-exp",
     generationConfig: {
         temperature: 0.1,
         responseMimeType: "application/json",
@@ -107,13 +107,15 @@ CRITICAL RULES FOR CALCULATION:
    - Solids/Powders (g, kg, гр, кг, 킬로그램): Direct weight.
    - For light/bulky items like toilet paper or paper towels, use the weight listed in specs or your best estimate for a large pack (~5-10kg).
 
-6. WAREHOUSE PRICE ESTIMATION:
-   Costco Online prices include a shipping markup (배송비). 
-   Estimate this hidden markup in KRW based on product type:
-   - Electronics/High-value/Watches (> 100,000 KRW): 0 KRW
-   - Standard food/grocery items: 2000 KRW
-   - Heavy/Bulky (Water, Large Detergent > 5kg): 3000-5000 KRW
-   - If unsure: 2000 KRW
+ 6. WAREHOUSE PRICE ESTIMATION (Online markup vs Store price):
+    Costco Online prices often include a shipping markup (배송비). 
+    However, NOT all products are cheaper in-store. 
+    Estimate the "Shipping Markup" (배송비) in KRW:
+    - Electronics, Laptops, Mobile, Luxury Watches, High-end Appliances: Usually 0 KRW markup (Online Price = Store Price).
+    - Heavy/Bulky Food, Water, Detergent, Large Packs (>5kg): Usually 3,000 - 5,000 KRW markup.
+    - Standard Grocery/Daily Essentials: Usually 2,000 KRW markup.
+    - If the product is already marked as "Sale/Discounted" online, the markup might be 0.
+    - If unsure if it's cheaper in-store: Use 0 KRW (Safer to assume no discount).
 
 Respond with JSON ONLY:
 {
@@ -254,25 +256,29 @@ async function run() {
                     const newWeight = Math.round(aiResult.weightKg * 100) / 100;
 
                     // Update if significantly different or if it was missing/ai-calculated
-                    const isSignificantChange = Math.abs(newWeight - oldWeight) > 0.05;
-                    const isFixingMissing = oldWeight === 0;
+                    const isSignificantWeightChange = Math.abs(newWeight - oldWeight) > 0.05;
+                    const isFixingMissingWeight = oldWeight === 0;
                     const isCleaningDimension = issue === "dimension_confusion";
 
-                    if (isSignificantChange || isFixingMissing || isCleaningDimension) {
-                        const onlinePrice = product.priceKRW || product.originalPrice || 0;
-                        const markup = aiResult.estimatedMarkupKrw || 2000;
-                        const warehousePrice = onlinePrice > markup ? onlinePrice - markup : onlinePrice;
+                    const onlinePrice = product.priceKRW || product.originalPrice || 0;
+                    const markup = aiResult.estimatedMarkupKrw || 0;
+                    const newWarehousePrice = onlinePrice > markup ? onlinePrice - markup : onlinePrice;
+                    const oldWarehousePrice = product.estimatedWarehousePrice || 0;
 
+                    // Trigger update if weight changes OR price logic results in a different warehouse price
+                    const isPriceChange = Math.abs(newWarehousePrice - oldWarehousePrice) > 10;
+
+                    if (isSignificantWeightChange || isFixingMissingWeight || isCleaningDimension || isPriceChange) {
                         await db.collection('products').doc(product.id).update({
                             weight: newWeight,
                             aiWeight: newWeight,
                             aiWeightReason: `AI (${aiResult.confidence}): ${aiResult.calculation}`,
                             estimatedMarkupKrw: markup,
-                            estimatedWarehousePrice: warehousePrice,
+                            estimatedWarehousePrice: newWarehousePrice,
                             updatedAt: new Date().toISOString()
                         });
 
-                        console.log(`✅ ${oldWeight}kg → ${newWeight}kg (Store Price: ${warehousePrice}₩)`);
+                        console.log(`✅ ${oldWeight}kg → ${newWeight}kg (Store Price: ${oldWarehousePrice}₩ → ${newWarehousePrice}₩)`);
                         updated++;
                     } else {
                         console.log(`⏭️ No change`);

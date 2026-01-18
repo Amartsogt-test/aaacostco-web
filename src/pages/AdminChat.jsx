@@ -5,7 +5,7 @@ import { giftCardService } from '../services/giftCardService';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
-export default function AdminChat() {
+export default function AdminChat({ isSidebar = false, onClose }) {
     const [conversations, setConversations] = useState([]);
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -234,12 +234,20 @@ export default function AdminChat() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-64px)] bg-white">
-            {/* Header Title Removed as it takes space, or integrated into sidebar */}
+        <div className={`flex flex-col bg-white ${isSidebar ? 'h-full w-full' : 'h-[calc(100vh-64px)]'}`}>
+            {/* Sidebar-only Close Button */}
+            {isSidebar && (
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-200">
+                    <span className="font-bold text-sm text-gray-700">Админ Чат</span>
+                    <button onClick={onClose} className="p-1.5 hover:bg-gray-200 rounded-full transition text-gray-500">
+                        <X size={20} />
+                    </button>
+                </div>
+            )}
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Conversations List */}
-                <div className={`w-full md:w-1/3 border-r ${selectedConversation ? 'hidden md:block' : ''}`}>
+                <div className={`${isSidebar ? 'w-full' : 'w-full md:w-1/3'} border-r ${selectedConversation && !isSidebar ? 'hidden md:block' : selectedConversation ? 'hidden' : ''}`}>
                     <div className="p-4 border-b bg-gray-50">
                         <h2 className="font-bold text-gray-700">Харилцагчид ({conversations.length})</h2>
                     </div>
@@ -291,7 +299,7 @@ export default function AdminChat() {
                 </div>
 
                 {/* Chat Area */}
-                <div className={`flex-1 flex flex-col relative ${!selectedConversation ? 'hidden md:flex' : ''}`}>
+                <div className={`flex-1 flex flex-col relative ${!selectedConversation && !isSidebar ? 'hidden md:flex' : !selectedConversation ? 'hidden' : ''}`}>
                     {selectedConversation ? (
                         <>
                             {/* Chat Header */}
@@ -299,7 +307,7 @@ export default function AdminChat() {
                                 <div className="flex items-center gap-3">
                                     <button
                                         onClick={() => setSelectedConversation(null)}
-                                        className="md:hidden p-2 hover:bg-gray-200 rounded-full"
+                                        className={`${isSidebar ? 'flex' : 'md:hidden'} p-2 hover:bg-gray-200 rounded-full transition-colors`}
                                     >
                                         <ArrowLeft size={20} />
                                     </button>
@@ -329,8 +337,8 @@ export default function AdminChat() {
                                             <div className="flex items-center gap-1 mt-1">
                                                 {userData.followStatus.facebook !== null && (
                                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${userData.followStatus.facebook
-                                                            ? 'bg-blue-100 text-blue-700'
-                                                            : 'bg-red-100 text-red-600'
+                                                        ? 'bg-blue-100 text-blue-700'
+                                                        : 'bg-red-100 text-red-600'
                                                         }`}>
                                                         <Facebook size={10} />
                                                         {userData.followStatus.facebook ? 'Followed' : 'Unfollowed'}
@@ -338,8 +346,8 @@ export default function AdminChat() {
                                                 )}
                                                 {userData.followStatus.instagram !== null && (
                                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${userData.followStatus.instagram
-                                                            ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
-                                                            : 'bg-red-100 text-red-600'
+                                                        ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
+                                                        : 'bg-red-100 text-red-600'
                                                         }`}>
                                                         <Instagram size={10} />
                                                         {userData.followStatus.instagram ? 'Followed' : 'Unfollowed'}

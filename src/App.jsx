@@ -64,13 +64,6 @@ function App() {
     // Subscribe to general settings (shipping rates, etc)
     const unsubscribeSettings = useSettingsStore.getState().subscribeToSettings();
 
-    // Debug: Verify Gemini Key presence
-    const geminiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    console.log("🛠️ App Initialization: Gemini Key Present =", !!geminiKey);
-    if (geminiKey) {
-      console.log("🛠️ Key Sample:", geminiKey.substring(0, 5) + "...");
-    }
-
     return () => unsubscribeSettings();
   }, [subscribeToWonRate]);
 

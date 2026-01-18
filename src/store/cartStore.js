@@ -17,6 +17,8 @@ export const useCartStore = create(
                 selectedBranch: '',
                 deliveryLocation: null,
                 deliveryAddressInfo: '',
+                koreaAddress: '',
+                koreaPhone: '',
             },
 
             setCheckoutState: (newState) => set((state) => ({
@@ -32,6 +34,8 @@ export const useCartStore = create(
                     selectedBranch: '',
                     deliveryLocation: null,
                     deliveryAddressInfo: '',
+                    koreaAddress: '',
+                    koreaPhone: '',
                 }
             }),
 

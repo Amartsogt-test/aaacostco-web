@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Save, AlertCircle, Key } from 'lucide-react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { settingsService } from '../services/settingsService';
 import { useUIStore } from '../store/uiStore';
 
 export default function AdminScraperSettings() {
@@ -18,10 +17,8 @@ export default function AdminScraperSettings() {
 
     const fetchSettings = async () => {
         try {
-            const docRef = doc(db, 'settings', 'scraper');
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                const data = docSnap.data();
+            const data = await settingsService.getScraperSettings();
+            if (data) {
                 setCookie(data.cookie || '');
                 // If saved UA exists, showing it might be confusing if it differs from current.
                 // But for debug, let's keep current browser UA as the one we want to save.
@@ -35,11 +32,11 @@ export default function AdminScraperSettings() {
     const handleSave = async () => {
         setLoading(true);
         try {
-            await setDoc(doc(db, 'settings', 'scraper'), {
+            await settingsService.updateScraperSettings({
                 cookie: cookie,
                 userAgent: userAgent, // Save current UA
                 updatedAt: new Date().toISOString()
-            }, { merge: true });
+            });
             showToast('Амжилттай хадгалагдлаа', 'success');
         } catch (error) {
             console.error("Error saving scraper settings:", error);

@@ -42,7 +42,8 @@ export default function PaymentPage() {
 
             const {
                 recipientName, recipientPhone, recipientPhone2,
-                deliveryMode, selectedBranch, deliveryLocation, deliveryAddressInfo
+                deliveryMode, selectedBranch, deliveryLocation, deliveryAddressInfo,
+                koreaAddress, koreaPhone
             } = checkoutState;
 
             const isGuest = !user;
@@ -59,9 +60,13 @@ export default function PaymentPage() {
                 branch: deliveryMode === 'pickup' ? selectedBranch : null,
                 recipientAddress: deliveryMode === 'pickup'
                     ? `${selectedBranch === 'main' ? 'Төв салбар' : selectedBranch === 'branch2' ? '2-р салбар' : '3-р салбар'} `
-                    : `Хүргэлт: ${deliveryAddressInfo} (${deliveryLocation ? `${deliveryLocation.lat.toFixed(4)}, ${deliveryLocation.lng.toFixed(4)}` : 'Байршил сонгоогүй'})`,
+                    : deliveryMode === 'delivery'
+                        ? `Хүргэлт: ${deliveryAddressInfo} (${deliveryLocation ? `${deliveryLocation.lat.toFixed(4)}, ${deliveryLocation.lng.toFixed(4)}` : 'Байршил сонгоогүй'})`
+                        : `Korea Local: ${koreaAddress} (${koreaPhone})`,
                 deliveryLocation: deliveryMode === 'delivery' ? deliveryLocation : null,
                 deliveryAddressInfo: deliveryMode === 'delivery' ? deliveryAddressInfo : null,
+                koreaAddress: deliveryMode === 'korea_local' ? koreaAddress : null,
+                koreaPhone: deliveryMode === 'korea_local' ? koreaPhone : null,
                 deliveryFee: deliveryMode === 'delivery' ? 5000 : 0,
 
                 groundItemsCount: groundItems.length,

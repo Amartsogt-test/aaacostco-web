@@ -1,10 +1,11 @@
-import { ExternalLink, ChevronRight, ShieldCheck, Plus, Minus, TrendingUp, Package, FileText, Scan, Info, Phone, RefreshCw, Barcode, Image as ImageIcon } from 'lucide-react';
+import { ExternalLink, ChevronRight, ShieldCheck, Plus, Minus, TrendingUp, Package, FileText, Scan, Info, Phone, RefreshCw, Barcode, Image as ImageIcon, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import React, { useState, useEffect, Suspense } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { db } from '../firebase';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { useAuthStore } from '../store/authStore';
+// db, doc, setDoc, onSnapshot moved to service
 import { useProductStore } from '../store/productStore';
+import { useSettingsStore } from '../store/settingsStore';
 
 
 const AdminPortal = () => {
@@ -12,8 +13,10 @@ const AdminPortal = () => {
     const { user } = useAuthStore();
     const isAdmin = user?.isAdmin;
     const { wonRate, setWonRate, subscribeToWonRate } = useProductStore();
+    const { currencyRates, subscribeToCurrencyRates, refreshBankRates } = useSettingsStore();
 
     const [tempRate, setTempRate] = useState(wonRate || '');
+    // Local state for animation/display derived from store
     const [golomtRates, setGolomtRates] = useState(null);
     const [tdbRates, setTdbRates] = useState(null);
     const [khanRates, setKhanRates] = useState(null);
@@ -22,26 +25,27 @@ const AdminPortal = () => {
     const [prevKhanRates, setPrevKhanRates] = useState(null);
 
     useEffect(() => {
-        subscribeToWonRate();
-
-        // Subscribe to Currency Rates
-        const unsub = onSnapshot(doc(db, 'settings', 'currency'), (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data.golomtRates) setGolomtRates(data.golomtRates);
-                if (data.tdbRates) setTdbRates(data.tdbRates);
-                if (data.khanRates) setKhanRates(data.khanRates);
-
-                if (data.previousGolomtRates) setPrevGolomtRates(data.previousGolomtRates);
-                if (data.previousTdbRates) setPrevTdbRates(data.previousTdbRates);
-                if (data.previousKhanRates) setPrevKhanRates(data.previousKhanRates);
-            }
-        });
-        return () => unsub();
-    }, [subscribeToWonRate]);
+        const unsubWon = subscribeToWonRate();
+        const unsubCurrency = subscribeToCurrencyRates();
+        return () => {
+            if (unsubWon) unsubWon(); // Assuming subscribeToWonRate returns cleanup if modified, likely synchronous in store though, but good practice if it changes.
+            if (unsubCurrency) unsubCurrency();
+        };
+    }, [subscribeToWonRate, subscribeToCurrencyRates]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (currencyRates) {
+            if (currencyRates.golomtRates) setGolomtRates(currencyRates.golomtRates);
+            if (currencyRates.tdbRates) setTdbRates(currencyRates.tdbRates);
+            if (currencyRates.khanRates) setKhanRates(currencyRates.khanRates);
+
+            if (currencyRates.previousGolomtRates) setPrevGolomtRates(currencyRates.previousGolomtRates);
+            if (currencyRates.previousTdbRates) setPrevTdbRates(currencyRates.previousTdbRates);
+            if (currencyRates.previousKhanRates) setPrevKhanRates(currencyRates.previousKhanRates);
+        }
+    }, [currencyRates]);
+
+    useEffect(() => {
         if (wonRate) setTempRate(wonRate);
     }, [wonRate]);
 
@@ -66,8 +70,7 @@ const AdminPortal = () => {
     const handleRefresh = async () => {
         if (!window.confirm("Банкны ханшийг автоматаар татах уу?")) return;
         try {
-            const docRef = doc(db, 'settings', 'currency');
-            await setDoc(docRef, { refreshTrigger: true }, { merge: true });
+            await refreshBankRates();
             alert("Команд илгээгдлээ!");
         } catch (e) {
             console.error(e);
@@ -240,12 +243,22 @@ const AdminPortal = () => {
                         <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
 
-                    <button onClick={() => navigate('/sales-summary')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                    <button onClick={() => navigate('/sales-summary')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group border-b border-gray-50">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 bg-blue-50 text-costco-blue rounded-xl flex items-center justify-center">
                                 <TrendingUp size={18} />
                             </div>
                             <span className="text-base font-bold text-gray-700">Борлуулалт</span>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                    </button>
+
+                    <button onClick={() => navigate('/admin/chat')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-green-50 text-green-600 rounded-xl flex items-center justify-center">
+                                <MessageCircle size={18} />
+                            </div>
+                            <span className="text-base font-bold text-gray-700">Админ Чат</span>
                         </div>
                         <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
