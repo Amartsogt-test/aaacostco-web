@@ -1,0 +1,32 @@
+name: Bank Rates Checker
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Run every 30 minutes
+  workflow_dispatch:        # Allow manual trigger
+
+jobs:
+  check-rates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Create Service Account File
+        run: |
+          mkdir -p functions
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}' > functions/service-account.json
+        # NOTE: The single quotes around the secret are important to prevent expansion/breaking
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Rates Script
+        run: npm run core:bank-rates

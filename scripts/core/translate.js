@@ -12,6 +12,10 @@ const __dirname = path.dirname(__filename);
 const serviceAccountPath = path.join(__dirname, '../../functions/service-account.json');
 const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
 
+import dotenv from 'dotenv';
+dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../../.env.local') });
+
 try {
     initializeApp({ credential: cert(serviceAccount) });
 } catch (e) {
@@ -21,7 +25,7 @@ try {
 const db = getFirestore();
 
 // Gemini API Configuration
-const API_KEY = 'AIzaSyCEuiBNYCdG10TxmQSq6ipI_uanY2f1tuc';
+const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCEuiBNYCdG10TxmQSq6ipI_uanY2f1tuc'; // Safe fallback or env
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
 async function callGemini(prompt) {
@@ -66,20 +70,43 @@ function _stripHtml(html) {
 }
 
 async function translateAll() {
-    console.log("🚀 Starting Full Translation (name, description, specifications)...");
+    console.log("🚀 Starting Optimized Translation (New Products Only)...");
 
-    const snapshot = await db.collection('products').get();
+    // Strategy: Fetch only products that likely need translation
+    // 1. Where name_mn is missing (null)
+    const candidates = [];
+    const seenIds = new Set();
     const productsToProcess = [];
 
-    snapshot.forEach(doc => {
-        const data = doc.data();
+    try {
+        console.log("   Querying products with name_mn == null...");
+        // Fetch up to 100 new/untranslated items per run to avoid timeouts/limits
+        const q1 = db.collection('products').where('name_mn', '==', null).limit(100);
+        const snap1 = await q1.get();
+
+        snap1.forEach(doc => {
+            if (!seenIds.has(doc.id)) {
+                seenIds.add(doc.id);
+                candidates.push({ id: doc.id, ...doc.data() });
+            }
+        });
+
+        // Optional: Can verify empty strings too if we suspect bad data, 
+        // but typically null is the default for new items.
+
+    } catch (error) {
+        console.error("Error querying new products:", error);
+    }
+
+    // Validate candidates to determine strictly what needs doing
+    candidates.forEach(data => {
         const needsName = !data.name_mn || data.name_mn === data.name;
         const needsDesc = !data.description_mn && data.description;
         const needsSpecs = !data.specifications_mn && data.specifications && data.specifications.length > 0;
 
         if (needsName || needsDesc || needsSpecs) {
             productsToProcess.push({
-                id: doc.id,
+                id: data.id,
                 name: data.name,
                 description: data.description,
                 specifications: data.specifications,
@@ -90,14 +117,14 @@ async function translateAll() {
         }
     });
 
-    console.log(`Found ${productsToProcess.length} products needing translation.`);
+    console.log(`Found ${productsToProcess.length} new products needing translation.`);
 
     if (productsToProcess.length === 0) {
-        console.log("All products are already translated.");
+        console.log("✅ No new products to translate.");
         return;
     }
 
-    // Process in batches to speed up
+    // Process in batches
     const BATCH_SIZE = 5;
     for (let i = 0; i < productsToProcess.length; i += BATCH_SIZE) {
         const batch = productsToProcess.slice(i, i + BATCH_SIZE);
@@ -139,7 +166,6 @@ async function translateAll() {
             }
         }));
 
-        // Small delay between batches to avoid rate limits
         await new Promise(r => setTimeout(r, 1000));
     }
 

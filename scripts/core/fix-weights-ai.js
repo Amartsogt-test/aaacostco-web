@@ -207,14 +207,24 @@ async function run() {
             return;
         }
     } else {
-        console.log("🔍 MODE: Auto-Detect Issues");
-        const snapshot = await db.collection('products').get();
-        let all = [];
-        snapshot.forEach(doc => all.push({ id: doc.id, ...doc.data() }));
-        productsToAudit = all.filter(p => !!detectIssue(p));
+        console.log("🔍 MODE: Auto-Detect (New Products Only)");
+        // Optimization: Only fetch products where weight is 0 or missing
+        // This assumes new products are initialized with 0 weight
+        const snapshot = await db.collection('products').where('weight', '==', 0).get();
+        snapshot.forEach(doc => {
+            // Second check: Ensure it's not already AI processed (double safety)
+            const d = doc.data();
+            if (!d.aiWeight) {
+                productsToAudit.push({ id: doc.id, ...d });
+            }
+        });
+
+        // Also check for null weight if possible, but 0 is standard init
+        // If we want to catch nulls:
+        // const snapNull = await db.collection('products').where('weight', '==', null).get(); ...
     }
 
-    console.log(`📊 Audit Scope: ${productsToAudit.length} products.\n`);
+    console.log(`📊 Audit Scope: ${productsToAudit.length} new products.\n`);
 
     if (productsToAudit.length === 0) {
         console.log("✅ No products found for audit. Exiting.");

@@ -12,9 +12,6 @@ echo ----------------------------------------
 call npm run core:daily
 
 echo.
-echo [2/2] Running Golomt Bot (Bank Rates)...
-echo ----------------------------------------
-py -3.11 scraper\golomt_bot.py
 
 echo.
 echo ============================================

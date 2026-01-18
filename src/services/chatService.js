@@ -138,16 +138,25 @@ export const chatService = {
     },
 
     // Get all conversations (for admin)
+    // Get all conversations (for admin)
     async getAllConversations() {
         try {
             // Filter: Only show conversations where users requested admin support
+            // NOTE: Combined where() and orderBy() requires an index. 
+            // Only using where() here and sorting in JS to avoid index requirement.
             const q = query(
                 collection(db, COLLECTION_NAME),
-                where('needsAdmin', '==', true),
-                orderBy('lastMessageAt', 'desc')
+                where('needsAdmin', '==', true)
             );
             const snapshot = await getDocs(q);
-            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const convs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Client-side sort
+            return convs.sort((a, b) => {
+                const tA = a.lastMessageAt?.toMillis?.() || 0;
+                const tB = b.lastMessageAt?.toMillis?.() || 0;
+                return tB - tA; // Descending
+            });
         } catch (error) {
             console.error("Error fetching conversations:", error);
             return [];
