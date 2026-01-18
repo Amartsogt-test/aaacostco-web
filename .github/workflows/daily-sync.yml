@@ -2,8 +2,8 @@ name: Daily Costco Sync
 
 on:
   schedule:
-    # Runs at 06:00 UTC every day (14:00 Mongolia time)
-    - cron: '0 6 * * *'
+    # Runs at 01:00 UTC every day (09:00 Mongolia time)
+    - cron: '0 1 * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
