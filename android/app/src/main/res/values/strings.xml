@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AAA Costco</string>
+    <string name="title_activity_main">AAA Costco</string>
+    <string name="package_name">com.aaacostco.app</string>
+    <string name="custom_url_scheme">com.aaacostco.app</string>
+</resources>
