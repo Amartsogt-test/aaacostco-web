@@ -481,37 +481,44 @@ export const useProductStore = create(
                 set({ wonRate: newRate });
             },
 
-            subscribeToWonRate: async () => {
-                if (window.__wonRateUnsubscribe) return;
+            subscribeToWonRate: () => {
+                // Return existing if already subscribed
+                if (window.__wonRateUnsubscribe) return window.__wonRateUnsubscribe;
 
-                const { productService } = await import('../services/productService');
-
-                try {
-                    const currencySettings = await productService.getSettings('currency');
-                    if (currencySettings && currencySettings.wonRate) {
-                        const newRate = currencySettings.wonRate;
-                        const oldRate = get().wonRate;
-
-                        if (oldRate === null || Math.abs(newRate - oldRate) >= 0.001) {
-                            set({ wonRate: newRate });
+                // Sync initial fetch in background
+                import('../services/productService').then(({ productService }) => {
+                    productService.getSettings('currency').then(currencySettings => {
+                        if (currencySettings && currencySettings.wonRate) {
+                            const newRate = currencySettings.wonRate;
+                            const oldRate = get().wonRate;
+                            if (oldRate === null || Math.abs(newRate - oldRate) >= 0.001) {
+                                set({ wonRate: newRate });
+                            }
                         }
-                    }
-                } catch (error) {
-                    console.error('❌ Failed to fetch initial rate:', error);
-                }
+                    }).catch(err => console.error('❌ Failed to fetch initial rate:', err));
 
-                window.__wonRateUnsubscribe = productService.onSettingsChange('currency', (data) => {
-                    const rawRate = data?.wonRate;
-                    if (!rawRate) return;
+                    window.__wonRateUnsubscribe = productService.onSettingsChange('currency', (data) => {
+                        const rawRate = data?.wonRate;
+                        if (!rawRate) return;
 
-                    const newRate = parseFloat(rawRate);
-                    if (isNaN(newRate) || newRate <= 0) return;
+                        const newRate = parseFloat(rawRate);
+                        if (isNaN(newRate) || newRate <= 0) return;
 
-                    const oldRate = get().wonRate;
-                    if (oldRate !== null && Math.abs(newRate - oldRate) < 0.001) return;
+                        const oldRate = get().wonRate;
+                        if (oldRate !== null && Math.abs(newRate - oldRate) < 0.001) return;
 
-                    set({ wonRate: newRate });
+                        set({ wonRate: newRate });
+                    });
                 });
+
+                return () => {
+                    if (window.__wonRateUnsubscribe) {
+                        if (typeof window.__wonRateUnsubscribe === 'function') {
+                            window.__wonRateUnsubscribe();
+                        }
+                        window.__wonRateUnsubscribe = null;
+                    }
+                };
             },
 
             addProduct: (product) => set((state) => ({

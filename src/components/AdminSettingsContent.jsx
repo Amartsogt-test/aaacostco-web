@@ -28,7 +28,7 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
         if (isOpen || isEmbedded) {
             fetchSettings();
         }
-    }, [isOpen, isEmbedded]);
+    }, [isOpen, isEmbedded, fetchSettings]);
 
     useEffect(() => {
         if (settings) {

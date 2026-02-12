@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useProductStore } from '../store/productStore';
@@ -8,6 +9,7 @@ import { useChatStore } from '../store/chatStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { getProductWeight, getPriceBreakdown } from '../utils/productUtils';
+import ProductReviews from '../components/ProductReviews';
 
 export default function ProductDetail() {
     const { id } = useParams();
@@ -677,9 +679,12 @@ export default function ProductDetail() {
                             <div
                                 className="prose prose-sm max-w-none text-gray-700 leading-relaxed overflow-hidden [&_img]:max-w-full [&_img]:h-auto"
                                 dangerouslySetInnerHTML={{
-                                    __html: (product.description_mn || product.description)
-                                        ?.replace(/src="\/mediapermalink/g, 'src="https://www.costco.co.kr/mediapermalink')
-                                        .replace(/src="\/medias/g, 'src="https://www.costco.co.kr/medias')
+                                    __html: DOMPurify.sanitize(
+                                        (product.description_mn || product.description)
+                                            ?.replace(/src="\/mediapermalink/g, 'src="https://www.costco.co.kr/mediapermalink')
+                                            .replace(/src="\/medias/g, 'src="https://www.costco.co.kr/medias') || '',
+                                        { ADD_TAGS: ['img'], ADD_ATTR: ['src', 'alt', 'class', 'style'] }
+                                    )
                                 }}
                             />
                         </div>
@@ -697,9 +702,12 @@ export default function ProductDetail() {
                                             <div
                                                 className="prose prose-sm max-w-none [&_img]:max-w-full [&_img]:h-auto"
                                                 dangerouslySetInnerHTML={{
-                                                    __html: spec.value
-                                                        ?.replace(/src="\/mediapermalink/g, 'src="https://www.costco.co.kr/mediapermalink')
-                                                        .replace(/src="\/medias/g, 'src="https://www.costco.co.kr/medias')
+                                                    __html: DOMPurify.sanitize(
+                                                        spec.value
+                                                            ?.replace(/src="\/mediapermalink/g, 'src="https://www.costco.co.kr/mediapermalink')
+                                                            .replace(/src="\/medias/g, 'src="https://www.costco.co.kr/medias') || '',
+                                                        { ADD_TAGS: ['img'], ADD_ATTR: ['src', 'alt', 'class', 'style'] }
+                                                    )
                                                 }}
                                             />
                                         </dd>
@@ -709,6 +717,9 @@ export default function ProductDetail() {
                         </div>
                     )}
                 </div>
+
+                {/* Reviews Section */}
+                <ProductReviews productId={id} />
             </div>
         </div>
     );

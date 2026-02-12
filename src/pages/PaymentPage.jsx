@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useOrderStore } from '../store/orderStore';
+import { useSettingsStore } from '../store/settingsStore';
 import { ArrowLeft, Copy, CheckCircle2 } from 'lucide-react';
 
 export default function PaymentPage() {
@@ -10,6 +11,7 @@ export default function PaymentPage() {
     const location = useLocation();
     const { checkoutState, groundItems, airItems, clearCart } = useCartStore();
     const { user } = useAuthStore();
+    const { settings } = useSettingsStore();
     const [copiedField, setCopiedField] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
@@ -18,8 +20,9 @@ export default function PaymentPage() {
     const totalAmountFormatted = location.state?.totalAmountFormatted || location.state?.totalAmount || "0";
     const totalValue = location.state?.totalValue || 0;
 
-    const ACCOUNT_NUMBER = "980005005301849559";
-    const ACCOUNT_NAME = "Амарцогт Батбилэг";
+    // Bank account from Firestore settings (fallback to defaults)
+    const ACCOUNT_NUMBER = settings?.bankAccountNumber || "980005005301849559";
+    const ACCOUNT_NAME = settings?.bankAccountName || "Амарцогт Батбилэг";
 
     const copyToClipboard = (text, field) => {
         navigator.clipboard.writeText(text);

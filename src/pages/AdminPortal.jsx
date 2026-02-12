@@ -1,8 +1,8 @@
-import { ExternalLink, ChevronRight, ShieldCheck, Plus, Minus, TrendingUp, Package, FileText, Scan, Info, Phone, RefreshCw, Barcode, Image as ImageIcon, MessageCircle } from 'lucide-react';
+import { ExternalLink, ChevronRight, ShieldCheck, Plus, Minus, TrendingUp, Package, FileText, Scan, RefreshCw, MessageCircle, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { useAuthStore } from '../store/authStore';
+
 // db, doc, setDoc, onSnapshot moved to service
 import { useProductStore } from '../store/productStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -16,38 +16,29 @@ const AdminPortal = () => {
     const { currencyRates, subscribeToCurrencyRates, refreshBankRates } = useSettingsStore();
 
     const [tempRate, setTempRate] = useState(wonRate || '');
-    // Local state for animation/display derived from store
-    const [golomtRates, setGolomtRates] = useState(null);
-    const [tdbRates, setTdbRates] = useState(null);
-    const [khanRates, setKhanRates] = useState(null);
-    const [prevGolomtRates, setPrevGolomtRates] = useState(null);
-    const [prevTdbRates, setPrevTdbRates] = useState(null);
-    const [prevKhanRates, setPrevKhanRates] = useState(null);
+    // Sync tempRate when wonRate changes from store (avoids setState-in-effect)
+    const [prevWonRate, setPrevWonRate] = useState(wonRate);
+    if (wonRate !== prevWonRate) {
+        setPrevWonRate(wonRate);
+        if (wonRate) setTempRate(wonRate);
+    }
+
+    // Derive bank rates directly from store (no local state sync needed)
+    const golomtRates = currencyRates?.golomtRates || null;
+    const tdbRates = currencyRates?.tdbRates || null;
+    const khanRates = currencyRates?.khanRates || null;
+    const prevGolomtRates = currencyRates?.previousGolomtRates || null;
+    const prevTdbRates = currencyRates?.previousTdbRates || null;
+    const prevKhanRates = currencyRates?.previousKhanRates || null;
 
     useEffect(() => {
         const unsubWon = subscribeToWonRate();
         const unsubCurrency = subscribeToCurrencyRates();
         return () => {
-            if (unsubWon) unsubWon(); // Assuming subscribeToWonRate returns cleanup if modified, likely synchronous in store though, but good practice if it changes.
+            if (unsubWon) unsubWon();
             if (unsubCurrency) unsubCurrency();
         };
     }, [subscribeToWonRate, subscribeToCurrencyRates]);
-
-    useEffect(() => {
-        if (currencyRates) {
-            if (currencyRates.golomtRates) setGolomtRates(currencyRates.golomtRates);
-            if (currencyRates.tdbRates) setTdbRates(currencyRates.tdbRates);
-            if (currencyRates.khanRates) setKhanRates(currencyRates.khanRates);
-
-            if (currencyRates.previousGolomtRates) setPrevGolomtRates(currencyRates.previousGolomtRates);
-            if (currencyRates.previousTdbRates) setPrevTdbRates(currencyRates.previousTdbRates);
-            if (currencyRates.previousKhanRates) setPrevKhanRates(currencyRates.previousKhanRates);
-        }
-    }, [currencyRates]);
-
-    useEffect(() => {
-        if (wonRate) setTempRate(wonRate);
-    }, [wonRate]);
 
     const adjustRate = (amount) => {
         const current = parseFloat(tempRate) || 0;
@@ -87,15 +78,24 @@ const AdminPortal = () => {
     };
 
     const renderRateCell = (label, current, prev, styleClass = "text-gray-700 bg-white border-gray-200") => {
-        const diff = prev ? (current - prev) : 0;
+        const diff = prev ? parseFloat((current - prev).toFixed(3)) : 0;
+        const hasChange = Math.abs(diff) >= 0.001;
         const _isUp = diff > 0;
-        // styleClass now separates colors: e.g. "text-green-700 bg-green-50 border-green-200"
 
         return (
-            <div className={`rounded-xl p-1 flex items-center gap-3 ${styleClass} transition-transform active:scale-95`}>
-                <div className="text-[10px] font-bold tracking-wider opacity-60 uppercase">{label}</div>
-                <div className="text-xl font-black leading-none">
-                    {current}
+            <div className={`rounded-xl p-1 flex items-center gap-2 ${styleClass} transition-transform active:scale-95`}>
+                <div className="flex items-baseline gap-1.5 leading-none">
+                    <span className={`text-[10px] font-bold ${prev ? 'opacity-25 line-through' : 'opacity-60 uppercase tracking-wider'}`}>
+                        {prev || label}
+                    </span>
+                    <div className="text-xl font-black flex items-center gap-0.5">
+                        {current}
+                        {hasChange && (
+                            <span className={`text-[10px] ${_isUp ? 'text-green-600' : 'text-red-500'}`}>
+                                {_isUp ? '▲' : '▼'}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
         );
@@ -210,26 +210,6 @@ const AdminPortal = () => {
                     </div>
                 </div>
 
-                {/* 2. Data Sync */}
-                <button
-                    onClick={handleUpdateData}
-                    className="w-full bg-white rounded-3xl shadow-sm border border-gray-100 p-1.5 flex items-center justify-between group hover:border-blue-300 transition-all font-semibold text-gray-700"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-500 group-hover:text-costco-blue transition-colors">
-                            <RefreshCw size={20} />
-                        </div>
-                        <span className="text-base font-bold">Өгөгдөл шинэчлэх</span>
-                    </div>
-                    <ChevronRight size={18} className="text-gray-200 group-hover:text-costco-blue transition-colors" />
-                </button>
-
-
-
-
-
-
-
                 {/* Main Action Menu */}
                 {/* Group 1: Orders & Sales */}
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
@@ -243,12 +223,28 @@ const AdminPortal = () => {
                         <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
 
-                    <button onClick={() => navigate('/sales-summary')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group border-b border-gray-50">
+                    <button onClick={() => navigate('/sales-summary')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 bg-blue-50 text-costco-blue rounded-xl flex items-center justify-center">
                                 <TrendingUp size={18} />
                             </div>
                             <span className="text-base font-bold text-gray-700">Борлуулалт</span>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                    </button>
+                </div>
+
+                {/* Group 2: Operations (Sync & Chat) */}
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                    <button
+                        onClick={handleUpdateData}
+                        className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-500 group-hover:text-costco-blue transition-colors">
+                                <RefreshCw size={20} />
+                            </div>
+                            <span className="text-base font-bold text-gray-700">Өгөгдөл шинэчлэх</span>
                         </div>
                         <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
@@ -268,6 +264,24 @@ const AdminPortal = () => {
 
                 {/* Group 2: Products */}
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50">
+                    <button onClick={() => navigate('/admin/ai-review')} className="w-full flex items-center justify-between p-1.5 hover:bg-purple-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+                                <Wand2 size={18} />
+                            </div>
+                            <span className="text-base font-bold text-gray-700">AI Review Center</span>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-purple-600 transition-colors" />
+                    </button>
+                    <button onClick={() => navigate('/admin/daily-reports')} className="w-full flex items-center justify-between p-1.5 hover:bg-purple-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center group-hover:bg-purple-100 transition-colors">
+                                <FileText size={18} />
+                            </div>
+                            <span className="text-base font-bold text-gray-700">Өдөр тутмын тайлан</span>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-purple-600 transition-colors" />
+                    </button>
                     <button onClick={() => navigate('/scanner')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 bg-blue-50 rounded-full flex items-center justify-center text-costco-blue group-hover:scale-110 transition-transform">

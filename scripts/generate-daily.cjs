@@ -3,12 +3,13 @@ const admin = require('firebase-admin');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const path = require('path');
 const fs = require('fs');
+require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
 
 // 1. Config
-const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBtJ68dcLuFTvo9C_1NWQ-vMlat_K-8_jM';
+const API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '../functions/service-account.json');
 const COLLECTION_NAME = 'products';
-const MODEL_NAME = 'gemini-2.0-flash-exp';
+const MODEL_NAME = 'gemini-2.0-flash';
 
 // Rate Limiting (Daily is smaller volume, but safety first)
 const DELAY_MS = 8000; // 8 seconds between products
@@ -120,19 +121,82 @@ async function generateDesc(p) {
     return null;
 }
 
+async function notifyAdmin(stats, reportId) {
+    const BOT_ID = 'system-products-bot';
+    const BOT_NAME = 'Бараа Шинэчлэл';
+
+    try {
+        // 1. Check/Create Conversation
+        const chatsRef = db.collection('chats');
+        const q = chatsRef.where('userId', '==', BOT_ID).limit(1);
+        const snapshot = await q.get();
+
+        let convRef;
+        if (snapshot.empty) {
+            const newConv = await chatsRef.add({
+                userId: BOT_ID,
+                userName: BOT_NAME,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                lastMessage: 'Систем эхэллээ',
+                lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+                unreadByAdmin: 1,
+                unreadByUser: 0,
+                needsAdmin: true
+            });
+            convRef = newConv;
+        } else {
+            convRef = snapshot.docs[0].ref;
+        }
+
+        // 2. Prepare Message
+        let messageText = `📊 **ӨДРИЙН ТАЙЛАН** (${reportId})\n\n`;
+        messageText += `🕒 ${new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' })}\n\n`;
+        messageText += `🆕 **Шинэ Бараа:** ${stats.newProductsCount}\n`;
+        messageText += `🏷️ **Идэвхтэй Хямдрал:** ${stats.activeSalesCount}\n`;
+        messageText += `✏️ **AI Засвар:** ${stats.updated}\n`;
+
+        if (stats.updated > 0) {
+            messageText += `   ├ ⚖️ Жин: ${stats.weights}\n`;
+            messageText += `   ├ 🗣️ Орчуулга: ${stats.translations}\n`;
+            messageText += `   └ 📝 Тайлбар: ${stats.descriptions}\n`;
+        }
+
+        messageText += `\n🔗 Дэлгэрэнгүйг Admin Portal > Daily Reports цэснээс харна уу.`;
+
+        // 3. Send Message
+        await convRef.collection('messages').add({
+            text: messageText,
+            isFromAdmin: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            read: false,
+            pinned: false,
+            liked: false
+        });
+
+        // 4. Update Meta
+        await convRef.update({
+            lastMessage: messageText.substring(0, 50) + '...',
+            lastMessageAt: admin.firestore.FieldValue.serverTimestamp(),
+            unreadByAdmin: admin.firestore.FieldValue.increment(1),
+            needsAdmin: true
+        });
+
+        console.log('🔔 Admin notification sent successfully.');
+
+    } catch (error) {
+        console.error('❌ Failed to send notification:', error);
+    }
+}
+
 // ------------------------------------------------------------------
 // MAIN
 // ------------------------------------------------------------------
 
 async function run() {
-    console.log('🚀 Starting DAILY Product Pipeline (New Products Only)...');
+    console.log('🚀 Starting DAILY Product Pipeline...');
 
     // 1. Get products created/updated in last 24h
-    // Since we don't strictly track "createdAt" perfectly in all legacy data, 
-    // let's rely on "status" == 'active' and maybe limit to 100 recent for now?
-    // A better approach for daily is to check specific "needs processing" flags or just scan recent IDs.
-    // For simplicity: We scan the latest 100 active products.
-
+    // Focusing on 'active' for processing
     const snapshot = await db.collection(COLLECTION_NAME)
         .where('status', '==', 'active')
         .limit(100) // Daily limit
@@ -142,6 +206,8 @@ async function run() {
 
     let processed = 0;
     let updated = 0;
+    let updatedCounts = { weights: 0, translations: 0, descriptions: 0 };
+    let detailedLogs = { weights: [], translations: [], descriptions: [] };
 
     for (const doc of snapshot.docs) {
         const p = { id: doc.id, ...doc.data() };
@@ -154,8 +220,9 @@ async function run() {
         if (weightUpdates) {
             console.log(`      ⚖️ Weight Fixed: ${weightUpdates.weight}kg`);
             docUpdates = { ...docUpdates, ...weightUpdates };
-            // Update local p object for next steps
             p.weight = weightUpdates.weight;
+            updatedCounts.weights++;
+            detailedLogs.weights.push({ id: p.id, name: p.name_mn || p.name, result: weightUpdates.weight });
         }
 
         // B. Translation Check
@@ -163,16 +230,18 @@ async function run() {
         if (transUpdates) {
             console.log(`      🗣️ Translation Fixed`);
             docUpdates = { ...docUpdates, ...transUpdates };
-            // Update local p
             if (transUpdates.name_mn) p.name_mn = transUpdates.name_mn;
+            updatedCounts.translations++;
+            detailedLogs.translations.push({ id: p.id, name: p.name_mn || p.name });
         }
 
         // C. Description Check
-        // Only generate if we have a good name (which we might have just fixed)
         const descUpdates = await generateDesc(p);
         if (descUpdates) {
             console.log(`      📝 Description Generated`);
             docUpdates = { ...docUpdates, ...descUpdates };
+            updatedCounts.descriptions++;
+            detailedLogs.descriptions.push({ id: p.id, name: p.name_mn || p.name });
         }
 
         // SAVE
@@ -181,8 +250,6 @@ async function run() {
             await db.collection(COLLECTION_NAME).doc(p.id).update(docUpdates);
             updated++;
             console.log(`      ✅ SAVED all changes.`);
-
-            // Wait only if we actually used AI (approx check)
             await new Promise(r => setTimeout(r, DELAY_MS));
         } else {
             console.log(`      ✨ Perfect (No changes needed)`);
@@ -190,6 +257,64 @@ async function run() {
 
         processed++;
     }
+
+    // ------------------------------------------------------------------
+    // REPORT GENERATION
+    // ------------------------------------------------------------------
+    const todayStr = new Date().toISOString().split('T')[0];
+    const reportRef = db.collection('daily_reports').doc(todayStr);
+
+    const yesterday = new Date();
+    yesterday.setHours(yesterday.getHours() - 24);
+
+    // 1. Get New Products
+    const newProductsSnap = await db.collection(COLLECTION_NAME)
+        .where('createdAt', '>=', yesterday.toISOString())
+        .get();
+
+    const newProducts = newProductsSnap.docs.map(d => ({
+        id: d.id,
+        name: d.data().name_mn || d.data().name,
+        price: d.data().price || 0
+    }));
+
+    // 2. Get Sales
+    const salesSnap = await db.collection(COLLECTION_NAME)
+        .where('updatedAt', '>=', yesterday.toISOString())
+        .where('hasDiscount', '==', true)
+        .get();
+
+    const activeSales = salesSnap.docs.map(d => ({
+        id: d.id,
+        name: d.data().name_mn || d.data().name,
+        price: d.data().price || 0,
+        oldPrice: d.data().originalPrice || d.data().price
+    }));
+
+    // 3. Compile Report
+    const reportData = {
+        date: admin.firestore.FieldValue.serverTimestamp(),
+        dateStr: todayStr,
+        stats: {
+            processed: processed,
+            updated: updated,
+            newProductsCount: newProducts.length,
+            activeSalesCount: activeSales.length,
+            ...updatedCounts
+        },
+        lists: {
+            newProducts: newProducts.slice(0, 50),
+            activeSales: activeSales.slice(0, 50),
+            fixedWeights: detailedLogs.weights,
+            fixedTranslations: detailedLogs.translations,
+            fixedDescriptions: detailedLogs.descriptions
+        }
+    };
+
+    await reportRef.set(reportData);
+    console.log(`📝 Daily Report saved to daily_reports/${todayStr}`);
+
+    await notifyAdmin(reportData.stats, todayStr);
 
     console.log(`\n🎉 Daily Pipeline Done! Updated ${updated} products.`);
     process.exit(0);

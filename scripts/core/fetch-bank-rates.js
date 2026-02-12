@@ -7,18 +7,26 @@ import fs from 'fs';
 import path from 'path';
 
 // --- Configuration ---
-const serviceAccountPath = path.resolve(process.cwd(), 'functions/service-account.json');
+let serviceAccount;
+const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.resolve(process.cwd(), 'functions/service-account.json');
 
-if (!fs.existsSync(serviceAccountPath)) {
-    console.error('❌ Service account file not found:', serviceAccountPath);
+try {
+    if (fs.existsSync(serviceAccountPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+        console.error('❌ No service account found. Set GOOGLE_APPLICATION_CREDENTIALS or ensure functions/service-account.json exists.');
+        process.exit(1);
+    }
+
+    initializeApp({
+        credential: cert(serviceAccount)
+    });
+} catch (err) {
+    console.error('❌ Failed to initialize Firebase:', err.message);
     process.exit(1);
 }
-
-const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-
-initializeApp({
-    credential: cert(serviceAccount)
-});
 
 const db = getFirestore();
 const agent = new https.Agent({ rejectUnauthorized: false });
@@ -162,7 +170,7 @@ async function notifyAdmin(changes) {
         }
 
         // 2. Add Message
-        const messageText = `📉 **Ханшийн өөрчлөлт:**\n\n${changes.join('\n')}\n\n🕒 ${new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' })}`;
+        const messageText = `📊 **ШИНЭЧЛЭГДСЭН ХАНШУУД**\n\n${changes.join('\n\n')}\n\n🕒 ${new Date().toLocaleString('mn-MN', { timeZone: 'Asia/Ulaanbaatar' })}`;
 
         await convRef.collection('messages').add({
             text: messageText,
@@ -207,17 +215,16 @@ async function updateRates() {
     const snap = await docRef.get();
     const existingData = snap.exists ? snap.data() : {};
 
-    const changes = [];
+    const bankChanges = {};
 
     // Helper to check and log changes
     const checkChange = (bankName, type, newVal, oldVal) => {
-        if (!oldVal) return; // First run, no comparison
+        if (!oldVal) return;
         const diff = Math.abs(newVal - oldVal);
-        // Using strict comparison or very small epsilon
         if (diff > 0.001) {
-            const arrow = newVal > oldVal ? '⬆️' : '⬇️';
-            // User requested explicit "Current" vs "New" display
-            changes.push(`**${bankName} ${type}:**\n__Хуучин:__ ${oldVal} ➡️ __Шинэ:__ ${newVal} ${arrow}`);
+            const arrow = newVal > oldVal ? '🔺' : '🔻';
+            if (!bankChanges[bankName]) bankChanges[bankName] = [];
+            bankChanges[bankName].push(`• **${type}:** ${oldVal} ➜ **${newVal}** ${arrow}`);
         }
     };
 
@@ -236,8 +243,7 @@ async function updateRates() {
             lastUpdated: khan.updatedAt
         };
         updateData.previousKhanRates = existingData.khanRates || null;
-
-        // Check Khan Changes
+        // Use nonCash for main comparison
         if (existingData.khanRates) {
             checkChange('Хаан', 'Авах', khan.buy, existingData.khanRates.nonCashBuy);
             checkChange('Хаан', 'Зарах', khan.sell, existingData.khanRates.nonCashSell);
@@ -250,7 +256,7 @@ async function updateRates() {
             nonCashSell: golomt.sell,
             lastUpdated: golomt.updatedAt
         };
-        // Check Golomt Changes
+        updateData.previousGolomtRates = existingData.golomtRates || null;
         if (existingData.golomtRates) {
             checkChange('Голомт', 'Авах', golomt.buy, existingData.golomtRates.nonCashBuy);
             checkChange('Голомт', 'Зарах', golomt.sell, existingData.golomtRates.nonCashSell);
@@ -263,12 +269,18 @@ async function updateRates() {
             nonCashSell: tdbRates.sell,
             lastUpdated: tdbRates.updatedAt
         };
-        // Check TDB Changes
+        updateData.previousTdbRates = existingData.tdbRates || null;
         if (existingData.tdbRates) {
             checkChange('ХХБ', 'Авах', tdbRates.buy, existingData.tdbRates.nonCashBuy);
             checkChange('ХХБ', 'Зарах', tdbRates.sell, existingData.tdbRates.nonCashSell);
         }
     }
+
+    // Convert grouped changes to strings for notification
+    const changes = Object.entries(bankChanges).map(([bank, lines]) => {
+        const emoji = bank === 'Хаан' ? '🏦' : bank === 'Голомт' ? '💳' : '💰';
+        return `${emoji} **${bank} Банк**\n${lines.join('\n')}`;
+    });
 
     // Determine if we should update & notify
     if (khan || golomt || tdbRates) {

@@ -70,8 +70,18 @@ const CATEGORY_NAMES = {
     'New': 'Шинэ'
 };
 
-function mapAllFields(raw, catCode) {
+// Helper to get category name
+function getCategoryName(target, catCode) {
+    if (CATEGORY_MAP[catCode]) return CATEGORY_MAP[catCode];
+    if (target && target.name) return target.name; // Use provided name from menu
+    return 'General';
+}
+
+function mapAllFields(raw, target, effectiveAdmin = null) {
     const product = { ...raw };
+    const catCode = target.code; // Extract code from target
+    const firebaseAdmin = effectiveAdmin || admin;
+
     product.id = raw.code;
     // NOTE: Do NOT set product.status here
     // This preserves admin's decision to mark products as inactive
@@ -96,7 +106,7 @@ function mapAllFields(raw, catCode) {
         product.image = mainImg ? fixImageUrl(mainImg.url) : '';
     }
 
-    product.category = CATEGORY_MAP[catCode] || 'General';
+    product.category = getCategoryName(target, catCode);
     product.subCategory = SUBCATEGORY_MAP[catCode] || 'General';
     product.categoryName = CATEGORY_NAMES[product.category] || product.category;
     product.subCategoryName = product.subCategory;
@@ -137,7 +147,7 @@ function mapAllFields(raw, catCode) {
 
     product.specifications = extractSpecifications(raw.classifications);
     product.brand = raw.manufacturer || 'Costco';
-    product.updatedAt = (adminInstance || admin).firestore.FieldValue.serverTimestamp();
+    product.updatedAt = firebaseAdmin.firestore.FieldValue.serverTimestamp();
     product.lastScraped = new Date().toISOString();
     product.source = 'cloud_function_scraper';
 
@@ -163,7 +173,7 @@ async function fetchProductsBatch(ids, cookie, userAgent, concurrency = 10) {
 }
 
 // Main logic
-exports.syncSpecialCategories = async (adminInstance = null) => {
+exports.syncWithTargets = async (targets, adminInstance = null) => {
     const db = (adminInstance || admin).firestore();
     const statusRef = db.collection('system').doc('syncStatus');
 
@@ -184,12 +194,7 @@ exports.syncSpecialCategories = async (adminInstance = null) => {
         console.error("Failed to fetch scraper settings:", e);
     }
 
-    const targets = [
-        { code: 'SpecialPriceOffers', name: 'SpecialPriceOffers', label: 'Хямдралтай (Sale)', type: 'allCategories', tagName: 'Sale' },
-        { code: 'BuyersPick', name: 'BuyersPick', label: 'Онцлох (Featured)', type: 'allCategories', tagName: 'Featured' },
-        { code: 'whatsnew', name: 'New', label: 'Шинэ (New)', type: 'allCategories', tagName: 'New' },
-        { code: 'ks_all', name: 'Kirkland Signature', label: 'Kirkland Signature', type: 'category', tagName: 'Kirkland Signature' }
-    ];
+    // Use passed targets
 
     const steps = targets.map(t => ({
         label: t.label,
@@ -282,7 +287,7 @@ exports.syncSpecialCategories = async (adminInstance = null) => {
 
             for (const detail of details) {
                 if (detail && detail.code) {
-                    const product = mapAllFields(detail, target.code);
+                    const product = mapAllFields(detail, target, adminInstance || admin);
                     const docRef = db.collection('products').doc(product.id);
 
                     // Check if product exists - only set status for new products
@@ -402,6 +407,16 @@ exports.syncSpecialCategories = async (adminInstance = null) => {
     };
 };
 
+exports.syncSpecialCategories = async (adminInstance = null) => {
+    const targets = [
+        { code: 'SpecialPriceOffers', name: 'SpecialPriceOffers', label: 'Хямдралтай (Sale)', type: 'allCategories', tagName: 'Sale' },
+        { code: 'BuyersPick', name: 'BuyersPick', label: 'Онцлох (Featured)', type: 'allCategories', tagName: 'Featured' },
+        { code: 'whatsnew', name: 'New', label: 'Шинэ (New)', type: 'allCategories', tagName: 'New' },
+        { code: 'ks_all', name: 'Kirkland Signature', label: 'Kirkland Signature', type: 'category', tagName: 'Kirkland Signature' }
+    ];
+    return exports.syncWithTargets(targets, adminInstance);
+};
+
 exports.fixZeroPriceProducts = async () => {
     const db = admin.firestore();
     const log = [];
@@ -470,7 +485,7 @@ exports.fixZeroPriceProducts = async () => {
                     // Recalculate discount
                     hasDiscount: (detail.basePrice ? detail.basePrice.value : detail.price.value) > detail.price.value,
                     lastScraped: new Date().toISOString(),
-                    lastFixed: (adminInstance || admin).firestore.FieldValue.serverTimestamp()
+                    lastFixed: (typeof adminInstance !== 'undefined' ? adminInstance : admin).firestore.FieldValue.serverTimestamp()
                 };
 
                 batch.update(docRef, updates);

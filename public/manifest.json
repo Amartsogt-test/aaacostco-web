@@ -1,7 +1,7 @@
 {
   "name": "Costco Mongolia",
   "short_name": "Costco MN",
-  "description": "Costco Wholesale Mongolia Shop",
+  "description": "Costco Wholesale Mongolia Shop — Бараа бүтээгдэхүүн захиалах",
   "theme_color": "#005da3",
   "background_color": "#ffffff",
   "display": "standalone",
@@ -17,7 +17,8 @@
     {
       "src": "pwa-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

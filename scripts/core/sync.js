@@ -9,8 +9,21 @@ const require = createRequire(import.meta.url);
 const scraper = require('../../functions/scraper.js');
 
 // 1. Initialize Firebase Admin
-const serviceAccountPath = path.join(__dirname, '../../functions/service-account.json');
-const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+let serviceAccount;
+const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, '../../functions/service-account.json');
+
+try {
+    if (fs.existsSync(serviceAccountPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    } else {
+        console.error("❌ No service account found.");
+        process.exit(1);
+    }
+} catch (err) {
+    console.error("❌ Failed to read service account:", err.message);
+    process.exit(1);
+}
+
 
 // Use the CJS admin instance that scraper.js will use
 const admin = require('firebase-admin');

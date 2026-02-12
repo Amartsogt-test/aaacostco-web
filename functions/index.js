@@ -97,32 +97,125 @@ exports.onProductCreated = onDocumentCreated({
     return null;
 });
 
-// Secure Admin Bypass Function
-exports.verifyAdminBypass = onCall(async (request) => {
-    const { phone, code } = request.data;
+// ============================================================
+// 🔐 ADMIN LOGIN: Server-side credential verification
+// Reads admin phone/PIN from Firestore settings/admin_auth
+// ============================================================
+const crypto = require("crypto");
 
-    // Hardcoded secure credentials
-    const ADMIN_PHONE = '23568947';
-    const ADMIN_CODE = '429496';
+/**
+ * Hash a PIN with a secret salt (server-side only)
+ */
+function hashPin(pin, secret) {
+    return crypto.createHash("sha256").update(pin + secret).digest("hex");
+}
 
-    // Verify
-    if (phone === ADMIN_PHONE && code === ADMIN_CODE) {
-        try {
-            // Create custom token
-            const uid = 'admin-bypass-' + ADMIN_PHONE;
-            const additionalClaims = { isAdmin: true };
+/**
+ * Admin Login Cloud Function
+ * - Reads admin credentials from Firestore (settings/admin_auth)
+ * - Verifies phone + PIN
+ * - Creates/updates Firebase Auth user with isAdmin custom claim
+ * - Returns a custom token for client-side signInWithCustomToken
+ */
+exports.verifyAdminLogin = onCall({
+    region: "us-central1"
+}, async (request) => {
+    const { phone, pin } = request.data;
 
-            const customToken = await admin.auth().createCustomToken(uid, additionalClaims);
-
-            return { token: customToken };
-        } catch (error) {
-            console.error("Error creating custom token:", error);
-            throw new HttpsError('internal', 'Unable to create token');
-        }
-    } else {
-        // Return Error
-        throw new HttpsError('invalid-argument', 'Invalid credentials');
+    if (!phone || !pin) {
+        throw new HttpsError("invalid-argument", "Phone and PIN are required");
     }
+
+    // 1. Read admin config from Firestore
+    const adminDoc = await db.collection("settings").doc("admin_auth").get();
+    if (!adminDoc.exists) {
+        throw new HttpsError("not-found", "Admin configuration not found");
+    }
+
+    const adminConfig = adminDoc.data();
+    const { phone: adminPhone, pinHash, secret } = adminConfig;
+
+    // 2. Verify credentials
+    const cleanPhone = phone.replace(/\D/g, "");
+    if (cleanPhone !== adminPhone) {
+        throw new HttpsError("permission-denied", "Хандах эрхгүй байна");
+    }
+
+    const inputHash = hashPin(pin, secret);
+    if (inputHash !== pinHash) {
+        throw new HttpsError("permission-denied", "ПИН код буруу байна");
+    }
+
+    // 3. Create/update Firebase Auth user & set custom claims
+    try {
+        const email = `${cleanPhone}@costco.mn`;
+        let userRecord;
+
+        try {
+            userRecord = await admin.auth().getUserByEmail(email);
+        } catch (e) {
+            // User doesn't exist — create
+            userRecord = await admin.auth().createUser({
+                email: email,
+                password: crypto.randomBytes(32).toString("hex"), // Random strong password
+                displayName: "Admin"
+            });
+        }
+
+        // Set admin custom claims
+        await admin.auth().setCustomUserClaims(userRecord.uid, { isAdmin: true });
+
+        // Update Firestore profile
+        await db.collection("users").doc(userRecord.uid).set({
+            phone: `+976${cleanPhone}`,
+            isAdmin: true,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        // Create custom token
+        const customToken = await admin.auth().createCustomToken(userRecord.uid, { isAdmin: true });
+
+        return { success: true, token: customToken, uid: userRecord.uid };
+
+    } catch (error) {
+        console.error("Admin login error:", error);
+        throw new HttpsError("internal", "Admin нэвтрэлт амжилтгүй: " + error.message);
+    }
+});
+
+/**
+ * Utility: Setup admin auth credentials in Firestore
+ * Call once to initialize: setupAdminAuth({ phone: "XXXXXXXX", pin: "YYYY" })
+ * This should be called from Firebase shell or Admin SDK only
+ */
+exports.setupAdminAuth = onCall({
+    region: "us-central1"
+}, async (request) => {
+    // Only allow if caller is already admin or no admin_auth exists yet
+    const existingDoc = await db.collection("settings").doc("admin_auth").get();
+    if (existingDoc.exists) {
+        // Verify caller is admin
+        if (!request.auth || !request.auth.token?.isAdmin) {
+            throw new HttpsError("permission-denied", "Only admins can update admin credentials");
+        }
+    }
+
+    const { phone, pin } = request.data;
+    if (!phone || !pin) {
+        throw new HttpsError("invalid-argument", "Phone and PIN are required");
+    }
+
+    const secret = crypto.randomBytes(32).toString("hex");
+    const pinHash = hashPin(pin, secret);
+
+    await db.collection("settings").doc("admin_auth").set({
+        phone: phone.replace(/\D/g, ""),
+        pinHash,
+        secret,
+        updatedAt: new Date().toISOString()
+    });
+
+    return { success: true, message: "Admin credentials saved securely" };
 });
 
 // Scraper Function
@@ -269,5 +362,219 @@ exports.scheduledSearchIndexRebuild = onSchedule({
         console.log(`✅ Scheduled search index update: ${result.totalItems} items in ${result.totalChunks} chunks`);
     } catch (error) {
         console.error("❌ Scheduled search index rebuild failed:", error);
+    }
+});
+
+// ============================================================
+// 🤖 AI PROXY: Server-side Gemini API proxy
+// Keeps the API key on the server, never exposed to clients
+// ============================================================
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_FALLBACK = "gemini-1.5-flash";
+
+const SAFETY_SETTINGS = [
+    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+];
+
+/**
+ * Get Gemini API key from Firebase Functions config or environment
+ */
+function getGeminiKey() {
+    // Firebase Functions environment variable (set via: firebase functions:secrets:set GEMINI_API_KEY)
+    return process.env.GEMINI_API_KEY || "";
+}
+
+/**
+ * Call Gemini with fallback model support
+ */
+async function callGemini(prompt, options = {}) {
+    const apiKey = getGeminiKey();
+    if (!apiKey) throw new HttpsError("failed-precondition", "Gemini API key not configured");
+
+    const { jsonMode = false, temperature } = options;
+
+    const tryModel = async (modelId) => {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const genConfig = {};
+        if (jsonMode) genConfig.responseMimeType = "application/json";
+        if (temperature !== undefined) genConfig.temperature = temperature;
+
+        const model = genAI.getGenerativeModel({
+            model: modelId,
+            safetySettings: SAFETY_SETTINGS,
+            ...(Object.keys(genConfig).length > 0 ? { generationConfig: genConfig } : {})
+        });
+
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    };
+
+    try {
+        return await tryModel(GEMINI_MODEL);
+    } catch (err) {
+        console.warn(`AI Proxy: ${GEMINI_MODEL} failed, trying fallback...`, err.message);
+        return await tryModel(GEMINI_FALLBACK);
+    }
+}
+
+exports.aiProxy = onCall({
+    region: "us-central1",
+    timeoutSeconds: 60,
+    memory: "256MiB"
+}, async (request) => {
+    const { action, payload } = request.data;
+
+    if (!action) {
+        throw new HttpsError("invalid-argument", "Action is required");
+    }
+
+    switch (action) {
+        case "parseIntent": {
+            const { message } = payload;
+            if (!message) throw new HttpsError("invalid-argument", "Message is required");
+
+            const prompt = `
+            You are a helpful AI Personal Shopper for a Costco import store in Mongolia.
+            Analyze the user's search query: "${message}"
+
+            Intent analysis requirements:
+            1. isSearch: true if they are looking for specific products.
+            2. mustHave: Array of the MOST CRITICAL English keywords that MUST be in the product name or category.
+            3. synonyms: Array of secondary keywords or synonyms in Mongolian and English.
+            4. excludeTerms: Array of keywords to EXCLUDE.
+            5. predictedCategory: A likely category name.
+
+            Respond strictly in this JSON structure:
+            {
+              "isSearch": boolean,
+              "mustHave": string[],
+              "synonyms": string[],
+              "excludeTerms": string[],
+              "predictedCategory": string
+            }
+            `;
+
+            const text = await callGemini(prompt, { jsonMode: true });
+            try {
+                return JSON.parse(text);
+            } catch {
+                const jsonStr = text.replace(/```json|```/g, "").trim();
+                return JSON.parse(jsonStr);
+            }
+        }
+
+        case "generateRecommendation": {
+            const { userMessage, products } = payload;
+            if (!userMessage) throw new HttpsError("invalid-argument", "User message is required");
+
+            const productInfo = (products || [])
+                .map(p => `- ${p.name_mn || p.name} (${(p.price || 0).toLocaleString()}₮)`)
+                .join("\n");
+
+            const prompt = `
+            You are a helpful AI Personal Shopper for "AAA Costco" in Mongolia.
+            User asked: "${userMessage}"
+            We found these products in our local store:
+            ${productInfo}
+            
+            Write a short, friendly response in Mongolian (Ulaanbaatar dialect) recommending these items.
+            Keep it concise (max 3 sentences).
+            `;
+
+            const text = await callGemini(prompt);
+            return { response: text };
+        }
+
+        case "calculateWeight": {
+            const { product } = payload;
+            if (!product) throw new HttpsError("invalid-argument", "Product data is required");
+
+            const productContext = `
+                Name (MN): ${product.name_mn || ''}
+                Name (EN): ${product.englishName || product.name || ''}
+                Brand: ${product.brand || ''}
+                Specs: ${JSON.stringify(product.specifications || product.classifications || [])}
+                Description (MN): ${(product.description_mn || '').substring(0, 500)}
+                Description (EN): ${(product.description_en || product.description || '').substring(0, 500)}
+            `;
+
+            const prompt = `
+            You are a logistics expert specializing in Costco products.
+            Analyze this product information and calculate the TOTAL SHIPPING WEIGHT in Kilograms (kg).
+
+            PRODUCT INFO:
+            ${productContext}
+
+            CRITICAL RULES:
+            1. MULTIPLIERS ARE VITAL: If names include "x 40", "x 12", etc., MULTIPLY the unit weight.
+            2. PRODUCT TYPE CONVERSION: Liquids (ml, L): 1 liter = 1kg. Grains/Powders: Direct weight.
+            3. IGNORE DIMENSIONS: "74cm x 74cm" are NOT weights.
+            4. PACKAGE OVERHEAD: Add 5% extra for heavy bulk or glass items.
+            5. ESTIMATION: If no explicit weight found, use typical Costco product sizes.
+            6. WAREHOUSE PRICE ESTIMATION: Estimate the shipping markup in KRW.
+
+            Return JSON only:
+            {
+              "weightKg": number,
+              "reason": "short explanation in Mongolian",
+              "confidence": "high" | "medium" | "low",
+              "estimatedMarkupKrw": number
+            }
+            `;
+
+            const text = await callGemini(prompt, { jsonMode: true, temperature: 0.1 });
+            try {
+                return JSON.parse(text);
+            } catch {
+                const jsonStr = text.replace(/```json|```/g, "").trim();
+                return JSON.parse(jsonStr);
+            }
+        }
+
+        case "generateSummary": {
+            const { product } = payload;
+            if (!product) throw new HttpsError("invalid-argument", "Product data is required");
+
+            // Use persisted short description if available
+            if (product.shortDescription && product.shortDescription.length > 5) {
+                return { response: product.shortDescription };
+            }
+
+            const productContext = `
+                Name (MN): ${product.name_mn || product.name || ''}
+                Name (EN): ${product.englishName || ''}
+                Brand: ${product.brand || ''}
+                Price: ${product.price || ''}
+                Specs: ${JSON.stringify(product.specifications || product.classifications || [])}
+                Description (MN): ${(product.description_mn || '').substring(0, 1000)}
+                Description (EN): ${(product.description_en || product.description || '').substring(0, 1000)}
+            `;
+
+            const prompt = `
+            You are a helpful Costco Personal Shopper.
+            Write a SHORT, CONCISE summary of this product in MONGOLIAN (Ulaanbaatar dialect).
+            
+            PRODUCT INFO:
+            ${productContext}
+
+            REQUIREMENTS:
+            1. Key Benefits: What is it? Why is it good? (1 sentence).
+            2. Usage/Specs: Quantity, size, or how to use (1 sentence).
+            3. Tone: Helpful, friendly, professional.
+            4. Format: Plain text, max 3-4 lines. NO bullet points.
+            5. Language: Natural Mongolian.
+            `;
+
+            const text = await callGemini(prompt);
+            return { response: text };
+        }
+
+        default:
+            throw new HttpsError("invalid-argument", `Unknown action: ${action}`);
     }
 });

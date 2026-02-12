@@ -69,9 +69,8 @@ export default function Profile() {
 
 
             </div>
-        </div>
 
-            {/* Loyalty Tier Card */ }
+            {/* Loyalty Tier Card */}
             <div className="container mx-auto max-w-lg px-0 md:px-4" >
                 <Suspense fallback={<div className="h-32 bg-gray-50 animate-pulse rounded-2xl" />}>
                     <LoyaltyCard user={user} onLogout={handleLogout} />
@@ -81,34 +80,26 @@ export default function Profile() {
 
             <div className="container mx-auto max-w-lg px-4 mt-6 relative z-10">
 
-                {/* Admin Portal Link (Restricted to specific admin phone) */}
-                {(() => {
-                    // Primary: Check isAdmin flag from state
-                    if (user?.isAdmin === true) return true;
-                    // Fallback: Check phone number
-                    const adminPhone = import.meta.env.VITE_ADMIN_PHONE || '00880088';
-                    const userPhone = (user?.phone || '').replace(/\D/g, ''); // Remove all non-digits
-                    const normalizedUserPhone = userPhone.startsWith('976') ? userPhone.slice(3) : userPhone;
-                    return normalizedUserPhone === adminPhone;
-                })() && (
-                        <div className="container mx-auto max-w-lg px-4 mb-6">
-                            <button
-                                onClick={() => navigate('/admin')}
-                                className="w-full bg-costco-blue rounded-2xl shadow-sm p-5 flex items-center justify-between group hover:bg-blue-700 transition-all text-white"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-white group-hover:scale-110 transition-transform">
-                                        <ShieldCheck size={24} />
-                                    </div>
-                                    <div className="text-left">
-                                        <h3 className="font-bold">Админ Портал</h3>
-                                        <p className="text-blue-100 text-xs text-opacity-70">Системийн удирдлагын хэсэг</p>
-                                    </div>
+                {/* Admin Portal Link (Restricted to admins) */}
+                {user?.isAdmin === true && (
+                    <div className="container mx-auto max-w-lg px-4 mb-6">
+                        <button
+                            onClick={() => navigate('/admin')}
+                            className="w-full bg-costco-blue rounded-2xl shadow-sm p-5 flex items-center justify-between group hover:bg-blue-700 transition-all text-white"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-white group-hover:scale-110 transition-transform">
+                                    <ShieldCheck size={24} />
                                 </div>
-                                <ChevronRight size={20} className="text-blue-200 group-hover:text-white transition-colors" />
-                            </button>
-                        </div>
-                    )}
+                                <div className="text-left">
+                                    <h3 className="font-bold">Админ Портал</h3>
+                                    <p className="text-blue-100 text-xs text-opacity-70">Системийн удирдлагын хэсэг</p>
+                                </div>
+                            </div>
+                            <ChevronRight size={20} className="text-blue-200 group-hover:text-white transition-colors" />
+                        </button>
+                    </div>
+                )}
 
                 {/* Footer Info Section (Moved outside max-w-lg to allow full width) */}
             </div>
@@ -177,10 +168,10 @@ export default function Profile() {
                 </div>
             </div>
 
-    {/* Build Info */ }
-    <div className="text-center pb-8 opacity-30 text-xs font-mono">
-        ver: {buildInfo.buildTime}
-    </div>
+            {/* Build Info */}
+            <div className="text-center pb-8 opacity-30 text-xs font-mono">
+                ver: {buildInfo.buildTime}
+            </div>
         </div >
     );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useOrderStore } from '../store/orderStore';
 import { useProductStore } from '../store/productStore';
 import { Package, Search, Filter, CheckCircle, XCircle, ExternalLink, Crown, ChevronLeft } from 'lucide-react';
@@ -21,6 +21,18 @@ export default function AdminOrders() {
         fetchOrders();
     }, [fetchProducts, fetchOrders]);
 
+    // Pre-compute user spend by phone to avoid O(n²) recalculation per row
+    const userSpendByPhone = useMemo(() => {
+        const map = {};
+        orders.forEach(o => {
+            const phone = o.recipientPhone ? o.recipientPhone.replace(/\D/g, '') : '';
+            if (phone && o.status !== 'Cancelled') {
+                map[phone] = (map[phone] || 0) + (o.total || 0);
+            }
+        });
+        return map;
+    }, [orders]);
+
 
 
     const getFilteredOrders = () => {
@@ -40,29 +52,6 @@ export default function AdminOrders() {
     };
 
     const filteredOrders = getFilteredOrders();
-
-    // Calculate Product Sales Stats
-    const productStats = orders.reduce((acc, order) => {
-        if (order.status === 'Cancelled' || order.status === 'Processing') return acc;
-        order.items.forEach(item => {
-            if (!acc[item.name]) {
-                // Find current product info to get the link
-                const productInfo = products.find(p => p.name === item.name);
-                acc[item.name] = {
-                    name: item.name,
-                    quantity: 0,
-                    revenue: 0,
-                    productLink: productInfo?.url || productInfo?.costcoUrl || productInfo?.productLink || ''
-                };
-            }
-            acc[item.name].quantity += item.quantity;
-            acc[item.name].revenue += item.price * item.quantity;
-        });
-        return acc;
-    }, {});
-
-
-    const productStatsArray = Object.values(productStats).sort((a, b) => b.revenue - a.revenue);
 
     const stats = {
         totalOrders: orders.length,
@@ -171,25 +160,13 @@ export default function AdminOrders() {
                                                                 <span className="text-gray-900">{order.customer || 'Guest'}</span>
                                                             )}
                                                             {(() => {
-                                                                // Calculate User Tier based on Phone history
                                                                 const phone = order.recipientPhone;
                                                                 if (!phone) return null;
-
-                                                                // Clean phone for matching (simple digits only)
                                                                 const cleanPhone = phone.replace(/\D/g, '');
+                                                                const userTotalSpend = userSpendByPhone[cleanPhone] || 0;
 
-                                                                // Find all orders for this user
-                                                                const userTotalSpend = orders.reduce((sum, o) => {
-                                                                    const oPhone = o.recipientPhone ? o.recipientPhone.replace(/\D/g, '') : '';
-                                                                    if (oPhone === cleanPhone && o.status !== 'Cancelled') {
-                                                                        return sum + (o.total || 0);
-                                                                    }
-                                                                    return sum;
-                                                                }, 0);
-
-                                                                let tierColor = 'text-orange-400'; // Default Member
+                                                                let tierColor = 'text-orange-400';
                                                                 let tierName = 'Member';
-
                                                                 if (userTotalSpend >= 10000000) {
                                                                     tierColor = 'text-gray-600';
                                                                     tierName = 'Platinum';

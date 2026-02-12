@@ -13,7 +13,6 @@ export default function InfoModal({ isOpen, onClose, initialTab = 'help', isEmbe
             fetchSettings();
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setActiveTab(initialTab);
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setExpandedSection(null);
         }
     }, [isOpen, isEmbedded, initialTab, fetchSettings]);

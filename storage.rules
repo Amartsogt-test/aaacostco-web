@@ -1,14 +1,26 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Banners - public read, admin write
     match /banners/{allPaths=**} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.isAdmin == true;
     }
+    // Menu images - public read, admin write
     match /menu-images/{allPaths=**} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.isAdmin == true;
     }
+    // Chat attachments - authenticated users can upload
+    match /chat-attachments/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 10 * 1024 * 1024; // 10MB limit
+    }
+    // Default - authenticated read, no public write
     match /{allPaths=**} {
-      allow read, write: if request.auth != null;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.token.isAdmin == true;
     }
   }
 }

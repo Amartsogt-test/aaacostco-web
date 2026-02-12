@@ -22,11 +22,13 @@ jobs:
       - name: Create Service Account File
         run: |
           mkdir -p functions
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}' > functions/service-account.json
-        # NOTE: The single quotes around the secret are important to prevent expansion/breaking
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' | base64 -d > functions/service-account.json
+        # Secret must be Base64 encoded to avoid JSON syntax errors in shell
 
       - name: Install Dependencies
         run: npm ci
 
       - name: Run Rates Script
         run: npm run core:bank-rates
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./functions/service-account.json

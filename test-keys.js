@@ -14,7 +14,11 @@ async function test(key, modelName) {
     }
 }
 
-const key = 'AIzaSyBtJ68dcLuFTvo9C_1NWQ-vMlat_K-8_jM';
+const key = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+if (!key) {
+    console.error("❌ GEMINI_API_KEY not found in environment");
+    process.exit(1);
+}
 const models = [
     'gemini-1.5-flash',
     'gemini-1.5-flash-latest',

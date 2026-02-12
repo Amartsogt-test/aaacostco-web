@@ -1,0 +1,29 @@
+﻿
+E:\aaacostco\src\components\AdminScraperSettings.jsx
+  16:8  warning  React Hook useEffect has a missing dependency: 'fetchSettings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+E:\aaacostco\src\components\AdminSettingsContent.jsx
+  31:8  warning  React Hook useEffect has a missing dependency: 'fetchSettings'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+E:\aaacostco\src\components\InfoModal.jsx
+  16:13  warning  Unused eslint-disable directive (no problems were reported from 'react-hooks/set-state-in-effect')
+
+E:\aaacostco\src\pages\AdminDailyReports.jsx
+  26:8  warning  React Hook useEffect has a missing dependency: 'selectedDate'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+E:\aaacostco\src\pages\AdminGiftCards.jsx
+  29:8  warning  React Hook useEffect has a missing dependency: 'fetchCards'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+E:\aaacostco\src\pages\Home.jsx
+  31:8  warning  React Hook useEffect has a missing dependency: 'searchTerm'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+E:\aaacostco\src\pages\QuickScanPage.jsx
+   25:8  warning  React Hook useEffect has a missing dependency: 'handleScan'. Either include it or remove the dependency array         react-hooks/exhaustive-deps
+  130:8  warning  React Hook useEffect has a missing dependency: 'startScannerLogic'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+E:\aaacostco\src\pages\ScannerPage.jsx
+  115:8  warning  React Hook useEffect has a missing dependency: 'user?.isAdmin'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+Γ£û 9 problems (0 errors, 9 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

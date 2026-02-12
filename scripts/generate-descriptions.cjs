@@ -3,18 +3,19 @@ const admin = require('firebase-admin');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const path = require('path');
 const fs = require('fs');
+require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
 
 // 1. Config
-const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBtJ68dcLuFTvo9C_1NWQ-vMlat_K-8_jM';
+const API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '../functions/service-account.json');
 const COLLECTION_NAME = 'products';
 // Use exp model or fallback
-const MODEL_NAME = 'gemini-2.0-flash-exp';
+const MODEL_NAME = 'gemini-2.0-flash';
 const FALLBACK_MODEL = 'gemini-1.5-flash';
 
 // Slow down significantly to handle quota exhaustion
-const BATCH_LIMIT = 500;
-const DELAY_MS = 10000; // 10 seconds per item
+const BATCH_LIMIT = 10000;
+const DELAY_MS = 5000; // 5 seconds per item
 
 // 2. Initialize Firebase
 if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
@@ -60,31 +61,29 @@ async function generateSummary(product) {
         "Энэ бол Kirkland брэндийн 2 литрийн органик оливийн тос бөгөөд хоол хүнсэнд хэрэглэхэд нэн тохиромжтой."
     `;
 
-    // Helper to call model with retry for 429
-    const callModel = async (modelId) => {
-        const m = genAI.getGenerativeModel({ model: modelId });
+    // Robust AI Call with Infinite Retry
+    async function callModel(promptText, modelName) {
+        const model = genAI.getGenerativeModel({ model: modelName });
 
-        let attempts = 0;
-        // Retry logic: try 3 times with 30s delay if quota hit
-        while (attempts < 3) {
+        while (true) {
             try {
-                const result = await m.generateContent(prompt);
-                return result.response.text().trim();
+                const result = await model.generateContent(promptText);
+                const response = await result.response;
+                return response.text().trim();
             } catch (error) {
-                if (error.message.includes('429')) {
-                    console.log(`      ⏳ Quota hit (429) on ${modelId}. Waiting 30s...`);
-                    await new Promise(resolve => setTimeout(resolve, 30000));
-                    attempts++;
+                if (error.message.includes('429') || error.message.includes('503')) {
+                    console.log(`      ⏳ Quota hit (${modelName}). Waiting 60s...`);
+                    await new Promise(r => setTimeout(r, 60000)); // Wait 1 minute
                 } else {
-                    throw error; // Re-throw non-quota errors immediately
+                    console.error(`      ❌ AI Fatal Error: ${error.message}`);
+                    throw error;
                 }
             }
         }
-        throw new Error('Max retries reached for 429');
-    };
+    }
 
     try {
-        return await callModel(MODEL_NAME);
+        return await callModel(prompt, MODEL_NAME);
     } catch (error) {
         console.warn(`   ⚠️ Primary model (${MODEL_NAME}) failed: ${error.message}`);
         try {
@@ -123,6 +122,11 @@ async function run() {
             continue;
         }
 
+        // Skip known failed ones
+        if (product.aiDescriptionStatus === 'failed') {
+            continue;
+        }
+
         console.log(`[${processedCount + 1}] Processing: ${product.name_mn || product.name}...`);
 
         const summary = await generateSummary(product);
@@ -131,12 +135,17 @@ async function run() {
             console.log(`   📝 Summary: ${summary}`);
             await db.collection(COLLECTION_NAME).doc(doc.id).update({
                 shortDescription: summary,
+                aiDescriptionStatus: 'fixed',
                 shortDescriptionUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
             updatedCount++;
             console.log('   ✅ Saved.');
         } else {
-            console.log('   ❌ Skipped (AI failed).');
+            console.log('   ❌ Skipped (AI failed). Marking for review.');
+            await db.collection(COLLECTION_NAME).doc(doc.id).update({
+                aiDescriptionStatus: 'failed',
+                shortDescriptionUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
         }
 
         processedCount++;

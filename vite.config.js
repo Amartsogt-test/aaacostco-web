@@ -8,12 +8,13 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['pwa-192x192.png', 'apple-touch-icon.png', 'pwa-512x512.png'],
       manifest: false, // We use a simpler strategy or have a separate manifest file
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        cleanupOutdatedCaches: true
+        cleanupOutdatedCaches: true,
+        globIgnores: ['**/qr-scanner-*.js'] // 326KB — only loaded when user visits /scan
       }
     })
   ],
@@ -48,10 +49,6 @@ export default defineConfig({
             // 🚀 NEW: Split state management
             if (id.includes('zustand')) {
               return 'state-vendor';
-            }
-            // 🚀 NEW: Split Gemini AI SDK
-            if (id.includes('@google/generative-ai')) {
-              return 'ai-vendor';
             }
           }
           // Don't manually chunk admin pages - let Vite handle it via lazy loading

@@ -1,31 +1,46 @@
 
-import { initializeApp, cert } from 'firebase-admin/app';
+import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import https from 'https';
+import dotenv from 'dotenv';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const serviceAccountPath = path.join(__dirname, '../../functions/service-account.json');
-const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-
-import dotenv from 'dotenv';
 dotenv.config();
 dotenv.config({ path: path.join(__dirname, '../../.env.local') });
 
+let serviceAccount;
+const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, '../../functions/service-account.json');
+
 try {
-    initializeApp({ credential: cert(serviceAccount) });
-} catch (e) {
-    if (e.code !== 'app/already-exists') throw e;
+    if (fs.existsSync(serviceAccountPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    } else {
+        console.error("❌ No service account found.");
+        process.exit(1);
+    }
+
+    if (!getApps().length) {
+        initializeApp({ credential: cert(serviceAccount) });
+    }
+} catch (err) {
+    console.error("❌ Failed to initialize Firebase:", err.message);
+    process.exit(1);
 }
+
 
 const db = getFirestore();
 
 // Gemini API Configuration
-const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCEuiBNYCdG10TxmQSq6ipI_uanY2f1tuc'; // Safe fallback or env
+const API_KEY = process.env.GEMINI_API_KEY;
+if (!API_KEY) {
+    console.error("❌ GEMINI_API_KEY is missing in .env");
+    process.exit(1);
+}
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
 async function callGemini(prompt) {

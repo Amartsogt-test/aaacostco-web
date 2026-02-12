@@ -17,14 +17,6 @@
         ],
         "rewrites": [
             {
-                "source": "/webhook",
-                "function": "costcoBot"
-            },
-            {
-                "source": "/go/**",
-                "function": "costcoBot"
-            },
-            {
                 "source": "**",
                 "destination": "/index.html"
             }
@@ -36,10 +28,6 @@
                     {
                         "key": "Cache-Control",
                         "value": "no-cache, no-store, must-revalidate"
-                    },
-                    {
-                        "key": "Clear-Site-Data",
-                        "value": "\"cache\", \"storage\""
                     }
                 ]
             },
@@ -57,7 +45,7 @@
                 "headers": [
                     {
                         "key": "Cache-Control",
-                        "value": "public, max-age=0, must-revalidate"
+                        "value": "public, max-age=31536000, immutable"
                     }
                 ]
             },

@@ -11,6 +11,7 @@ import { useChatStore } from '../store/chatStore';
 import { Edit2, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getProductWeight, calculateFinalPrice } from '../utils/productUtils';
+import LazyImage from './LazyImage';
 
 
 // 🚀 Performance: Memoize to prevent re-renders during scroll
@@ -154,12 +155,11 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
         <div className={`bg-white rounded-xl shadow-sm hover:shadow-lg transition flex flex-col h-full group overflow-hidden ${isInactive ? 'opacity-60 grayscale' : ''}`}>
             {/* Image Area */}
             <Link to={`/product/${product.id}`} className="relative aspect-square bg-white overflow-hidden block">
-                <img
+                <LazyImage
                     src={product.image}
                     alt={product.name}
-                    className={`w-full h-full object-contain p-2 group-hover:scale-105 transition duration-300 ${isInactive ? 'grayscale' : ''}`}
-                    loading="lazy"
-                    decoding="async"
+                    className={`w-full h-full ${isInactive ? 'grayscale' : ''}`}
+                    style={{ padding: '8px' }}
                 />
 
                 {/* Out of Stock / Inactive Overlay */}

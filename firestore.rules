@@ -2,87 +2,155 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Check if user exists in 'admins' collection
+    // Check if user is admin via custom claims
     function isAdmin() {
       return request.auth != null && 
-             exists(/databases/$(database)/documents/admins/$(request.auth.token.phone_number));
+             request.auth.token.isAdmin == true;
+    }
+
+    // Check if user is authenticated
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Check if user owns this document
+    function isOwner(userId) {
+      return isAuth() && request.auth.uid == userId;
     }
 
     // Admins collection: 
-    // - No one can write (must be done manually by super-admin logic or Console for now)
-    // - Read allowed if you are reading your own doc (to verify status)
+    // - No one can write (must be done via Admin SDK / Console)
+    // - Read allowed if you are reading your own doc
     match /admins/{phone} {
-      allow read: if request.auth != null && request.auth.token.phone_number == phone;
+      allow read: if isAuth();
       allow write: if false; 
     }
 
-    // Categories collection - allow public read
+    // Categories collection - public read, admin write
     match /categories/{categoryId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
-    // Settings collection - allow public write for exchange rate sync
-    // TODO: Add proper authentication later
+    // Settings collection - public read, admin write
+    // admin_auth doc: no client read (server-only via Admin SDK)
     match /settings/{settingId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if settingId != 'admin_auth';
+      allow write: if isAdmin();
     }
 
-    // Products collection - allow public write for admin operations
-    // TODO: Add proper authentication later
+    // Products collection - public read, admin write
     match /products/{productId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
-    // Special product collections - allow public write for admin operations
+    // Special product collections - public read, admin write
     match /products_sale/{productId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
     match /products_new/{productId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
     match /products_kirkland/{productId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
     match /products_featured/{productId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
-    // Orders collection - allow anyone to create their orders
-    match /orders/{orderId} {
+    // System collection (search index, sync status) - public read, admin write
+    match /system/{docId} {
       allow read: if true;
-      allow create: if true;
-      allow update, delete: if true; // Temporary allowing for UI fix verification
+      allow write: if isAdmin();
     }
 
-    // Chats collection - internal messaging system
+    // Orders collection
+    match /orders/{orderId} {
+      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Chats collection - authenticated users can access their own chats
     match /chats/{conversationId} {
-      allow read, write: if true;
+      allow read: if isAuth();
+      allow create: if isAuth();
+      allow update: if isAuth();
       
       // Messages subcollection
       match /messages/{messageId} {
-        allow read, write: if true;
+        allow read: if isAuth();
+        allow create: if isAuth();
+        allow update: if isAdmin();
       }
     }
 
-    // Users collection - Allow users to read/write their own data
+    // Users collection - users read/write their own data, admin reads all
     match /users/{userId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId);
     }
 
-    match /{document=**} {
-      // Public read for shop
-      allow read: if true;
-      
-      // Write only if admin (for other collections)
+    // Gift cards - public read (for validation), admin write
+    match /giftCards/{cardId} {
+      allow read: if isAuth();
       allow write: if isAdmin();
+    }
+
+    // Gift cards (alternate collection name)
+    match /gift_cards/{cardId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Reviews - public read, authenticated create, owner/admin delete
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
+    }
+
+    // Product ratings aggregate - public read, authenticated write
+    match /products_ratings/{productId} {
+      allow read: if true;
+      allow write: if isAuth();
+    }
+
+    // Banners - public read, admin write
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Content pages - public read, admin write
+    match /content/{contentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Exchange rates - public read, admin write
+    match /exchange_rates/{rateId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Home products - public read, admin write
+    match /home_products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Catch-all: DENY by default (forces explicit rules above)
+    match /{document=**} {
+      allow read: if false;
+      allow write: if false;
     }
   }
 }

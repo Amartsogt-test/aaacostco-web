@@ -3,11 +3,23 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <link rel="icon" type="image/png" href="/pwa-192x192.png" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.json" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#005da3" />
+
+  <!-- SEO -->
+  <meta name="description"
+    content="Costco Mongolia — Америкийн Costco Wholesale брэндийн бараа бүтээгдэхүүнийг Монголд захиалах. Хүнсний бараа, гэр ахуй, электроник бараа." />
+  <meta name="keywords" content="Costco, Mongolia, Монгол, Costco Mongolia, хүнс, бараа, захиалга, Kirkland" />
+  <meta property="og:title" content="Costco Mongolia" />
+  <meta property="og:description"
+    content="Америкийн Costco Wholesale брэндийн бараа бүтээгдэхүүнийг Монголд захиалах" />
+  <meta property="og:image" content="/pwa-512x512.png" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="mn_MN" />
 
   <!-- 🚀 Performance: Preconnect to external domains -->
   <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
@@ -20,6 +32,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+
+  <!-- Google Analytics 4 -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-XXXXXXXXXX');
+  </script>
 
   <title>Costco Mongolia</title>
 </head>

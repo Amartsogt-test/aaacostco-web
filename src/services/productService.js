@@ -719,6 +719,29 @@ export const productService = {
         }
     },
 
+    // 🚀 NEW: Get AI Review Items
+    async getAIReviewItems() {
+        try {
+            const productsRef = collection(db, COLLECTION_NAME);
+
+            // We need 3 separate queries because OR queries are limited/complex in Firestore
+            const [weights, translations, descriptions] = await Promise.all([
+                getDocs(query(productsRef, where('aiWeightStatus', '==', 'unfixable'))),
+                getDocs(query(productsRef, where('translationStatus', '==', 'manual_required'))),
+                getDocs(query(productsRef, where('aiDescriptionStatus', '==', 'failed')))
+            ]);
+
+            return {
+                weights: weights.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                translations: translations.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                descriptions: descriptions.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+            };
+        } catch (error) {
+            console.error("Error fetching AI review items:", error);
+            return { weights: [], translations: [], descriptions: [] };
+        }
+    },
+
     // Global Settings Management
     async getSettings(settingId) {
         try {
@@ -854,12 +877,7 @@ export const productService = {
 
     // 🚀 NEW: Listen to Sync Status
     subscribeToSyncStatus(callback) {
-        // We use dynamic imports in methods to keep initial bundle size small if possible,
-        // but for onSnapshot we need it often. 'db' is already imported at top.
-        const { onSnapshot, doc } = require('firebase/firestore'); // or use import if top-level available
-        // Since we utilize top-level imports for other methods, let's consistency use dynamic or top-level.
-        // The file uses top-level imports for `doc`, `onSnapshot`.
-
+        // Uses top-level imports for onSnapshot and doc (already imported at file top)
         const docRef = doc(db, 'system', 'syncStatus');
         return onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {

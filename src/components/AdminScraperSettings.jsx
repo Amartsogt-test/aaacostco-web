@@ -13,6 +13,7 @@ export default function AdminScraperSettings() {
         fetchSettings();
         // Auto-capture current browser's UA
         setUserAgent(window.navigator.userAgent);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchSettings = async () => {

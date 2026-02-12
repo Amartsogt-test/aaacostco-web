@@ -1,5 +1,5 @@
 import { db, storage } from '../firebase';
-import { collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, where, getDocs, limit } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, where, getDocs, limit, increment } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const COLLECTION_NAME = 'chats';
@@ -69,7 +69,7 @@ export const chatService = {
             const convRef = doc(db, COLLECTION_NAME, conversationId);
             const updateData = {
                 lastMessageAt: serverTimestamp(),
-                [isFromAdmin ? 'unreadByUser' : 'unreadByAdmin']: 1 // Increment unread
+                [isFromAdmin ? 'unreadByUser' : 'unreadByAdmin']: increment(1) // Increment unread
             };
 
             // Update last message text preview
@@ -128,7 +128,7 @@ export const chatService = {
             const convRef = doc(db, COLLECTION_NAME, conversationId);
             await updateDoc(convRef, {
                 needsAdmin: true,
-                unreadByAdmin: 1 // Ensure it shows up as unread/active
+                unreadByAdmin: increment(1) // Increment unread count
             });
             return true;
         } catch (error) {
@@ -137,7 +137,6 @@ export const chatService = {
         }
     },
 
-    // Get all conversations (for admin)
     // Get all conversations (for admin)
     async getAllConversations() {
         try {

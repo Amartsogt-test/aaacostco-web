@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageCircle, RefreshCw, Lock, UserPlus, LogIn, ChevronRight, Phone } from 'lucide-react';
-import { auth, db } from '../firebase';
+import { auth, db, functions } from '../firebase';
 import {
     RecaptchaVerifier,
     signInWithPhoneNumber,
     signInWithEmailAndPassword,
+    signInWithCustomToken,
     createUserWithEmailAndPassword,
     updatePassword
 } from 'firebase/auth';
 import { getDoc, setDoc, doc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settingsStore';
 
@@ -34,8 +36,51 @@ export default function Login() {
     const recaptchaRef = useRef(null);
     const verifierRef = useRef(null);
 
-    // Environment Variables (Backdoor)
-    const ADMIN_PHONE = import.meta.env.VITE_ADMIN_PHONE;
+    // Rate Limiting State
+    const MAX_ATTEMPTS = 5;
+    const LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
+    const [lockoutRemaining, setLockoutRemaining] = useState(0);
+
+    // Check lockout on mount & start countdown
+    useEffect(() => {
+        const checkLockout = () => {
+            const stored = localStorage.getItem('login_lockout');
+            if (stored) {
+                const { until } = JSON.parse(stored);
+                const remaining = until - Date.now();
+                if (remaining > 0) {
+                    setLockoutRemaining(Math.ceil(remaining / 1000));
+                } else {
+                    localStorage.removeItem('login_lockout');
+                    localStorage.removeItem('login_attempts');
+                    setLockoutRemaining(0);
+                }
+            }
+        };
+        checkLockout();
+        const interval = setInterval(checkLockout, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const recordFailedAttempt = () => {
+        const attempts = parseInt(localStorage.getItem('login_attempts') || '0') + 1;
+        localStorage.setItem('login_attempts', attempts.toString());
+        if (attempts >= MAX_ATTEMPTS) {
+            const until = Date.now() + LOCKOUT_MS;
+            localStorage.setItem('login_lockout', JSON.stringify({ until }));
+            setLockoutRemaining(Math.ceil(LOCKOUT_MS / 1000));
+        }
+    };
+
+    const clearAttempts = () => {
+        localStorage.removeItem('login_attempts');
+        localStorage.removeItem('login_lockout');
+        setLockoutRemaining(0);
+    };
+
+    const isLockedOut = lockoutRemaining > 0;
+
+
 
     useEffect(() => {
         fetchSettings();
@@ -50,12 +95,18 @@ export default function Login() {
 
     // --- HELPER: SHADOW CREDENTIALS ---
     const getShadowEmail = (phone) => `${phone}@costco.mn`;
-    const getShadowPassword = (pinCode) => `C$${pinCode}#CostcoSecret`; // Simple hashing strategy
+    const getShadowPassword = (pinCode) => `C$${pinCode}${import.meta.env.VITE_AUTH_SALT}`;
 
     // --- AUTH FLOW 1: LOGIN (Phone + PIN) ---
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
+
+        if (isLockedOut) {
+            setError(`Хэт олон оролдлого. ${Math.ceil(lockoutRemaining / 60)} минут хүлээнэ үү.`);
+            return;
+        }
+
         setIsLoading(true);
 
         if (phoneNumber.length < 8) {
@@ -66,64 +117,33 @@ export default function Login() {
 
         const cleanPhone = phoneNumber.replace(/\D/g, '');
 
-        // --- 1. ADMIN BYPASS CHECK (Real Auth Upgrade) ---
-        // Use Real Firebase Auth (Shadow Email) instead of fake user to support Firestore Rules
-        const envAdminPin = import.meta.env.VITE_ADMIN_PIN || '8808';
-        if ((cleanPhone === '00880088' || cleanPhone === ADMIN_PHONE) && (pin === '8808' || pin === envAdminPin)) {
-            const email = getShadowEmail(cleanPhone);
-            const password = getShadowPassword(pin);
+        // --- 1. ADMIN AUTH CHECK (via Cloud Function) ---
+        try {
+            const verifyAdmin = httpsCallable(functions, 'verifyAdminLogin');
+            const result = await verifyAdmin({ phone: cleanPhone, pin });
 
-            try {
-                // A. Try direct login
-                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            if (result.data.success && result.data.token) {
+                // Sign in with custom token from server
+                await signInWithCustomToken(auth, result.data.token);
 
-                // B. Force Admin Privileges (Self-Repair)
-                await setDoc(doc(db, 'users', userCredential.user.uid), {
+                // Fetch user profile
+                const userDoc = await getDoc(doc(db, 'users', result.data.uid));
+                const userData = userDoc.exists() ? userDoc.data() : {};
+
+                login({
+                    uid: result.data.uid,
                     phone: `+976${cleanPhone}`,
                     isAdmin: true,
-                    updatedAt: new Date().toISOString()
-                }, { merge: true });
-
-                // C. Sync Store
-                login({
-                    ...userCredential.user,
-                    phone: `+976${cleanPhone}`,
-                    isAdmin: true
+                    ...userData
                 });
+                clearAttempts();
                 navigate('/profile');
                 return;
-
-            } catch (error) {
-                // D. If not found, REGISTER them as Admin
-                if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                    try {
-                        const newUserCred = await createUserWithEmailAndPassword(auth, email, password);
-
-                        await setDoc(doc(db, 'users', newUserCred.user.uid), {
-                            phone: `+976${cleanPhone}`,
-                            isAdmin: true, // Crucial: Set as Admin
-                            createdAt: new Date().toISOString()
-                        });
-
-                        login({
-                            ...newUserCred.user,
-                            phone: `+976${cleanPhone}`,
-                            isAdmin: true
-                        });
-                        navigate('/profile');
-                        return;
-                    } catch (regError) {
-                        console.error("Admin Registration Failed:", regError);
-                        setError('Admin account creation failed: ' + regError.message);
-                        setIsLoading(false);
-                        return;
-                    }
-                }
-
-                console.error("Admin Login Failed:", error);
-                setError('Admin login failed: ' + error.message);
-                setIsLoading(false);
-                return;
+            }
+        } catch (adminErr) {
+            // Not admin or wrong credentials — fall through to standard login
+            if (adminErr?.code !== 'functions/permission-denied' && adminErr?.code !== 'functions/not-found') {
+                console.error("Admin check error:", adminErr);
             }
         }
 
@@ -145,11 +165,14 @@ export default function Login() {
                 ...userData
             });
 
+            clearAttempts();
             navigate('/');
         } catch (err) {
             console.error("Login Error:", err);
+            recordFailedAttempt();
             if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found') {
-                setError('Утасны дугаар эсвэл ПИН код буруу байна.');
+                const remaining = MAX_ATTEMPTS - parseInt(localStorage.getItem('login_attempts') || '0');
+                setError(`Утасны дугаар эсвэл ПИН код буруу байна.${remaining > 0 ? ` (${remaining} оролдлого үлдсэн)` : ''}`);
             } else {
                 setError('Нэвтрэхэд алдаа гарлаа. ' + err.code);
             }

@@ -1,10 +1,10 @@
 import { db } from '../firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, deleteDoc, query, orderBy, setDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, deleteDoc, query, orderBy, setDoc, where } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'orders';
 
 export const orderService = {
-    // Fetch all orders
+    // Fetch all orders (admin only)
     async getOrders() {
         try {
             const q = query(collection(db, COLLECTION_NAME), orderBy('date', 'desc'));
@@ -12,6 +12,45 @@ export const orderService = {
             return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         } catch (error) {
             console.error("Error fetching orders: ", error);
+            throw error;
+        }
+    },
+
+    // Fetch orders for a specific user (by userId or phone)
+    async getUserOrders(userId, userPhone) {
+        try {
+            // Primary query: by userId
+            const q = query(
+                collection(db, COLLECTION_NAME),
+                where('userId', '==', userId),
+                orderBy('date', 'desc')
+            );
+            const snapshot = await getDocs(q);
+            let orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            // Fallback: also check by phone number if we have it
+            if (userPhone) {
+                const cleanPhone = userPhone.replace(/\D/g, '');
+                const phoneDigits = cleanPhone.startsWith('976') && cleanPhone.length === 11 ? cleanPhone.slice(3) : cleanPhone;
+                const q2 = query(
+                    collection(db, COLLECTION_NAME),
+                    where('recipientPhone', '==', phoneDigits),
+                    orderBy('date', 'desc')
+                );
+                const snap2 = await getDocs(q2);
+                const phoneOrders = snap2.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                // Merge, avoiding duplicates
+                const existingIds = new Set(orders.map(o => o.id));
+                for (const o of phoneOrders) {
+                    if (!existingIds.has(o.id)) orders.push(o);
+                }
+                orders.sort((a, b) => new Date(b.date) - new Date(a.date));
+            }
+
+            return orders;
+        } catch (error) {
+            console.error("Error fetching user orders: ", error);
             throw error;
         }
     },
@@ -67,32 +106,31 @@ export const orderService = {
     // Calculate total spend for a user (by phone number)
     async calculateUserSpend(phoneNumber) {
         try {
-            // Normalize phone: if it starts with +976, we might need to handle variants,
-            // but usually orders are saved with whatever was input.
-            // We'll search for exact match or substring if needed, but for now exact match on 'phone' field.
-
-            // Note: This requires an index on 'phone' and 'status' if we filter by both.
-            // For now, let's fetch by phone and filter by status in memory to avoid composite index requirement immediately if not set.
-            const q = query(collection(db, COLLECTION_NAME), orderBy('date', 'desc'));
-            // Ideally: where('contacts.phone', '==', phoneNumber) or similar.
-            // But orders structure is: { items: [...], recipient: { phone: ... }, ... }
-            // Let's check how recipient phone is stored. In Cart.jsx: recipientPhone.
-
-            const snapshot = await getDocs(q);
             const userDigits = phoneNumber.replace(/\D/g, '');
             const cleanPhone = userDigits.startsWith('976') && userDigits.length === 11 ? userDigits.slice(3) : userDigits;
 
-            const userOrders = snapshot.docs
-                .map(doc => doc.data())
-                .filter(order => {
-                    const orderPhone = order.recipientPhone ? order.recipientPhone.toString().replace(/\D/g, '') : '';
-                    return (orderPhone === cleanPhone || order.recipientPhone === phoneNumber) && order.status === 'Хүргэгдсэн';
-                });
+            // Query only delivered orders for this phone (requires composite index: recipientPhone + status)
+            const q = query(
+                collection(db, COLLECTION_NAME),
+                where('status', '==', 'Хүргэгдсэн'),
+                where('recipientPhone', '==', cleanPhone)
+            );
 
-            const totalSpend = userOrders.reduce((sum, order) => {
-                // Calculate order total. 
-                // Order structure usually has 'total' or we sum items.
-                // Let's assume order.items has price * quantity.
+            let snapshot = await getDocs(q);
+
+            // Fallback: try with original format if no results
+            if (snapshot.empty && cleanPhone !== phoneNumber) {
+                const q2 = query(
+                    collection(db, COLLECTION_NAME),
+                    where('status', '==', 'Хүргэгдсэн'),
+                    where('recipientPhone', '==', phoneNumber)
+                );
+                snapshot = await getDocs(q2);
+            }
+
+            const totalSpend = snapshot.docs.reduce((sum, doc) => {
+                const order = doc.data();
+                if (!order.items) return sum;
                 const orderTotal = order.items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
                 return sum + orderTotal;
             }, 0);

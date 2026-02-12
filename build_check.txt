@@ -1,0 +1,118 @@
+﻿[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32mΓ£ô[39m 1884 modules transformed.
+rendering chunks...
+node.exe : [33m[plugin vite:reporter] 
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([33m[plu 
+   gin vite:reporter] :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(!) E:/aaacostco/src/firebase.js is dynamically 
+imported by E:/aaacostco/src/components/ChatModal.jsx, 
+E:/aaacostco/src/components/ChatModal.jsx, 
+E:/aaacostco/src/services/productService.js, 
+E:/aaacostco/src/store/authStore.js, 
+E:/aaacostco/src/store/productStore.js, 
+E:/aaacostco/src/store/productStore.js but also 
+statically imported by 
+E:/aaacostco/src/pages/AdminChat.jsx, 
+E:/aaacostco/src/pages/AdminDailyReports.jsx, 
+E:/aaacostco/src/pages/DebugPage.jsx, 
+E:/aaacostco/src/pages/Login.jsx, 
+E:/aaacostco/src/pages/Profile.jsx, 
+E:/aaacostco/src/pages/QuickScanPage.jsx, 
+E:/aaacostco/src/services/adminService.js, 
+E:/aaacostco/src/services/chatService.js, 
+E:/aaacostco/src/services/giftCardService.js, 
+E:/aaacostco/src/services/orderService.js, 
+E:/aaacostco/src/services/productService.js, 
+E:/aaacostco/src/services/settingsService.js, 
+E:/aaacostco/src/store/authStore.js, dynamic import 
+will not move module into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) E:/aaacostco/src/services/orderService.js is 
+dynamically imported by 
+E:/aaacostco/src/store/authStore.js but also 
+statically imported by 
+E:/aaacostco/src/store/orderStore.js, dynamic import 
+will not move module into another chunk.
+[39m
+computing gzip size...
+[2mdist/[22m[32mregisterSW.js                             [39m[1m[2m  0.13 kB[22m[1m[22m
+[2mdist/[22m[32mindex.html                                [39m[1m[2m  1.82 kB[22m[1m[22m[2m Γöé gzip:   0.69 kB[22m
+[2mdist/[22m[35massets/LocationPage-Dgihpmma.css          [39m[1m[2m 15.04 kB[22m[1m[22m[2m Γöé gzip:   6.38 kB[22m
+[2mdist/[22m[35massets/index-D6jxSbSk.css                 [39m[1m[2m 63.70 kB[22m[1m[22m[2m Γöé gzip:  10.55 kB[22m
+[2mdist/[22m[36massets/Orders-DZhitoqz.js                 [39m[1m[2m  0.28 kB[22m[1m[22m[2m Γöé gzip:   0.21 kB[22m
+[2mdist/[22m[36massets/AdminBanner-COW-HhZJ.js            [39m[1m[2m  0.31 kB[22m[1m[22m[2m Γöé gzip:   0.23 kB[22m
+[2mdist/[22m[36massets/Cart-DApz4vOD.js                   [39m[1m[2m  0.36 kB[22m[1m[22m[2m Γöé gzip:   0.25 kB[22m
+[2mdist/[22m[36massets/Saved-D10r7BpN.js                  [39m[1m[2m  0.39 kB[22m[1m[22m[2m Γöé gzip:   0.26 kB[22m
+[2mdist/[22m[36massets/wishlistStore-Bdn57BeR.js          [39m[1m[2m  0.57 kB[22m[1m[22m[2m Γöé gzip:   0.32 kB[22m
+[2mdist/[22m[36massets/AdminRoute-BITql09g.js             [39m[1m[2m  0.59 kB[22m[1m[22m[2m Γöé gzip:   0.38 kB[22m
+[2mdist/[22m[36massets/Chat-lbpsh6Ff.js                   [39m[1m[2m  0.84 kB[22m[1m[22m[2m Γöé gzip:   0.54 kB[22m
+[2mdist/[22m[36massets/AdminMenuImagesPage-BjoUT4fY.js    [39m[1m[2m  1.01 kB[22m[1m[22m[2m Γöé gzip:   0.58 kB[22m
+[2mdist/[22m[36massets/adminService-D-wLiO2I.js           [39m[1m[2m  1.30 kB[22m[1m[22m[2m Γöé gzip:   0.60 kB[22m
+[2mdist/[22m[36massets/ConfirmationModal-CtshzBvF.js      [39m[1m[2m  1.32 kB[22m[1m[22m[2m Γöé gzip:   0.61 kB[22m
+[2mdist/[22m[36massets/AdminSettings-NQyz4AMG.js          [39m[1m[2m  1.58 kB[22m[1m[22m[2m Γöé gzip:   0.78 kB[22m
+[2mdist/[22m[36massets/PrivacyPolicy-DuSgYxjy.js          [39m[1m[2m  1.78 kB[22m[1m[22m[2m Γöé gzip:   0.87 kB[22m
+[2mdist/[22m[36massets/TermsOfService-CqDAuhlF.js         [39m[1m[2m  1.78 kB[22m[1m[22m[2m Γöé gzip:   0.87 kB[22m
+[2mdist/[22m[36massets/DataDeletion-BTo3A1bk.js           [39m[1m[2m  1.79 kB[22m[1m[22m[2m Γöé gzip:   0.88 kB[22m
+[2mdist/[22m[36massets/state-vendor-D8n4vorB.js           [39m[1m[2m  2.15 kB[22m[1m[22m[2m Γöé gzip:   0.99 kB[22m
+[2mdist/[22m[36massets/AboutUs-2x4nCq5E.js                [39m[1m[2m  2.18 kB[22m[1m[22m[2m Γöé gzip:   1.01 kB[22m
+[2mdist/[22m[36massets/giftCardService-CVHofkM1.js        [39m[1m[2m  2.37 kB[22m[1m[22m[2m Γöé gzip:   1.21 kB[22m
+[2mdist/[22m[36massets/DebugPage-DNj_lkMy.js              [39m[1m[2m  2.50 kB[22m[1m[22m[2m Γöé gzip:   1.11 kB[22m
+[2mdist/[22m[36massets/AdminScraperSettings-DgZcE0QW.js   [39m[1m[2m  2.64 kB[22m[1m[22m[2m Γöé gzip:   1.34 kB[22m
+[2mdist/[22m[36massets/LoyaltyCard-C6MvzPxH.js            [39m[1m[2m  2.86 kB[22m[1m[22m[2m Γöé gzip:   1.17 kB[22m
+[2mdist/[22m[36massets/CartMenuPage-Brk07tDl.js           [39m[1m[2m  2.97 kB[22m[1m[22m[2m Γöé gzip:   1.05 kB[22m
+[2mdist/[22m[36massets/BranchPage-C4ONqSIE.js             [39m[1m[2m  3.04 kB[22m[1m[22m[2m Γöé gzip:   1.32 kB[22m
+[2mdist/[22m[36massets/Notifications-LZgUw3Ec.js          [39m[1m[2m  3.05 kB[22m[1m[22m[2m Γöé gzip:   1.37 kB[22m
+[2mdist/[22m[36massets/OrdersContent-1ZxeWeM9.js          [39m[1m[2m  3.32 kB[22m[1m[22m[2m Γöé gzip:   1.43 kB[22m
+[2mdist/[22m[36massets/AdminInactiveProducts-CO_ti_tG.js  [39m[1m[2m  3.62 kB[22m[1m[22m[2m Γöé gzip:   1.48 kB[22m
+[2mdist/[22m[36massets/productUtils-DWRk8f6Y.js           [39m[1m[2m  3.79 kB[22m[1m[22m[2m Γöé gzip:   1.61 kB[22m
+[2mdist/[22m[36massets/AdminSync-D0qY3pUm.js              [39m[1m[2m  4.17 kB[22m[1m[22m[2m Γöé gzip:   1.67 kB[22m
+[2mdist/[22m[36massets/AdminMenuImages-IijNULE7.js        [39m[1m[2m  4.17 kB[22m[1m[22m[2m Γöé gzip:   1.70 kB[22m
+[2mdist/[22m[36massets/SalesSummaryPage-LDAbZX-L.js       [39m[1m[2m  4.19 kB[22m[1m[22m[2m Γöé gzip:   1.49 kB[22m
+[2mdist/[22m[36massets/AdminAIReview-DFg9xnkn.js          [39m[1m[2m  4.57 kB[22m[1m[22m[2m Γöé gzip:   1.67 kB[22m
+[2mdist/[22m[36massets/SavedContent-4SxEn67O.js           [39m[1m[2m  4.63 kB[22m[1m[22m[2m Γöé gzip:   1.61 kB[22m
+[2mdist/[22m[36massets/Profile-beYI7C6V.js                [39m[1m[2m  5.35 kB[22m[1m[22m[2m Γöé gzip:   1.81 kB[22m
+[2mdist/[22m[36massets/ScannerPage-CcR0yMOk.js            [39m[1m[2m  5.59 kB[22m[1m[22m[2m Γöé gzip:   2.06 kB[22m
+[2mdist/[22m[36massets/PaymentPage-Bb4L3DOx.js            [39m[1m[2m  5.78 kB[22m[1m[22m[2m Γöé gzip:   2.47 kB[22m
+[2mdist/[22m[36massets/InfoPage-pIK4UBjZ.js               [39m[1m[2m  5.79 kB[22m[1m[22m[2m Γöé gzip:   1.82 kB[22m
+[2mdist/[22m[36massets/AdminDailyReports-E3ixivNX.js      [39m[1m[2m  6.55 kB[22m[1m[22m[2m Γöé gzip:   2.17 kB[22m
+[2mdist/[22m[36massets/BannerManager-7sHGBGUZ.js          [39m[1m[2m  7.09 kB[22m[1m[22m[2m Γöé gzip:   2.54 kB[22m
+[2mdist/[22m[36massets/ProductCard-BwI8OPDI.js            [39m[1m[2m  7.71 kB[22m[1m[22m[2m Γöé gzip:   2.93 kB[22m
+[2mdist/[22m[36massets/AdminGiftCards-2oREDyfK.js         [39m[1m[2m  8.55 kB[22m[1m[22m[2m Γöé gzip:   2.84 kB[22m
+[2mdist/[22m[36massets/aiService-BNseZF4i.js              [39m[1m[2m  8.56 kB[22m[1m[22m[2m Γöé gzip:   3.29 kB[22m
+[2mdist/[22m[36massets/AdminOrders-XYf4R5k4.js            [39m[1m[2m  9.08 kB[22m[1m[22m[2m Γöé gzip:   3.02 kB[22m
+[2mdist/[22m[36massets/Home-CAAk0dRe.js                   [39m[1m[2m  9.08 kB[22m[1m[22m[2m Γöé gzip:   3.46 kB[22m
+[2mdist/[22m[36massets/AdminContent-DecO2Txx.js           [39m[1m[2m  9.16 kB[22m[1m[22m[2m Γöé gzip:   2.58 kB[22m
+[2mdist/[22m[36massets/AdminSettingsContent-DSVeV4DS.js   [39m[1m[2m  9.16 kB[22m[1m[22m[2m Γöé gzip:   2.75 kB[22m
+[2mdist/[22m[36massets/LocationPage-6uSPiIq5.js           [39m[1m[2m  9.97 kB[22m[1m[22m[2m Γöé gzip:   6.65 kB[22m
+[2mdist/[22m[36massets/productService-r3DOhyEm.js         [39m[1m[2m 12.19 kB[22m[1m[22m[2m Γöé gzip:   3.68 kB[22m
+[2mdist/[22m[36massets/QuickScanPage-zPMRW88C.js          [39m[1m[2m 12.33 kB[22m[1m[22m[2m Γöé gzip:   4.13 kB[22m
+[2mdist/[22m[36massets/AdminPortal-BZF3iQgz.js            [39m[1m[2m 12.77 kB[22m[1m[22m[2m Γöé gzip:   2.70 kB[22m
+[2mdist/[22m[36massets/Login-Dw6dPyky.js                  [39m[1m[2m 12.91 kB[22m[1m[22m[2m Γöé gzip:   3.54 kB[22m
+[2mdist/[22m[36massets/CartContent-wW9dPqNL.js            [39m[1m[2m 13.70 kB[22m[1m[22m[2m Γöé gzip:   4.41 kB[22m
+[2mdist/[22m[36massets/AdminChat-VdSGkSRN.js              [39m[1m[2m 17.37 kB[22m[1m[22m[2m Γöé gzip:   5.47 kB[22m
+[2mdist/[22m[36massets/AdminDashboard-M5vBw7J3.js         [39m[1m[2m 17.89 kB[22m[1m[22m[2m Γöé gzip:   4.42 kB[22m
+[2mdist/[22m[36massets/ai-vendor-BLpr7VVs.js              [39m[1m[2m 18.51 kB[22m[1m[22m[2m Γöé gzip:   5.61 kB[22m
+[2mdist/[22m[36massets/AdminProductAdd-eef_yeCT.js        [39m[1m[2m 19.31 kB[22m[1m[22m[2m Γöé gzip:   4.95 kB[22m
+[2mdist/[22m[36massets/ChatModal-BqGs5r1U.js              [39m[1m[2m 27.10 kB[22m[1m[22m[2m Γöé gzip:   7.69 kB[22m
+[2mdist/[22m[36massets/ProductDetail-Cz9NIVPJ.js          [39m[1m[2m 39.59 kB[22m[1m[22m[2m Γöé gzip:  14.22 kB[22m
+[2mdist/[22m[36massets/index-BVLsN5wQ.js                  [39m[1m[2m 56.83 kB[22m[1m[22m[2m Γöé gzip:  17.00 kB[22m
+[2mdist/[22m[36massets/qr-scanner-CibiLhNH.js             [39m[1m[2m333.84 kB[22m[1m[22m[2m Γöé gzip:  98.47 kB[22m
+[2mdist/[22m[36massets/react-vendor-BLNab5EO.js           [39m[1m[2m396.04 kB[22m[1m[22m[2m Γöé gzip: 122.64 kB[22m
+[2mdist/[22m[36massets/firebase-vendor-vU-C5c7-.js        [39m[1m[2m461.03 kB[22m[1m[22m[2m Γöé gzip: 138.17 kB[22m
+[32mΓ£ô built in 9.58s[39m
+
+PWA v1.2.0
+mode      generateSW
+precache  69 entries (1675.07 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-8c29f6e4.js

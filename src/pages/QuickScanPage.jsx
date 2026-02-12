@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, RotateCw, Save, Scan, ScanBarcode, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, RotateCw, Save, Scan, ScanBarcode, Image as ImageIcon, Search, Edit } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -22,13 +22,17 @@ export default function QuickScanPage() {
         if (urlCode) {
             handleScan(cleanBarcode(urlCode));
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [urlCode]);
 
     const [price, setPrice] = useState('');
     const [originalPrice, setOriginalPrice] = useState('');
     const [weight, setWeight] = useState('');
     const [discountEndDate, setDiscountEndDate] = useState('');
-    const [isFeatured, setIsFeatured] = useState(false);
+    const [selectedTags, setSelectedTags] = useState([]);
+    const [manualCode, setManualCode] = useState('');
+    const [nameMn, setNameMn] = useState('');
+    const [shortDescription, setShortDescription] = useState('');
 
     const html5QrCodeRef = useRef(null);
 
@@ -124,6 +128,7 @@ export default function QuickScanPage() {
                 html5QrCodeRef.current.stop().catch(e => console.warn("Cleanup error:", e));
             }
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isScanning]);
 
     const handleScan = async (rawCode) => {
@@ -159,6 +164,8 @@ export default function QuickScanPage() {
                 setProduct({ ...pData, docId: foundDocs[0].id });
                 setPrice(pData.price || '');
                 setOriginalPrice(pData.originalPrice || '');
+                setNameMn(pData.name_mn || pData.name || '');
+                setShortDescription(pData.shortDescription || '');
 
                 if (pData.weight) {
                     setWeight(pData.weight);
@@ -175,7 +182,20 @@ export default function QuickScanPage() {
                     setWeight(calcWeight);
                 }
 
-                setIsFeatured(pData.additionalCategories?.includes('Featured') || false);
+                // Initialize tags
+                const currentTags = pData.additionalCategories || [];
+                // Map 'Featured' to 'Онцгой' internally if needed, OR just keep strings as is.
+                // The library uses 'Featured' for isFeatured, but the user UI says 'Онцгой'.
+                // AdminProductAdd uses 'Онцгой' as label but stores it.
+                // Let's assume we store the strings directly: 'Онцгой', 'Trend', 'Дарс', 'New'.
+                // EXCEPT: 'Featured' usually maps to 'Онцгой' in logic, but standardizing on stored string is safer.
+                // If existing data has 'Featured', let's map it to 'Онцгой' for the UI.
+
+                let loadedTags = [...currentTags];
+                // Legacy support: if 'Featured' exists, treat as 'Онцгой'
+                if (loadedTags.includes('Featured') && !loadedTags.includes('Онцгой')) loadedTags.push('Онцгой');
+
+                setSelectedTags(loadedTags);
 
                 if (pData.discountEndDate) {
                     try {
@@ -209,6 +229,8 @@ export default function QuickScanPage() {
                 price: Number(price),
                 originalPrice: originalPrice ? Number(originalPrice) : null,
                 weight: Number(weight),
+                name_mn: nameMn,
+                shortDescription: shortDescription,
                 isManualPrice: true,
                 updatedAt: serverTimestamp(),
                 lastAdminUpdate: serverTimestamp()
@@ -222,13 +244,25 @@ export default function QuickScanPage() {
                 updatePayload.discountEndsAt = null;
             }
 
-            let newCategories = [...(product.additionalCategories || [])];
-            if (isFeatured) {
-                if (!newCategories.includes('Featured')) newCategories.push('Featured');
-            } else {
-                newCategories = newCategories.filter(c => c !== 'Featured');
+            // Sync tags
+            // Preserve existing tags that are NOT in our controlled set (to avoid deleting other random tags)
+            const controlledTags = ['Онцгой', 'Trend', 'Дарс', 'New', 'Featured'];
+            const existingOtherTags = (product.additionalCategories || []).filter(t => !controlledTags.includes(t));
+
+            // Reconstruct tags
+            let finalTags = [...existingOtherTags, ...selectedTags];
+
+            // Add 'Featured' if 'Онцгой' is selected (for backward compatibility if needed)
+            if (selectedTags.includes('Онцгой') && !finalTags.includes('Featured')) {
+                finalTags.push('Featured');
             }
-            updatePayload.additionalCategories = newCategories;
+            // Remove 'Featured' if 'Онцгой' is NOT selected
+            if (!selectedTags.includes('Онцгой')) {
+                finalTags = finalTags.filter(t => t !== 'Featured');
+            }
+
+            // Clean up duplicates
+            updatePayload.additionalCategories = [...new Set(finalTags)];
 
             await updateDoc(productRef, updatePayload);
             alert('Амжилттай хадгаллаа! ✅');
@@ -251,8 +285,10 @@ export default function QuickScanPage() {
         setPrice('');
         setOriginalPrice('');
         setWeight('');
+        setNameMn('');
+        setShortDescription('');
         setDiscountEndDate('');
-        setIsFeatured(false);
+        setSelectedTags([]);
         setIsScanning(false);
         stopScanner();
     };
@@ -262,10 +298,20 @@ export default function QuickScanPage() {
             {/* Header Removed */}
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col max-w-lg mx-auto w-full">
+            <div className="flex flex-col max-w-lg mx-auto w-full">
+
+
                 {/* Camera View */}
                 {isScanning && (
                     <div className="flex-1 flex flex-col items-center justify-center bg-black relative min-h-[300px]">
+                        {/* CSS to hide the default "Place barcode..." text which comes from the library */}
+                        <style>
+                            {`
+                                #quick-reader__header_message { display: none !important; }
+                                #quick-reader__scan_region img { display: none !important; }
+                            `}
+                        </style>
+
                         {cameraError ? (
                             <div className="text-center w-full max-w-sm px-4">
                                 <div className="text-red-400 mb-6 bg-red-900/20 p-4 rounded-xl border border-red-900/50">
@@ -276,6 +322,33 @@ export default function QuickScanPage() {
                         ) : (
                             <div id="quick-reader" className="w-full h-full object-cover"></div>
                         )}
+
+                        {/* Manual Entry Overlay - Increased Z-Index */}
+                        <div className="absolute bottom-10 left-6 right-6 z-[100]">
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (manualCode.trim().length > 3) handleScan(manualCode);
+                                }}
+                                className="flex gap-2"
+                            >
+                                <input
+                                    type="text"
+                                    value={manualCode}
+                                    onChange={e => setManualCode(e.target.value)}
+                                    placeholder="Баркод гараар бичих..."
+                                    className="flex-1 bg-white/95 backdrop-blur-md text-gray-900 px-4 py-4 rounded-xl font-bold outline-none placeholder:font-normal placeholder:text-gray-500 shadow-2xl border border-white/20 text-lg"
+                                    autoFocus
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={manualCode.length < 3}
+                                    className="bg-blue-600 text-white px-5 py-4 rounded-xl shadow-2xl disabled:opacity-50 disabled:bg-gray-600 flex items-center justify-center"
+                                >
+                                    <Search size={28} />
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 )}
 
@@ -289,17 +362,43 @@ export default function QuickScanPage() {
 
                 {/* Product Found Form */}
                 {!isScanning && product && (
-                    <div className="flex-1 bg-gray-50 flex flex-col p-4 overflow-y-auto">
+                    <div className="bg-gray-50 flex flex-col p-4">
                         <div className="bg-white rounded-2xl p-4 shadow-sm flex flex-col gap-4">
                             <div className="flex gap-4 border-b border-gray-100 pb-4">
                                 <div className="w-24 h-24 bg-gray-100 rounded-lg overflow-hidden shrink-0 border border-gray-200">
                                     <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
                                 </div>
-                                <div>
-                                    <div className="text-xs text-gray-400 font-mono mb-1">{product.id}</div>
-                                    <h2 className="font-bold text-gray-900 line-clamp-2 leading-tight">{product.name_mn || product.name}</h2>
+                                <div className="flex-1 flex flex-col">
+                                    <div className="mb-2">
+                                        <div className="text-xs text-gray-400 font-mono flex items-center justify-between">
+                                            <span>{product.id}</span>
+                                            {/* Original Name as label/hint */}
+                                            <span className="text-[10px] bg-gray-100 px-1 rounded text-gray-500 max-w-[150px] truncate">{product.name}</span>
+                                        </div>
+                                    </div>
+
+                                    <textarea
+                                        value={nameMn}
+                                        onChange={e => setNameMn(e.target.value)}
+                                        rows={2}
+                                        className="w-full flex-1 bg-white border border-blue-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:ring-2 focus:ring-blue-500 outline-none resize-none shadow-sm placeholder:font-normal placeholder:text-gray-400 leading-snug"
+                                        placeholder="Монгол нэр (Засах боломжтой)..."
+                                    />
                                 </div>
                             </div>
+
+                            {/* Short Description Edit */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Товч Тайлбар</label>
+                                <textarea
+                                    value={shortDescription}
+                                    onChange={e => setShortDescription(e.target.value)}
+                                    rows={2}
+                                    className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                    placeholder="Товч тайлбар оруулна уу"
+                                />
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Хямдралтай Үнэ (₩)</label>
@@ -340,15 +439,38 @@ export default function QuickScanPage() {
                                 </div>
                             </div>
 
-                            {/* Featured Toggle */}
-                            <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3 border border-gray-200">
-                                <span className="font-bold text-gray-700">⭐ Онцлох</span>
-                                <button
-                                    onClick={() => setIsFeatured(!isFeatured)}
-                                    className={`w-14 h-8 rounded-full transition-colors relative ${isFeatured ? 'bg-yellow-400' : 'bg-gray-300'}`}
-                                >
-                                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-sm transition-transform ${isFeatured ? 'left-7' : 'left-1'}`} />
-                                </button>
+                            {/* Filter Tags */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Төлөв (Tags)</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {[
+                                        { id: 'Онцгой', label: 'Онцгой', icon: '⭐' },
+                                        { id: 'Trend', label: 'Trend', icon: '🔥' },
+                                        { id: 'Дарс', label: 'Дарс', icon: '🍷' },
+                                        { id: 'New', label: 'New', icon: '🏷️' }
+                                    ].map(tag => {
+                                        const isSelected = selectedTags.includes(tag.id);
+                                        return (
+                                            <button
+                                                key={tag.id}
+                                                onClick={() => {
+                                                    setSelectedTags(prev =>
+                                                        isSelected
+                                                            ? prev.filter(t => t !== tag.id)
+                                                            : [...prev, tag.id]
+                                                    );
+                                                }}
+                                                className={`px-3 py-2 rounded-xl text-sm font-bold border flex items-center gap-2 transition-all ${isSelected
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-200'
+                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                                                    }`}
+                                            >
+                                                <span>{tag.icon}</span>
+                                                {tag.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -382,19 +504,40 @@ export default function QuickScanPage() {
             {/* Footer Actions */}
             <div className="p-4 bg-gray-900 border-t border-gray-800 max-w-lg mx-auto w-full">
                 <div className="flex flex-col gap-3">
-                    <button
-                        onClick={handleSave}
-                        disabled={!product}
-                        className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition ${product ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg' : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                            }`}
-                    >
-                        <Save size={20} />
-                        Save & Next
-                    </button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleSave}
+                            disabled={!product}
+                            className={`flex-1 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition ${product ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg' : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                                }`}
+                        >
+                            <Save size={20} />
+                            Save
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                if (product?.id) {
+                                    navigate(`/admin/add-product?id=${product.id}`);
+                                }
+                            }}
+                            disabled={!product}
+                            className={`px-4 py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition border-2 ${product ? 'bg-gray-800 border-gray-700 hover:bg-gray-700 text-white' : 'bg-gray-800 border-gray-800 text-gray-600 cursor-not-allowed'
+                                }`}
+                        >
+                            <Edit size={20} />
+                        </button>
+                    </div>
 
                     <div className="grid grid-cols-3 gap-3">
                         <button
-                            onClick={handleReset}
+                            onClick={() => {
+                                if (product) {
+                                    navigate('/scanner');
+                                } else {
+                                    navigate(-1);
+                                }
+                            }}
                             className="flex flex-col items-center justify-center gap-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-bold text-xs"
                         >
                             <ArrowLeft size={20} />

@@ -26,6 +26,7 @@ export default function AdminGiftCards() {
 
     useEffect(() => {
         fetchCards();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchCards = async () => {

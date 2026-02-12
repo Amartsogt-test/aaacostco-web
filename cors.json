@@ -1,7 +1,9 @@
 [
     {
         "origin": [
-            "*"
+            "https://costco-fe034.web.app",
+            "https://costco-fe034.firebaseapp.com",
+            "http://localhost:5173"
         ],
         "method": [
             "GET",

@@ -112,7 +112,7 @@ export default function ScannerPage() {
                 html5QrCodeRef.current.stop().catch(err => console.error("Cleanup error", err));
             }
         };
-    }, [isScanning, navigate]);
+    }, [isScanning, navigate, user?.isAdmin]);
 
     const handleFileUpload = async (e) => {
         const file = e.target.files[0];
@@ -198,9 +198,35 @@ export default function ScannerPage() {
             {/* Hidden reader for file upload */}
             <div id="reader-file" className="hidden"></div>
 
-            {/* Instructions */}
-            <div className="bg-gray-900 text-center py-4">
-                <p className="text-gray-400 text-sm">Баркодыг хүрээн дотор байрлуулна уу</p>
+            {/* Manual Entry Section - Replaces Text Instructions */}
+            <div className="bg-gray-900 px-6 py-4">
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        const input = e.target.elements.manualCode.value.trim();
+                        if (input.length > 2) {
+                            if (user?.isAdmin) {
+                                navigate('/scan?code=' + input, { replace: true });
+                            } else {
+                                navigate('/?q=' + input, { replace: true });
+                            }
+                        }
+                    }}
+                    className="flex gap-2 max-w-md mx-auto"
+                >
+                    <input
+                        name="manualCode"
+                        type="text"
+                        placeholder="Баркод гараар бичих..."
+                        className="flex-1 bg-gray-800 text-white px-4 py-3 rounded-xl font-bold outline-none border border-gray-700 focus:border-blue-500 transition-colors placeholder:font-normal placeholder:text-gray-500"
+                    />
+                    <button
+                        type="submit"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-xl font-bold transition-colors"
+                    >
+                        GO
+                    </button>
+                </form>
             </div>
 
             {/* Controls Section - Bottom portion */}

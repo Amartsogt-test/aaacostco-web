@@ -3,16 +3,17 @@ const admin = require('firebase-admin');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const path = require('path');
 const fs = require('fs');
+require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
 
 // 1. Config
-const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBtJ68dcLuFTvo9C_1NWQ-vMlat_K-8_jM';
+const API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '../functions/service-account.json');
 const COLLECTION_NAME = 'products';
-const MODEL_NAME = 'gemini-2.0-flash-exp';
+const MODEL_NAME = 'gemini-2.0-flash';
 
 // Rate Limiting
-const BATCH_LIMIT = 300;
-const DELAY_MS = 10000; // 10 seconds
+const BATCH_LIMIT = 10000;
+const DELAY_MS = 5000; // 5 seconds
 
 // 2. Initialize
 if (!fs.existsSync(SERVICE_ACCOUNT_PATH)) {
@@ -30,6 +31,9 @@ const genAI = new GoogleGenerativeAI(API_KEY);
 
 // 3. Logic Helpers
 function detectIssue(product) {
+    // SKIP if already processed by AI/Manual fix to avoid infinite retries
+    if (product.weightFixedAt || product.aiWeightStatus === 'unfixable') return null;
+
     const name = (product.name_mn || product.englishName || product.name || '').toLowerCase();
     const currentWeight = product.weight || 0;
 
@@ -52,36 +56,37 @@ function detectIssue(product) {
     return null; // OK
 }
 
-// Robust AI Call
-async function callAI(prompt) {
+// Robust AI Call with Infinite Retry (Time is not an issue)
+async function callAI(prompt, modelId = 'gemini-2.0-flash') {
     const m = genAI.getGenerativeModel({
-        model: MODEL_NAME,
+        model: modelId,
         generationConfig: { responseMimeType: "application/json" }
     });
 
-    let attempts = 0;
-    while (attempts < 3) {
+    while (true) {
         try {
             const result = await m.generateContent(prompt);
             return result.response.text();
         } catch (error) {
-            if (error.message.includes('429')) {
-                console.log(`      ⏳ Quota hit (429). Waiting 30s...`);
-                await new Promise(r => setTimeout(r, 30000));
-                attempts++;
+            if (error.message.includes('429') || error.message.includes('503')) {
+                console.log(`      ⏳ Quota hit (${modelId}). Waiting 60s...`);
+                await new Promise(r => setTimeout(r, 60000)); // Wait 1 minute
+                // Loop continues automatically
             } else {
-                throw error;
+                console.error(`      ❌ AI Fatal Error: ${error.message}`);
+                throw error; // Fatal error (e.g. invalid key, safety)
             }
         }
     }
-    throw new Error('Max retries reached');
 }
 
 async function run() {
     console.log('🚀 Starting Weight Fix Script...');
 
     // Fetch all for audit
+    console.log("Fetching products from Firestore...");
     const snapshot = await db.collection(COLLECTION_NAME).get();
+    console.log(`Fetched ${snapshot.size} products. Auditing issues...`);
     const targets = [];
 
     snapshot.forEach(doc => {
@@ -109,12 +114,12 @@ async function run() {
         `;
 
         const prompt = `
-            Analyze this Costco product and calculate TOTAL shipping weight (kg).
+            Analyze this Costco product            Calculate TOTAL shipping weight (kg) for: ${context}.
             RULES:
-            1. If "x 6", "x 12", multiply unit weight.
-            2. 1 Liters = 1 kg.
-            3. IGNORE dimensions (cm, mm).
-            4. If unknown, estimate (Detergent ~5kg, Snacks ~1kg).
+            1. PRIORITY: Check 'Specs'/'specifications' FIRST. If weight is listed, use it.
+            2. MULTIPACK: If "x 12", "Pack of 4", calculate TOTAL weight (Unit Weight * Count).
+            3. DIMENSIONS: Ignore Length/Width/Height (cm, mm, in). Do NOT confuse '50cm' with '50kg'.
+            4. ESTIMATE: If strictly unknown, estimate based on item type (e.g. Detergent ~3-5kg).
             
             INFO: ${context}
             
@@ -134,11 +139,17 @@ async function run() {
                     weight: newWeight,
                     aiWeight: newWeight,
                     aiWeightReason: `AI Fix: ${data.reason}`,
+                    aiWeightStatus: 'fixed',
                     weightFixedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
                 saved++;
             } else {
-                console.log('      ⚠️ AI returned 0 weight.');
+                console.log('      ⚠️ AI returned 0 weight. Marking as skipped/processed.');
+                await db.collection(COLLECTION_NAME).doc(p.id).update({
+                    aiWeightStatus: 'unfixable',
+                    aiWeightReason: 'AI could not determine weight',
+                    weightFixedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
             }
 
         } catch (e) {

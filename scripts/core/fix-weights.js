@@ -12,14 +12,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 1. Firebase Setup
-const serviceAccountPath = path.join(__dirname, '../../functions/service-account.json');
-if (!fs.existsSync(serviceAccountPath)) {
-    console.error(`❌ Service account file not found at: ${serviceAccountPath}`);
+// 1. Firebase Setup
+let serviceAccount;
+const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(__dirname, '../../functions/service-account.json');
+
+try {
+    if (fs.existsSync(serviceAccountPath)) {
+        serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+    } else {
+        console.error("❌ No service account found.");
+        process.exit(1);
+    }
+    initializeApp({ credential: cert(serviceAccount) });
+} catch (err) {
+    console.error("❌ Failed to initialize Firebase:", err.message);
     process.exit(1);
 }
-const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-initializeApp({ credential: cert(serviceAccount) });
 const db = getFirestore();
+
 
 // 2. Gemini Setup
 if (!process.env.GEMINI_API_KEY) {

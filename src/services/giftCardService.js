@@ -34,15 +34,14 @@ export const giftCardService = {
      */
     createGiftCard: async (data) => {
         try {
-            // Generate unique code (retry if exists - unlikely)
-            let code = generateCardCode();
-            let ref = doc(db, 'gift_cards', code);
-            let snap = await getDoc(ref);
-
-            // Simple retry logic once for collision
-            if (snap.exists()) {
+            // Generate unique code with retry (up to 5 attempts for collision)
+            let code, ref, snap;
+            for (let attempt = 0; attempt < 5; attempt++) {
                 code = generateCardCode();
                 ref = doc(db, 'gift_cards', code);
+                snap = await getDoc(ref);
+                if (!snap.exists()) break;
+                if (attempt === 4) throw new Error('Failed to generate unique gift card code after 5 attempts');
             }
 
             const now = new Date();

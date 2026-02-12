@@ -66,33 +66,7 @@ export const useAuthStore = create(
                     const { doc, setDoc } = await import('firebase/firestore');
                     const { FacebookAuthProvider, linkWithPopup } = await import('firebase/auth');
 
-                    const ADMIN_PHONE = import.meta.env.VITE_ADMIN_PHONE || '00880088';
                     const user = currentUser;
-                    const isAdminBypass = user?.phone?.includes(ADMIN_PHONE) || user?.uid?.includes(ADMIN_PHONE);
-
-                    if (isAdminBypass) {
-                        const fakeFbUser = {
-                            displayName: 'Bilguun Admin',
-                            photoURL: 'https://graph.facebook.com/100000000000000/picture',
-                            providerData: [{ uid: 'facebook:test:23568947' }]
-                        };
-                        const newData = {
-                            name: fakeFbUser.displayName,
-                            photoURL: fakeFbUser.photoURL,
-                            fbUid: fakeFbUser.providerData[0]?.uid,
-                            isFacebookLinked: true
-                        };
-
-                        if (user?.uid) {
-                            const userRef = doc(db, 'users', user.uid);
-                            await setDoc(userRef, newData, { merge: true });
-                        }
-
-                        set(state => ({
-                            user: state.user ? { ...state.user, ...newData } : null
-                        }));
-                        return { success: true, message: 'Facebook амжилттай холбогдлоо! (Test Mode)' };
-                    }
 
                     if (!auth.currentUser) {
                         return { success: false, message: 'Firebase хэрэглэгч олдсонгүй.' };

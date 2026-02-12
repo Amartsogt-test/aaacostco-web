@@ -28,7 +28,7 @@ export default function Home() {
             setSearchTerm(query);
             searchProducts(query, { preservePage: false });
         }
-    }, [query, setSearchTerm, searchProducts]);
+    }, [query, setSearchTerm, searchProducts, searchTerm]);
 
     const { mainId, subId } = useParams();
 

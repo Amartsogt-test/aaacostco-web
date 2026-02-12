@@ -25,12 +25,15 @@ const AdminSync = lazy(() => import('./pages/AdminSync'));
 const AdminInactiveProducts = lazy(() => import('./pages/AdminInactiveProducts'));
 const AdminGiftCards = lazy(() => import('./pages/AdminGiftCards'));
 const AdminSettings = lazy(() => import('./pages/AdminSettings'));
+const AdminAIReview = lazy(() => import('./pages/AdminAIReview'));
+const AdminDailyReports = lazy(() => import('./pages/AdminDailyReports'));
 const AdminRoute = lazy(() => import('./components/AdminRoute'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const DataDeletion = lazy(() => import('./pages/DataDeletion'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const Chat = lazy(() => import('./pages/Chat'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Full Page components (converted from modals)
 const InfoPage = lazy(() => import('./pages/InfoPage'));
@@ -83,7 +86,6 @@ function App() {
             <Route path="login" element={<Login />} />
             <Route path="profile" element={<Profile />} />
             <Route path="product/:id" element={<ProductDetail />} />
-            <Route path="debug" element={<DebugPage />} />
 
             <Route path="privacy" element={<PrivacyPolicy />} />
             <Route path="terms" element={<TermsOfService />} />
@@ -111,11 +113,17 @@ function App() {
               <Route path="admin/inactive-products" element={<AdminInactiveProducts />} />
               <Route path="admin/gift-cards" element={<AdminGiftCards />} />
               <Route path="admin/settings" element={<AdminSettings />} />
+              <Route path="admin/ai-review" element={<AdminAIReview />} />
+              <Route path="admin/daily-reports" element={<AdminDailyReports />} />
+              <Route path="debug" element={<DebugPage />} />
               {/* Admin Full Pages */}
               <Route path="admin/banner" element={<AdminBanner />} />
               <Route path="admin/content" element={<AdminContent />} />
               <Route path="admin/menu-images" element={<AdminMenuImagesPage />} />
             </Route>
+
+            {/* 404 catch-all */}
+            <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
       </Suspense>

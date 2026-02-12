@@ -17,6 +17,17 @@ export const useOrderStore = create((set, get) => ({
         }
     },
 
+    fetchUserOrders: async (userId, userPhone) => {
+        set({ isLoading: true, error: null });
+        try {
+            const orders = await orderService.getUserOrders(userId, userPhone);
+            set({ orders, isLoading: false });
+        } catch (error) {
+            console.error("Failed to fetch user orders:", error);
+            set({ isLoading: false, error: error.message });
+        }
+    },
+
     createOrder: async (orderData, customId = null) => {
         set({ isLoading: true });
         try {

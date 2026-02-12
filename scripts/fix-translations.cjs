@@ -3,17 +3,18 @@ const admin = require('firebase-admin');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const path = require('path');
 const fs = require('fs');
+require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
 
 // 1. Config
-const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBtJ68dcLuFTvo9C_1NWQ-vMlat_K-8_jM';
+const API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '../functions/service-account.json');
 const COLLECTION_NAME = 'products';
-const MODEL_NAME = 'gemini-2.0-flash-exp';
+const MODEL_NAME = 'gemini-2.0-flash';
 const FALLBACK_MODEL = 'gemini-1.5-flash';
 
 // Rate Limiting
-const BATCH_LIMIT = 200; // Process 200 items per run (save progress)
-const DELAY_MS = 10000; // 10 seconds delay
+const BATCH_LIMIT = 10000; // Process all items
+const DELAY_MS = 5000; // 5 seconds delay
 
 // Korean Regex
 const KOREAN_REGEX = /[\u3131-\uD79D]/ugi;
@@ -40,26 +41,24 @@ const hasKorean = (text) => {
     return KOREAN_REGEX.test(str) || WON_REGEX.test(str);
 };
 
-// Robust AI Call Helper
-async function callAI(prompt, modelId = MODEL_NAME) {
+// Robust AI Call with Infinite Retry
+async function callAI(prompt, modelId = 'gemini-2.0-flash') {
     const m = genAI.getGenerativeModel({ model: modelId });
-    let attempts = 0;
-    while (attempts < 3) {
+
+    while (true) {
         try {
             const result = await m.generateContent(prompt);
             return result.response.text();
         } catch (error) {
-            if (error.message.includes('429')) {
-                console.log(`      ⏳ Quota hit (429). Waiting 30s...`);
-                await new Promise(r => setTimeout(r, 30000));
-                attempts++;
+            if (error.message.includes('429') || error.message.includes('503')) {
+                console.log(`      ⏳ Quota hit (${modelId}). Waiting 60s...`);
+                await new Promise(r => setTimeout(r, 60000)); // Wait 1 minute
             } else {
-                // Try fallback logic inside the main function or just throw
+                console.error(`      ❌ AI Fatal Error: ${error.message}`);
                 throw error;
             }
         }
     }
-    throw new Error('Max retries reached');
 }
 
 async function fixProduct(product) {
@@ -118,11 +117,13 @@ async function run() {
     // Or we scan specifically. Let's fetch all (7000 is manageable in memory for ID list)
     // Actually, let's use the audit logic to find targets.
 
-    const snapshot = await db.collection(COLLECTION_NAME).select('name_mn', 'description_mn', 'specifications_mn').get();
+    const snapshot = await db.collection(COLLECTION_NAME).select('name_mn', 'description_mn', 'specifications_mn', 'translationStatus').get();
 
     const targets = [];
     snapshot.forEach(doc => {
         const d = doc.data();
+        if (d.translationStatus === 'manual_required') return; // Skip known unfixable
+
         if (hasKorean(d.name_mn) || hasKorean(d.description_mn) || hasKorean(d.specifications_mn)) {
             targets.push({ id: doc.id, ...d });
         }
@@ -146,12 +147,29 @@ async function run() {
         const updates = await fixProduct(product);
 
         if (updates && Object.keys(updates).length > 0) {
+            // Check if Korean still exists in the NEW data
+            const stillHasKorean = hasKorean(updates.name_mn || product.name_mn) ||
+                hasKorean(updates.description_mn || product.description_mn) ||
+                hasKorean(updates.specifications_mn || product.specifications_mn);
+
+            if (stillHasKorean) {
+                console.log(`      ⚠️ Korean text persists. Marking for manual review.`);
+                updates.translationStatus = 'manual_required';
+            } else {
+                updates.translationStatus = 'fixed';
+            }
+
             updates.translationFixedAt = admin.firestore.FieldValue.serverTimestamp();
             await db.collection(COLLECTION_NAME).doc(t.id).update(updates);
             saved++;
             console.log(`      ✅ Saved Updates.`);
         } else {
             console.log(`      ⏭️ No changes or failed.`);
+            // If it had Korean but AI returned nothing, maybe mark as review needed
+            await db.collection(COLLECTION_NAME).doc(t.id).update({
+                translationStatus: 'manual_required',
+                translationFixedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
         }
 
         processed++;
