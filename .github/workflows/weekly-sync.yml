@@ -35,6 +35,8 @@ jobs:
       - name: Setup Firebase credentials
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebase-service-account.json
+          mkdir -p functions
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > functions/service-account.json
 
       - name: Run core:sync
         run: npm run core:sync
