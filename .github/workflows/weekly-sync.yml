@@ -24,7 +24,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci
+          npm install
           npm install firebase-admin @google/generative-ai firebase-functions dotenv axios --no-save
           cd functions && npm install
 
