@@ -1,14 +1,16 @@
-name: Daily Costco Sync
+name: Weekly Costco Sync
 
 on:
   schedule:
-    # Runs at 01:00 UTC every day (09:00 Mongolia time)
-    - cron: '0 1 * * *'
+    # Runs at 01:00 UTC every Monday (09:00 Mongolia time) - 7 хоног бүр
+    - cron: '0 1 * * 1'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # allow committing the regenerated CDN files
 
     steps:
       - name: Checkout repository
@@ -69,6 +71,11 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
 
+      - name: Run core:home-snapshot
+        run: npm run core:home-snapshot
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+
       - name: Run core:report
         run: npm run core:report
         env:
@@ -78,3 +85,15 @@ jobs:
         run: npm run core:bank-rates
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ./firebase-service-account.json
+
+      - name: Commit regenerated CDN files (home snapshot + search index)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/home-snapshot.json public/search-index.json
+          if git diff --staged --quiet; then
+            echo "No CDN changes to commit."
+          else
+            git commit -m "chore(data): refresh home snapshot + search index [skip ci]"
+            git push
+          fi
