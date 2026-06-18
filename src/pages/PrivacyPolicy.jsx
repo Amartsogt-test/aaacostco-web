@@ -5,7 +5,7 @@ import { useSettingsStore } from '../store/settingsStore';
 
 const PrivacyPolicy = () => {
     const navigate = useNavigate();
-    const { settings, fetchSettings, isLoading } = useSettingsStore();
+    const { fetchSettings } = useSettingsStore();
 
     useEffect(() => {
         fetchSettings();
@@ -32,17 +32,32 @@ const PrivacyPolicy = () => {
             <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
                 <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
                     <div className="space-y-6 text-gray-700 leading-relaxed">
-                        {isLoading ? (
-                            <div className="flex justify-center py-12">
-                                <div className="w-10 h-10 border-4 border-costco-blue border-t-transparent rounded-full animate-spin"></div>
-                            </div>
-                        ) : settings?.privacy ? (
-                            <div className="whitespace-pre-wrap">{settings.privacy}</div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
-                                <p>Одоогоор мэдээлэл оруулаагүй байна.</p>
-                            </div>
-                        )}
+                        <div className="whitespace-pre-wrap">
+                            <h2 className="text-xl font-bold mb-4">Нууцлалын бодлого (Privacy Policy)</h2>
+                            <p className="mb-4">Бид хэрэглэгчдийнхээ хувийн мэдээллийг хамгаалахыг нэн тэргүүнд тавьдаг. Энэхүү нууцлалын бодлого нь таныг манай аппликейшнд нэвтрэх үед ямар мэдээлэл цуглуулж, түүнийгээ хэрхэн ашиглах талаар тайлбарлана.</p>
+                            
+                            <h3 className="text-lg font-bold mt-6 mb-2">1. Бид ямар мэдээлэл цуглуулдаг вэ?</h3>
+                            <p className="mb-4">Та Facebook-ээр дамжуулан манай системд нэвтрэх үед бид таны зөвшөөрсний дагуу зөвхөн нийтэд нээлттэй (public) мэдээллийг хүлээн авдаг. Үүнд:</p>
+                            <ul className="list-disc list-inside space-y-2 mb-6 ml-4">
+                                <li>Таны нэр (Full name)</li>
+                                <li>Таны цахим шуудангийн хаяг (Email address)</li>
+                                <li>Таны профайл зураг (Profile picture)</li>
+                            </ul>
+
+                            <h3 className="text-lg font-bold mt-6 mb-2">2. Бид таны мэдээллийг хэрхэн ашиглах вэ?</h3>
+                            <p className="mb-4">Цуглуулсан мэдээллийг зөвхөн дараах зорилгоор ашиглана:</p>
+                            <ul className="list-disc list-inside space-y-2 mb-6 ml-4">
+                                <li>Таныг системд таних, хэрэглэгчийн бүртгэл үүсгэх.</li>
+                                <li>Таны захиалга, худалдан авалтын түүхийг бүртгэх.</li>
+                                <li>Танд үйлчилгээтэй холбоотой чухал мэдээлэл, мэдэгдэл илгээх.</li>
+                            </ul>
+
+                            <h3 className="text-lg font-bold mt-6 mb-2">3. Мэдээллийг гуравдагч этгээдтэй хуваалцах</h3>
+                            <p className="mb-4">Бид таны хувийн мэдээллийг ямар нэгэн гуравдагч этгээдэд худалдахгүй, түрээслэхгүй, хуваалцахгүй болно. Зөвхөн хуулиар шаардсан онцгой тохиолдолд эрх бүхий байгууллагад гаргаж өгч болно.</p>
+
+                            <h3 className="text-lg font-bold mt-6 mb-2">4. Мэдээллээ устгах</h3>
+                            <p className="mb-4">Хэрэв та өөрийн мэдээллийг манай системээс бүрмөсөн устгуулахыг хүсвэл манай <strong>Өгөгдөл устгах (Data Deletion)</strong> хуудсаар зочилж заавартай танилцана уу.</p>
+                        </div>
                     </div>
 
                     <div className="mt-12 pt-8 border-t border-gray-100 text-sm text-gray-500">

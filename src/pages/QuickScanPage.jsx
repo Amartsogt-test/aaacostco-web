@@ -1,13 +1,15 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, RotateCw, Save, Scan, ScanBarcode, Image as ImageIcon, Search, Edit } from 'lucide-react';
+import { ArrowLeft, RotateCw, Save, Scan, ScanBarcode, Image as ImageIcon, Search, Edit, Sparkles, Copy, Check } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { getProductWeight, cleanBarcode } from '../utils/productUtils';
+import { useUIStore } from '../store/uiStore';
 
 export default function QuickScanPage() {
     const navigate = useNavigate();
+    const { showToast } = useUIStore();
     const [searchParams] = useSearchParams();
     const urlCode = searchParams.get('code');
 
@@ -35,6 +37,24 @@ export default function QuickScanPage() {
     const [shortDescription, setShortDescription] = useState('');
 
     const html5QrCodeRef = useRef(null);
+    const [zoomVal, setZoomVal] = useState(1);
+    const [zoomSupported, setZoomSupported] = useState(false);
+    const [zoomRange, setZoomRange] = useState({ min: 1, max: 1 });
+
+    const handleZoomChange = async (newVal) => {
+        const val = parseFloat(newVal);
+        setZoomVal(val);
+        if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+            try {
+                const track = html5QrCodeRef.current.getRunningTrack();
+                if (track) {
+                    await track.applyConstraints({ advanced: [{ zoom: val }] });
+                }
+            } catch (err) {
+                console.error("Failed to apply zoom:", err);
+            }
+        }
+    };
 
     const stopScanner = async () => {
         if (html5QrCodeRef.current) {
@@ -65,7 +85,7 @@ export default function QuickScanPage() {
         } catch (err) {
             console.error("File scan error:", err);
             setLoading(false);
-            alert('Зургийг унших үед алдаа гарлаа эсвэл код олдсонгүй.');
+            showToast('Зургийг унших үед алдаа гарлаа эсвэл код олдсонгүй.', 'error');
         } finally {
             e.target.value = '';
         }
@@ -84,8 +104,8 @@ export default function QuickScanPage() {
                 html5QrCodeRef.current = html5QrCode;
 
                 const basicConfig = {
-                    fps: 15,
-                    qrbox: { width: 300, height: 200 },
+                    fps: 20,
+                    qrbox: { width: 280, height: 160 },
                     aspectRatio: 1.0,
                     formatsToSupport: [
                         Html5QrcodeSupportedFormats.EAN_13,
@@ -100,12 +120,89 @@ export default function QuickScanPage() {
                     }
                 };
 
-                await html5QrCode.start(
-                    { facingMode: "environment" },
-                    basicConfig,
-                    (decodedText) => handleScan(decodedText),
-                    () => { }
-                );
+                const applyZoomAndFocus = async (qrcodeInstance) => {
+                    try {
+                        const track = qrcodeInstance.getRunningTrack();
+                        if (!track) return;
+                        const capabilities = track.getCapabilities();
+                        
+                        // 1. Request higher resolution from track
+                        try {
+                            if (capabilities.width && capabilities.height) {
+                                await track.applyConstraints({
+                                    width: { ideal: capabilities.width.max || 1920 },
+                                    height: { ideal: capabilities.height.max || 1080 }
+                                });
+                            }
+                        } catch (resErr) {
+                            console.warn("Could not set high resolution:", resErr);
+                        }
+
+                        // 2. Apply Focus Mode - try direct first, then advanced wrapper
+                        if (capabilities.focusMode) {
+                            const mode = capabilities.focusMode.includes('continuous') ? 'continuous'
+                                : capabilities.focusMode.includes('macro') ? 'macro' : null;
+                            if (mode) {
+                                try {
+                                    await track.applyConstraints({ focusMode: mode });
+                                } catch {
+                                    try {
+                                        await track.applyConstraints({ advanced: [{ focusMode: mode }] });
+                                    } catch (e2) {
+                                        console.warn("Focus mode not settable:", e2);
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Apply Zoom (default 2.5x for small barcodes)
+                        if (capabilities.zoom) {
+                            setZoomSupported(true);
+                            setZoomRange({ min: capabilities.zoom.min, max: capabilities.zoom.max });
+                            const targetZoom = Math.min(2.5, capabilities.zoom.max);
+                            setZoomVal(targetZoom);
+                            try {
+                                await track.applyConstraints({ advanced: [{ zoom: targetZoom }] });
+                            } catch (zErr) {
+                                console.warn("Zoom constraint failed:", zErr);
+                            }
+                        }
+
+                        // 4. If focusDistance is available, set to close range for small barcodes
+                        if (capabilities.focusDistance) {
+                            try {
+                                const closeFocus = capabilities.focusDistance.min + 
+                                    (capabilities.focusDistance.max - capabilities.focusDistance.min) * 0.15;
+                                await track.applyConstraints({ advanced: [{ focusDistance: closeFocus }] });
+                            } catch (fdErr) {
+                                console.warn("Focus distance not settable:", fdErr);
+                            }
+                        }
+                    } catch (err) {
+                        console.warn("Failed to apply camera constraints:", err);
+                    }
+                };
+
+                // Start camera - simple facingMode only (html5-qrcode doesn't support width/height here)
+                try {
+                    await html5QrCode.start(
+                        { facingMode: "environment" },
+                        basicConfig,
+                        (decodedText) => handleScan(decodedText),
+                        () => { }
+                    );
+                } catch (envErr) {
+                    console.warn("Rear camera not available, trying first camera:", envErr);
+                    await html5QrCode.start(
+                        devices[0].id,
+                        basicConfig,
+                        (decodedText) => handleScan(decodedText),
+                        () => { }
+                    );
+                }
+                
+                // Apply zoom, focus, and resolution AFTER camera is running
+                await applyZoomAndFocus(html5QrCode);
             } else {
                 setCameraError('Камер олдсонгүй.');
             }
@@ -265,11 +362,11 @@ export default function QuickScanPage() {
             updatePayload.additionalCategories = [...new Set(finalTags)];
 
             await updateDoc(productRef, updatePayload);
-            alert('Амжилттай хадгаллаа! ✅');
+            showToast('Амжилттай хадгаллаа!', 'success');
             handleReset();
         } catch (error) {
             console.error("Save failed:", error);
-            alert("Хадгалахад алдаа гарлаа: " + error.message);
+            showToast('Хадгалахад алдаа гарлаа: ' + error.message, 'error');
             setLoading(false);
         }
     };
@@ -309,6 +406,8 @@ export default function QuickScanPage() {
                             {`
                                 #quick-reader__header_message { display: none !important; }
                                 #quick-reader__scan_region img { display: none !important; }
+                                #quick-reader > *:not(video) { display: none !important; }
+                                #quick-reader video { object-fit: cover !important; }
                             `}
                         </style>
 
@@ -323,6 +422,27 @@ export default function QuickScanPage() {
                             <div id="quick-reader" className="w-full h-full object-cover"></div>
                         )}
 
+                        {/* Zoom Controls Overlay */}
+                        {zoomSupported && (
+                            <div className="absolute bottom-28 left-0 right-0 flex items-center justify-center gap-4 bg-black/70 px-4 py-2.5 rounded-2xl mx-auto w-fit z-[110] pointer-events-auto shadow-lg border border-gray-800">
+                                <button
+                                    type="button"
+                                    onClick={() => handleZoomChange(Math.max(zoomRange.min, zoomVal - 0.5))}
+                                    className="text-white bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg active:scale-90 transition"
+                                >
+                                    -
+                                </button>
+                                <span className="text-white text-xs font-bold min-w-[60px] text-center">{zoomVal.toFixed(1)}x Zoom</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleZoomChange(Math.min(zoomRange.max, zoomVal + 0.5))}
+                                    className="text-white bg-gray-800 hover:bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg active:scale-90 transition"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        )}
+
                         {/* Manual Entry Overlay - Increased Z-Index */}
                         <div className="absolute bottom-10 left-6 right-6 z-[100]">
                             <form
@@ -333,7 +453,9 @@ export default function QuickScanPage() {
                                 className="flex gap-2"
                             >
                                 <input
-                                    type="text"
+                                    type="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                     value={manualCode}
                                     onChange={e => setManualCode(e.target.value)}
                                     placeholder="Баркод гараар бичих..."

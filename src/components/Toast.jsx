@@ -9,7 +9,7 @@ export default function Toast() {
         if (toast) {
             const timer = setTimeout(() => {
                 hideToast();
-            }, 3000);
+            }, toast.duration || 3000);
             return () => clearTimeout(timer);
         }
     }, [toast, hideToast]);
@@ -35,7 +35,7 @@ export default function Toast() {
             <div className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg border ${bgColors[toast.type] || bgColors.info} min-w-[300px]`}>
                 {icons[toast.type] || icons.info}
                 <p className="text-sm font-medium text-gray-800 flex-1">{toast.message}</p>
-                <button onClick={hideToast} className="text-gray-400 hover:text-gray-600">
+                <button onClick={hideToast} aria-label="Хаах" className="text-gray-400 hover:text-gray-600">
                     <X size={16} />
                 </button>
             </div>

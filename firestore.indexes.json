@@ -71,6 +71,38 @@
                     "order": "DESCENDING"
                 }
             ]
+        },
+        {
+            "collectionGroup": "sms_codes",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "phone",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "createdAt",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "sms_codes",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "code",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "verified",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "expiresAt",
+                    "order": "ASCENDING"
+                }
+            ]
         }
     ],
     "fieldOverrides": []

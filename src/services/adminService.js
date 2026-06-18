@@ -1,6 +1,5 @@
-import { db, storage } from '../firebase';
+import { db, uploadFileToStorage } from '../firebase';
 import { doc, getDoc, setDoc, updateDoc, deleteField } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export const adminService = {
     // Fetch all category banners
@@ -27,9 +26,7 @@ export const adminService = {
     // Upload banner image
     async uploadBannerImage(file, categoryCode) {
         try {
-            const storageRef = ref(storage, `menu-images/${categoryCode}_${Date.now()}`);
-            await uploadBytes(storageRef, file);
-            return await getDownloadURL(storageRef);
+            return await uploadFileToStorage(`menu-images/${categoryCode}_${Date.now()}`, file);
         } catch (error) {
             console.error("Upload failed:", error);
             throw error;
@@ -81,20 +78,18 @@ export const adminService = {
 
     async uploadHomeBanner(file) {
         try {
-            const fileName = `banners/${Date.now()}_${file.name}`;
-            const storageRef = ref(storage, fileName);
-            const snapshot = await uploadBytes(storageRef, file);
-            return await getDownloadURL(snapshot.ref);
+            return await uploadFileToStorage(`banners/${Date.now()}_${file.name}`, file);
         } catch (error) {
             console.error("Home banner upload error:", error);
             throw error;
         }
     },
 
-    async saveHomeBanners(banners, exchangeRateText = null) {
+    async saveHomeBanners(banners, exchangeRateText = null, isActive = true) {
         try {
             const payload = {
                 items: banners,
+                isActive: isActive,
                 updatedAt: new Date().toISOString()
             };
             if (exchangeRateText) {
@@ -102,10 +97,9 @@ export const adminService = {
             }
 
             await setDoc(doc(db, 'settings', 'home_banner'), payload, { merge: true });
-            return true;
         } catch (error) {
-            console.error("Save home banners error:", error);
+            console.error("Error saving banners:", error);
             throw error;
         }
-    }
+    },
 };

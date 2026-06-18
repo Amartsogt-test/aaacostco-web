@@ -14,12 +14,28 @@
   <meta name="description"
     content="Costco Mongolia — Америкийн Costco Wholesale брэндийн бараа бүтээгдэхүүнийг Монголд захиалах. Хүнсний бараа, гэр ахуй, электроник бараа." />
   <meta name="keywords" content="Costco, Mongolia, Монгол, Costco Mongolia, хүнс, бараа, захиалга, Kirkland" />
+  <link rel="canonical" href="https://costco.mn/" />
+  <meta name="robots" content="index, follow" />
+  <meta property="og:site_name" content="Costco Mongolia" />
   <meta property="og:title" content="Costco Mongolia" />
   <meta property="og:description"
     content="Америкийн Costco Wholesale брэндийн бараа бүтээгдэхүүнийг Монголд захиалах" />
-  <meta property="og:image" content="/pwa-512x512.png" />
+  <meta property="og:image" content="https://costco.mn/pwa-512x512.png" />
+  <meta property="og:url" content="https://costco.mn/" />
   <meta property="og:type" content="website" />
   <meta property="og:locale" content="mn_MN" />
+
+  <!-- Twitter / X card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Costco Mongolia" />
+  <meta name="twitter:description"
+    content="Америкийн Costco Wholesale брэндийн бараа бүтээгдэхүүнийг Монголд захиалах" />
+  <meta name="twitter:image" content="https://costco.mn/pwa-512x512.png" />
+
+  <!-- 🚀 Performance: preload the static home snapshot so it downloads in parallel
+       with the JS bundle (instead of waiting for the app to mount). Fast on the
+       Firebase CDN edge near Mongolia. -->
+  <link rel="preload" href="/home-snapshot.json" as="fetch" type="application/json" />
 
   <!-- 🚀 Performance: Preconnect to external domains -->
   <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
@@ -33,20 +49,38 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
 
-  <!-- Google Analytics 4 -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
-    gtag('config', 'G-XXXXXXXXXX');
-  </script>
+  <!--
+    Google Analytics 4 — disabled. The previous snippet used a placeholder
+    Measurement ID (G-XXXXXXXXXX) that sent no data anywhere while still loading
+    an extra script on every page. To enable real analytics, replace
+    G-XXXXXXXXXX below with your actual GA4 Measurement ID and uncomment:
+
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX');
+    </script>
+  -->
 
   <title>Costco Mongolia</title>
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <!-- 🚀 Critical inline skeleton for instant perceived load -->
+    <div style="min-height:100vh;background:#f9fafb;display:flex;flex-direction:column">
+      <div style="height:56px;background:#005da3"></div>
+      <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="height:240px;background:#e5e7eb;border-radius:12px;animation:pulse 1.5s ease-in-out infinite"></div>
+        <div style="height:240px;background:#e5e7eb;border-radius:12px;animation:pulse 1.5s ease-in-out infinite;animation-delay:.3s"></div>
+        <div style="height:240px;background:#e5e7eb;border-radius:12px;animation:pulse 1.5s ease-in-out infinite;animation-delay:.6s"></div>
+        <div style="height:240px;background:#e5e7eb;border-radius:12px;animation:pulse 1.5s ease-in-out infinite;animation-delay:.9s"></div>
+      </div>
+    </div>
+    <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}</style>
+  </div>
 
   <script type="module" src="/src/main.jsx"></script>
 </body>

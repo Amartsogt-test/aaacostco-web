@@ -6,7 +6,18 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
     const [banners, setBanners] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [isActive, setIsActive] = useState(true);
     const wonRate = useProductStore(state => state.wonRate);
+
+    // Optimize Firebase storage URLs via weserv.nl proxy for WebP compression
+    const optimizeBannerUrl = (url) => {
+        if (!url) return url;
+        if (url.includes('firebasestorage.googleapis.com')) {
+            const stripped = url.replace(/^https?:\/\//, '');
+            return `https://images.weserv.nl/?url=${encodeURIComponent(stripped)}&w=1200&output=webp&q=85&we`;
+        }
+        return url;
+    };
 
     // Touch swipe state
     const touchStartX = useRef(0);
@@ -38,6 +49,12 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
             // Load exchange rate text if exists
             if (data && data.exchangeRateText) {
                 setExchangeRateText(data.exchangeRateText);
+            }
+
+            if (data && data.isActive !== undefined) {
+                setIsActive(data.isActive);
+            } else {
+                setIsActive(true); // default to true
             }
 
             setLoading(false);
@@ -101,10 +118,40 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
         );
     }
 
+    if (!isActive) {
+        return null; // Do not render anything if banner is disabled
+    }
 
+    // Safely render line2, highlighting {rate} or any manual numbers in yellow
+    const renderLine2 = () => {
+        const line2 = exchangeRateText?.line2 || '';
+        
+        // If they still use {rate}, support it
+        if (line2.includes('{rate}')) {
+            const parts = line2.split('{rate}');
+            return (
+                <p className="text-xl sm:text-3xl font-bold mb-2">
+                    {parts[0]}
+                    <span className="text-yellow-300">{wonRate?.toFixed(2) || '...'}</span>
+                    {parts.slice(1).join('{rate}')}
+                </p>
+            );
+        }
 
-    // Replace {rate} with actual rate in line2
-    const displayLine2 = (exchangeRateText?.line2 || '').replace('{rate}', wonRate?.toFixed(2) || '...');
+        // If they type the number manually (e.g. "воныг 2.50 -аар"), highlight all numbers
+        const parts = line2.split(/(\d+(?:[.,]\d+)?)/);
+        return (
+            <p className="text-xl sm:text-3xl font-bold mb-2">
+                {parts.map((part, index) => {
+                    // The capturing group in split makes odd indices the matched numbers
+                    if (index % 2 === 1) {
+                        return <span key={index} className="text-yellow-300">{part}</span>;
+                    }
+                    return part;
+                })}
+            </p>
+        );
+    };
 
     return (
         <div
@@ -122,11 +169,7 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4">
                         <div className="text-center">
                             <p className="text-xl sm:text-3xl font-bold mb-1">{exchangeRateText.line1}</p>
-                            <p className="text-xl sm:text-3xl font-bold mb-2">
-                                {displayLine2.split(wonRate?.toFixed(2) || '...')[0]}
-                                <span className="text-yellow-300">{wonRate?.toFixed(2) || '...'}</span>
-                                {displayLine2.split(wonRate?.toFixed(2) || '...')[1]}
-                            </p>
+                            {renderLine2()}
                             <p className="text-xl sm:text-3xl font-bold">{exchangeRateText.line3}</p>
                         </div>
                     </div>
@@ -148,11 +191,12 @@ export default function HeroBanner({ settingId = 'home_banner' }) {
                                 />
                             ) : (
                                 <img
-                                    src={item.url}
+                                    src={optimizeBannerUrl(item.url)}
                                     alt={item.title || `Banner ${index + 1}`}
                                     className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${index + 1 === currentIndex ? 'opacity-100' : 'opacity-0'}`}
                                     loading={index === 0 ? "eager" : "lazy"}
                                     fetchPriority={index === 0 ? "high" : "auto"}
+                                    decoding="async"
                                 />
                             )}
 

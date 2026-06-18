@@ -33,7 +33,9 @@ try {
 }
 
 
-const db = getFirestore();
+const db = (process.env.FIRESTORE_DATABASE_ID && process.env.FIRESTORE_DATABASE_ID !== '(default)')
+    ? getFirestore(process.env.FIRESTORE_DATABASE_ID)
+    : getFirestore();
 
 // Gemini API Configuration
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -41,7 +43,8 @@ if (!API_KEY) {
     console.error("❌ GEMINI_API_KEY is missing in .env");
     process.exit(1);
 }
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${API_KEY}`;
 
 async function callGemini(prompt) {
     const requestBody = JSON.stringify({

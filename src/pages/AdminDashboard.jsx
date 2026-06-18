@@ -1,7 +1,8 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
-import { ChevronLeft, Plus, Trash2, Edit, Search, ScanBarcode, MessageSquare, CircleDollarSign, AlertTriangle, Minus, ArrowRightLeft, RotateCcw, Archive, Filter, Eye, EyeOff, XCircle, Database, LayoutGrid, Table as TableIcon, Package, ExternalLink, TrendingUp, Save, Check, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { ChevronLeft, Plus, Trash2, Edit, Search, ScanBarcode, MessageSquare, CircleDollarSign, AlertTriangle, Minus, ArrowRightLeft, RotateCcw, Archive, Filter, Eye, EyeOff, XCircle, Database, LayoutGrid, Table as TableIcon, Package, ExternalLink, TrendingUp, Save, Check, ArrowUp, ArrowDown, ChevronsUpDown, Camera } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 
@@ -35,7 +36,14 @@ export default function AdminDashboard() {
     const [editValue, setEditValue] = useState('');
 
 
-    const { products, deleteProduct, setProductStatus, fetchProducts, updateProduct, categories } = useProductStore();
+    const { products, deleteProduct, setProductStatus, fetchProducts, updateProduct, categories } = useProductStore(useShallow(state => ({
+        products: state.products,
+        deleteProduct: state.deleteProduct,
+        setProductStatus: state.setProductStatus,
+        fetchProducts: state.fetchProducts,
+        updateProduct: state.updateProduct,
+        categories: state.categories
+    })));
 
 
     useEffect(() => {
@@ -49,31 +57,30 @@ export default function AdminDashboard() {
 
     useEffect(() => {
         const loadSpecialTabs = async () => {
-            if (activeTab === 'inactive') {
-                try {
-                    const { productService } = await import('../services/productService');
-                    const data = await productService.getInactiveProducts();
-                    setInactiveProducts(data);
-                } catch (error) {
-                    console.error("Failed to load inactive products:", error);
+            try {
+                const { productService } = await import('../services/productService');
+                
+                // Always load inactive for stats
+                if (inactiveProducts.length === 0) {
+                    const inactiveData = await productService.getInactiveProducts();
+                    setInactiveProducts(inactiveData);
                 }
-            } else if (activeTab === 'deleted') {
-                try {
-                    const { productService } = await import('../services/productService');
-                    const data = await productService.getDeletedProducts();
-                    setDeletedProducts(data);
-                } catch (error) {
-                    console.error("Failed to load deleted products:", error);
+
+                if (activeTab === 'deleted' && deletedProducts.length === 0) {
+                    const deletedData = await productService.getDeletedProducts();
+                    setDeletedProducts(deletedData);
                 }
+            } catch (error) {
+                console.error("Failed to load special tab products:", error);
             }
         };
         loadSpecialTabs();
-    }, [activeTab]);
+    }, [activeTab, inactiveProducts.length, deletedProducts.length]);
 
 
 
     // Filter & Sort Logic
-    const getFilteredProducts = () => {
+    const filteredProducts = useMemo(() => {
         let sourceProducts = products;
 
         // Use specifically fetched products when special tabs are active
@@ -94,7 +101,7 @@ export default function AdminDashboard() {
         // 2. Filter by Search
         if (searchTerm) {
             filtered = filtered.filter(product =>
-                product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (product.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                 product.barcode?.includes(searchTerm)
             );
         }
@@ -128,8 +135,8 @@ export default function AdminDashboard() {
 
                 // Special handling for Category Name
                 if (sortConfig.key === 'category') {
-                    const catA = categories.find(c => c.id === a.category)?.name || a.category || '';
-                    const catB = categories.find(c => c.id === b.category)?.name || b.category || '';
+                    const catA = (categories || []).find(c => c.id === a.category)?.name || a.category || '';
+                    const catB = (categories || []).find(c => c.id === b.category)?.name || b.category || '';
                     aValue = catA;
                     bValue = catB;
                 }
@@ -145,9 +152,7 @@ export default function AdminDashboard() {
         }
 
         return result;
-    };
-
-    const filteredProducts = getFilteredProducts();
+    }, [products, inactiveProducts, deletedProducts, searchTerm, filterType, sortConfig, categories, activeTab]);
 
     // Action Handlers
     const handleStatusChange = (id, newStatus, confirmMsg) => {
@@ -256,6 +261,14 @@ export default function AdminDashboard() {
                         >
                             <ScanBarcode size={20} className="text-gray-600" />
                         </button>
+
+                        <button
+                            onClick={() => navigate('/admin/scanner')}
+                            className="bg-indigo-50 p-2 rounded-lg hover:bg-indigo-100 transition border border-indigo-200/50"
+                            title="Үнийн шошго сканнер (AI)"
+                        >
+                            <Camera size={20} className="text-indigo-600" />
+                        </button>
                     </div>
 
                     <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
@@ -335,7 +348,39 @@ export default function AdminDashboard() {
             </div>
 
             {/* Content */}
-            <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="max-w-7xl mx-auto px-6 pt-6 pb-2">
+                {/* Statistics Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col items-center justify-center text-center hover:shadow-md transition">
+                        <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center mb-2">
+                            <Package className="text-costco-blue" size={20} />
+                        </div>
+                        <span className="text-2xl font-black text-gray-800">{products.length}</span>
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wide mt-1">Идэвхтэй Бараа</span>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col items-center justify-center text-center hover:shadow-md transition">
+                        <div className="w-10 h-10 bg-orange-50 rounded-full flex items-center justify-center mb-2">
+                            <EyeOff className="text-orange-500" size={20} />
+                        </div>
+                        <span className="text-2xl font-black text-gray-800">{inactiveProducts.length}</span>
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wide mt-1">Идэвхгүй Бараа</span>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col items-center justify-center text-center hover:shadow-md transition">
+                        <div className="w-10 h-10 bg-red-50 rounded-full flex items-center justify-center mb-2">
+                            <TrendingUp className="text-costco-red" size={20} />
+                        </div>
+                        <span className="text-2xl font-black text-gray-800">{products.filter(p => p.discount > 0).length}</span>
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wide mt-1">Хямдралтай Бараа</span>
+                    </div>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col items-center justify-center text-center hover:shadow-md transition">
+                        <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center mb-2">
+                            <Database className="text-green-500" size={20} />
+                        </div>
+                        <span className="text-2xl font-black text-gray-800">{products.filter(p => (p.price || 0) < 50000 && p.price > 0).length}</span>
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wide mt-1">50K₮-аас доош үнэтэй</span>
+                    </div>
+                </div>
+
                 <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full">
@@ -455,6 +500,9 @@ export default function AdminDashboard() {
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                             <input
                                                                 autoFocus
+                                                                type="tel"
+                                                                inputMode="numeric"
+                                                                pattern="[0-9]*"
                                                                 className="border rounded px-1 py-0.5 flex-1 text-xs focus:outline-none focus:border-blue-500"
                                                                 value={editValue}
                                                                 onChange={(e) => setEditValue(e.target.value)}
@@ -468,7 +516,7 @@ export default function AdminDashboard() {
                                                             {product.barcode || "Баркодгүй"}
                                                             {activeTab === 'active' && (
                                                                 <button
-                                                                    className="opacity-0 group-hover/group:opacity-100 text-gray-300 hover:text-blue-500 transition ml-1"
+                                                                    className="opacity-0 group-hover/code:opacity-100 text-gray-300 hover:text-blue-500 transition ml-1"
                                                                     onClick={(e) => { e.stopPropagation(); handleEditStart(product, 'barcode'); }}
                                                                 >
                                                                     <Edit size={10} />
@@ -482,7 +530,7 @@ export default function AdminDashboard() {
                                             {/* Category */}
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
-                                                    {categories.find(c => c.id === product.category)?.name || product.category || 'N/A'}
+                                                    {(categories || []).find(c => c.id === product.category)?.name || product.category || 'N/A'}
                                                 </span>
                                             </td>
 
@@ -513,7 +561,7 @@ export default function AdminDashboard() {
                                                 ) : (
                                                     <div className="flex flex-col">
                                                         <div className="font-semibold text-gray-900 flex items-center gap-2">
-                                                            {(product.price).toLocaleString()}₮
+                                                            {(product.price || 0).toLocaleString()}₮
                                                             {activeTab === 'active' && (
                                                                 <button
                                                                     className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-500 transition px-1"

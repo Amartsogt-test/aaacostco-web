@@ -1,6 +1,5 @@
-import { db, storage } from '../firebase';
-import { collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, where, getDocs, limit, increment } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, uploadFileToStorage } from '../firebase';
+import { collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, serverTimestamp, where, getDocs, limit, increment, writeBatch } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'chats';
 
@@ -42,9 +41,7 @@ export const chatService = {
     // Upload file to storage
     async uploadFile(file, path) {
         try {
-            const storageRef = ref(storage, path);
-            const snapshot = await uploadBytes(storageRef, file);
-            return await getDownloadURL(snapshot.ref);
+            return await uploadFileToStorage(path, file);
         } catch (error) {
             console.error("Error uploading file:", error);
             throw error;
@@ -110,6 +107,16 @@ export const chatService = {
         });
     },
 
+    // Subscribe to conversation metadata (like unreadCount)
+    subscribeToConversation(conversationId, callback) {
+        const convRef = doc(db, COLLECTION_NAME, conversationId);
+        return onSnapshot(convRef, (docSnap) => {
+            if (docSnap.exists()) {
+                callback({ id: docSnap.id, ...docSnap.data() });
+            }
+        });
+    },
+
     // Mark messages as read
     async markAsRead(conversationId, isAdmin = false) {
         try {
@@ -130,9 +137,66 @@ export const chatService = {
                 needsAdmin: true,
                 unreadByAdmin: increment(1) // Increment unread count
             });
-            return true;
         } catch (error) {
             console.error("Error marking as needs admin:", error);
+        }
+    },
+
+    // Broadcast a message to all users
+    async broadcastMessage(text, imageFile = null) {
+        try {
+            let imageUrl = null;
+            if (imageFile) {
+                imageUrl = await uploadFileToStorage(`chats/broadcast/${Date.now()}_${imageFile.name}`, imageFile);
+            }
+
+            // Get all conversations
+            const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+            if (snapshot.empty) return 0;
+
+            const chunks = [];
+            const docs = snapshot.docs;
+            // Firestore batch limit is 500, we use 400 to be safe (each chat uses 2 ops: add message + update conv) -> 800 ops? Wait, limit is 500 OPERATIONS per batch. So 250 conversations = 500 ops.
+            // Let's use chunks of 200 conversations (400 ops)
+            for (let i = 0; i < docs.length; i += 200) {
+                chunks.push(docs.slice(i, i + 200));
+            }
+
+            let totalSent = 0;
+            for (const chunk of chunks) {
+                const batch = writeBatch(db);
+                for (const conversationDoc of chunk) {
+                    const conversationId = conversationDoc.id;
+                    
+                    // 1. Add message document — MUST match the schema ChatModal renders
+                    // (isFromAdmin + attachment), otherwise broadcasts show up as the
+                    // user's own message and the image never appears.
+                    const messageRef = doc(collection(db, COLLECTION_NAME, conversationId, 'messages'));
+                    batch.set(messageRef, {
+                        text: text || '',
+                        isFromAdmin: true,
+                        read: false,
+                        isBroadcast: true,
+                        createdAt: serverTimestamp(),
+                        ...(imageUrl && { attachment: { type: 'image', url: imageUrl } })
+                    });
+
+                    // 2. Update conversation document
+                    const convRef = doc(db, COLLECTION_NAME, conversationId);
+                    batch.update(convRef, {
+                        lastMessage: text || 'Зураг илгээлээ',
+                        lastMessageAt: serverTimestamp(),
+                        unreadByUser: increment(1)
+                    });
+                    
+                    totalSent++;
+                }
+                await batch.commit();
+            }
+
+            return totalSent;
+        } catch (error) {
+            console.error("Error broadcasting message:", error);
             throw error;
         }
     },

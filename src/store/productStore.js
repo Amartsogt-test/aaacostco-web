@@ -2,12 +2,16 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { MENU_DATA } from '../data/menuData';
 import buildInfo from '../buildInfo.json';
+import { auth, db } from '../firebase';
+import { getDocs, collection } from 'firebase/firestore';
+import { smartSearchFilter } from '../utils/searchUtils';
 
 // PAGE SIZE
 const PAGE_SIZE = 40;
 
 // Cache configuration for instant home page loading
-const HOME_CACHE_KEY = 'costco_home_products_v7'; // Bumped for short description
+const HOME_CACHE_KEY = 'costco_home_products_v8'; // Bumped for sync_info filtering
+const CATEGORY_CACHE_KEY_PREFIX = 'costco_cat_v2_';
 const CACHE_VERSION_KEY = 'costco_cache_version';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const SEARCH_INDEX_CACHE_KEY = 'costco_search_index_v4';
@@ -67,6 +71,7 @@ const setHomeCache = (products, categoryCounts) => {
             image: p.image,
             hasDiscount: p.hasDiscount,
             discountPercent: p.discountPercent,
+            discount: p.discount, // Needed for ProductCard badge check
             status: p.status,
             stock: p.stock,
             additionalCategories: p.additionalCategories,
@@ -138,14 +143,12 @@ export const useProductStore = create(
             isSearching: false,
             isAiSearching: false,
             searchTerm: '',
+            searchHistory: [], // NEW: Search History
             priceSort: null, // NEW: Persisted sort order ('asc', 'desc', null)
 
             // Actions
             fetchFilters: async () => {
                 try {
-                    const { db } = await import('../firebase');
-                    const { getDocs, collection } = await import('firebase/firestore');
-
                     const querySnapshot = await getDocs(collection(db, 'filters'));
                     const filters = [];
                     querySnapshot.forEach((doc) => {
@@ -161,22 +164,26 @@ export const useProductStore = create(
 
             fetchCategories: async () => {
                 try {
-                    const { db } = await import('../firebase');
-                    const { getDocs, collection } = await import('firebase/firestore');
+                    const { productService } = await import('../services/productService');
 
-                    const querySnapshot = await getDocs(collection(db, 'categories'));
-                    const cats = [];
-                    querySnapshot.forEach((doc) => {
-                        const data = doc.data();
+                    // Try the static CDN snapshot first (fast for Mongolia); fall back to Firestore.
+                    const snapshot = await productService.getHomeSnapshot();
+                    // Seed the exchange rate early so MNT prices never flash as "unavailable".
+                    if (snapshot?.wonRate && !get().wonRate) {
+                        set({ wonRate: snapshot.wonRate });
+                    }
+                    let rawCats;
+                    if (snapshot?.categories?.length) {
+                        rawCats = snapshot.categories;
+                    } else {
+                        const querySnapshot = await getDocs(collection(db, 'categories'));
+                        rawCats = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                    }
 
-                        // Find matching static info (for Icon, Banner, etc.)
-                        const staticInfo = MENU_DATA.find(m => m.code === doc.id);
-
-                        cats.push({
-                            id: doc.id,
-                            ...data,
-                            banner: data.banner || staticInfo?.banner || null,
-                        });
+                    // Merge static info (icon/banner) — same logic for both sources.
+                    const cats = rawCats.map((data) => {
+                        const staticInfo = MENU_DATA.find(m => m.code === data.id);
+                        return { ...data, banner: data.banner || staticInfo?.banner || null };
                     });
 
                     // Sort by ID naturally (cos_1, cos_2...)
@@ -186,23 +193,32 @@ export const useProductStore = create(
                         return numA - numB;
                     });
 
-                    set({ categories: cats });
+                    // Seed counts instantly from the snapshot if present (badges show with no extra round-trip).
+                    if (snapshot?.categoryCounts) {
+                        set({
+                            categories: cats.map(c => ({ ...c, count: snapshot.categoryCounts[c.id] || 0 })),
+                            categoryCounts: snapshot.categoryCounts,
+                        });
+                    } else {
+                        set({ categories: cats });
+                    }
 
-                    // 🚀 NEW: Fetch counts in background and merge
-                    const { productService } = await import('../services/productService');
-                    const counts = await productService.getAllCategoryCounts();
-
-                    const catsWithCounts = cats.map(c => ({
-                        ...c,
-                        count: counts[c.id] || 0
-                    }));
-
-                    set({ categories: catsWithCounts, categoryCounts: counts });
-
-                    // Update home cache with new counts (for instant filter count display)
-                    const existingCache = getHomeCache();
-                    if (existingCache) {
-                        setHomeCache(existingCache.products, counts);
+                    // Refresh counts lazily (idle) for freshness; cached → usually free.
+                    const loadCounts = async () => {
+                        try {
+                            const counts = await productService.getAllCategoryCounts();
+                            const catsWithCounts = cats.map(c => ({ ...c, count: counts[c.id] || 0 }));
+                            set({ categories: catsWithCounts, categoryCounts: counts });
+                            const existingCache = getHomeCache();
+                            if (existingCache) setHomeCache(existingCache.products, counts);
+                        } catch (e) {
+                            console.error('Category counts failed:', e);
+                        }
+                    };
+                    if (typeof requestIdleCallback !== 'undefined') {
+                        requestIdleCallback(() => loadCounts(), { timeout: 3000 });
+                    } else {
+                        setTimeout(loadCounts, 1200);
                     }
                 } catch (error) {
                     console.error("Error fetching categories:", error);
@@ -249,7 +265,10 @@ export const useProductStore = create(
                         get().subscribeToWonRate();
                     }
 
-                    if (get().isSearching) return;
+                    if (get().isSearching) {
+                        set({ isLoading: false });
+                        return;
+                    }
 
                     // 1. 'Sale' Category - Special handling REMOVED to use Server Side Pagination
                     // Standard getPaginatedProducts handles 'Sale' (hasDiscount == true) efficiently.
@@ -307,7 +326,44 @@ export const useProductStore = create(
                             }
                         }
 
-                        // STEP 3: No cache available - fetch TIRED (Fast first, then full)
+                        // STEP 2.5: First visit — try the STATIC CDN snapshot first.
+                        // Firebase Hosting's CDN has edge nodes near Mongolia, so this
+                        // is far faster than querying the US-region Firestore on a cold
+                        // start. Falls through to Firestore if the snapshot isn't ready.
+                        const snapshot = await productService.getHomeSnapshot();
+                        if (snapshot && snapshot.products.length > 0) {
+                            const snapCounts = snapshot.categoryCounts || get().categoryCounts;
+                            // Seed the exchange rate from the snapshot so MNT prices
+                            // render correctly immediately (no "unavailable" flash while
+                            // the live rate loads from Firestore).
+                            if (snapshot.wonRate && !get().wonRate) {
+                                set({ wonRate: snapshot.wonRate });
+                            }
+                            set({
+                                products: snapshot.products,
+                                totalCount: snapshot.productCount || snapshot.products.length,
+                                hasMore: PAGE_SIZE < snapshot.products.length,
+                                isLoading: false,
+                                categoryCounts: snapCounts,
+                            });
+                            setHomeCache(snapshot.products, snapCounts);
+
+                            // Refresh from Firestore in the background to stay current.
+                            productService.getHomeProducts().then(fullProducts => {
+                                if (fullProducts && fullProducts.length > 0) {
+                                    setHomeCache(fullProducts, get().categoryCounts);
+                                    set({
+                                        products: fullProducts,
+                                        totalCount: fullProducts.length,
+                                        hasMore: PAGE_SIZE < fullProducts.length,
+                                    });
+                                }
+                            }).catch(err => console.error('Background refresh failed:', err));
+
+                            return;
+                        }
+
+                        // STEP 3: No snapshot — fetch tiered from Firestore (fast first, then full)
                         console.log("🚀 Initial visit - starting tiered fetch...");
 
                         // 3.1 Fetch Fast Path (metadata + first 50 items)
@@ -422,7 +478,8 @@ export const useProductStore = create(
                         newCursors[page + 1] = nextCursor;
                     }
 
-                    const mergedProducts = result.products;
+                    // Exclude soft-deleted; KEEP inactive (shown greyed-out, non-orderable, sorted last).
+                    const mergedProducts = result.products.filter(p => p.status !== 'deleted');
 
                     const sortedProducts = mergedProducts.map(p => {
                         if (p.stock === 'outOfStock' && p.status !== 'inactive') {
@@ -434,6 +491,16 @@ export const useProductStore = create(
                         const bIsInactive = b.status === 'inactive' || b.stock === 'outOfStock';
                         if (aIsInactive && !bIsInactive) return 1;
                         if (!aIsInactive && bIsInactive) return -1;
+
+                        // Custom priority: < 50,000 KRW and on sale goes to very top
+                        const aPriceKRW = a.priceKRW || 0;
+                        const bPriceKRW = b.priceKRW || 0;
+                        
+                        const aIsCheapSale = a.hasDiscount && aPriceKRW > 0 && aPriceKRW <= 50000;
+                        const bIsCheapSale = b.hasDiscount && bPriceKRW > 0 && bPriceKRW <= 50000;
+                        
+                        if (aIsCheapSale && !bIsCheapSale) return -1;
+                        if (!aIsCheapSale && bIsCheapSale) return 1;
 
                         const aHasDiscount = a.hasDiscount;
                         const bHasDiscount = b.hasDiscount;
@@ -472,13 +539,14 @@ export const useProductStore = create(
             setWonRate: (newRate, userStr = 'System') => {
                 const oldRate = get().wonRate;
 
+                // Guard: Don't write if rate hasn't changed
+                if (oldRate !== null && Math.abs(newRate - oldRate) < 0.001) return;
+                set({ wonRate: newRate });
+
                 import('../services/productService').then(({ productService }) => {
                     productService.updateWonRate(newRate, userStr)
                         .catch(err => console.error('❌ Failed to save rate:', err));
                 });
-
-                if (oldRate !== null && Math.abs(newRate - oldRate) < 0.001) return;
-                set({ wonRate: newRate });
             },
 
             subscribeToWonRate: () => {
@@ -536,11 +604,13 @@ export const useProductStore = create(
             setProductStatus: async (id, status) => {
                 // For inactive/deleted: REMOVE from products array for instant UI update
                 // Users expect the product to disappear immediately
-                if (status === 'inactive' || status === 'deleted') {
+                if (status === 'deleted') {
                     set((state) => ({
                         products: state.products.filter((p) => p.id !== id)
                     }));
                 } else {
+                    // 'inactive' stays in the list — it renders greyed-out & non-orderable
+                    // (see ProductCard/ProductDetail isInactive) and sorts to the very end.
                     set((state) => ({
                         products: state.products.map((p) => (p.id === id ? { ...p, status } : p))
                     }));
@@ -594,8 +664,14 @@ export const useProductStore = create(
                     return;
                 }
 
-                const { preservePage } = options;
                 const lowerTerm = term.toLowerCase().trim();
+                if (lowerTerm.length > 0 && !get().searchHistory.includes(lowerTerm)) {
+                    const newHistory = [lowerTerm, ...get().searchHistory].slice(0, 10);
+                    set({ searchHistory: newHistory });
+                    get().syncSearchHistory(newHistory);
+                }
+
+                const { preservePage } = options;
 
                 // RESET STATE but keep loading true
                 set({
@@ -641,12 +717,11 @@ export const useProductStore = create(
                     if (index) set({ searchIndex: index });
                 }
 
-                // Internal helper to perform search on index
+                // Internal helper to perform search on index (smartSearchFilter is
+                // imported statically at the top — it's already in the main bundle via
+                // SearchFilterBar, so a dynamic import gained nothing).
                 const doLocalSearch = (searchTokens, sourceIndex) => {
-                    return sourceIndex.filter(p => {
-                        const nameContent = `${p.name} ${p.name_mn || ""} ${p.englishName || ""} ${p.brand || ""} ${p.code || ""} ${p.id}`.toLowerCase();
-                        return searchTokens.every(t => nameContent.includes(t));
-                    }).map(p => ({
+                    return smartSearchFilter(sourceIndex, term).map(p => ({
                         ...p,
                         price: p.price || p.priceKRW || 0,
                         originalPrice: p.originalPrice || p.originalPriceKRW || p.basePrice || 0
@@ -752,6 +827,18 @@ export const useProductStore = create(
 
             // SORT ACTION
             setPriceSort: (sort) => set({ priceSort: sort }),
+
+            setSearchHistory: (history) => set({ searchHistory: history }),
+            syncSearchHistory: async (history) => {
+                const { doc, setDoc } = await import('firebase/firestore');
+                const user = auth.currentUser;
+                if (!user) return;
+                try {
+                    await setDoc(doc(db, 'users', user.uid), { searchHistory: history }, { merge: true });
+                } catch (e) {
+                    console.error("Failed to sync search history:", e);
+                }
+            },
         }),
         {
             name: 'shoppy-product-storage-v36',
@@ -767,7 +854,7 @@ export const useProductStore = create(
                 currentTag: state.currentTag,
                 // Persist search state
                 searchTerm: state.searchTerm,
-                isSearching: state.isSearching,
+                searchHistory: state.searchHistory,
                 // Persist Sort State
                 priceSort: state.priceSort
             }),

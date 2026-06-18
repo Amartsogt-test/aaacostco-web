@@ -5,7 +5,7 @@ import { useSettingsStore } from '../store/settingsStore';
 
 const TermsOfService = () => {
     const navigate = useNavigate();
-    const { settings, fetchSettings, isLoading } = useSettingsStore();
+    const { fetchSettings } = useSettingsStore();
 
     useEffect(() => {
         fetchSettings();
@@ -32,17 +32,26 @@ const TermsOfService = () => {
             <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
                 <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
                     <div className="space-y-6 text-gray-700 leading-relaxed">
-                        {isLoading ? (
-                            <div className="flex justify-center py-12">
-                                <div className="w-10 h-10 border-4 border-costco-blue border-t-transparent rounded-full animate-spin"></div>
-                            </div>
-                        ) : settings?.terms ? (
-                            <div className="whitespace-pre-wrap">{settings.terms}</div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
-                                <p>Одоогоор мэдээлэл оруулаагүй байна.</p>
-                            </div>
-                        )}
+                        <div className="whitespace-pre-wrap">
+                            <h2 className="text-xl font-bold mb-4">Үйлчилгээний нөхцөл (Terms of Service)</h2>
+                            <p className="mb-4">Энэхүү үйлчилгээний нөхцөл нь манай вэбсайт болон аппликейшнийг ашиглах үеийн дүрэм журмыг зохицуулна.</p>
+                            
+                            <h3 className="text-lg font-bold mt-6 mb-2">1. Ерөнхий нөхцөл</h3>
+                            <ul className="list-disc list-inside space-y-2 mb-6 ml-4">
+                                <li>Хэрэглэгч нь манай үйлчилгээг ашиглахдаа өөрийн мэдээллийн үнэн зөв байдлыг бүрэн хариуцна.</li>
+                                <li>Бид таны мэдээллийг зөвхөн үйлчилгээ үзүүлэх зорилгоор, нууцлалын бодлогын дагуу ашиглана.</li>
+                                <li>Системийн хэвийн үйл ажиллагаанд санаатайгаар саад учруулах, бусдын эрхэнд халдахыг хатуу хориглоно.</li>
+                            </ul>
+
+                            <h3 className="text-lg font-bold mt-6 mb-2">2. Бүртгэл болон Аюулгүй байдал</h3>
+                            <ul className="list-disc list-inside space-y-2 mb-6 ml-4">
+                                <li>Хэрэглэгч өөрийн бүртгэлийн (Facebook логин) аюулгүй байдлыг хангах үүрэгтэй.</li>
+                                <li>Бусдын нэрээр хуурамч хаяг нээх, эсвэл бусдын хаягийг зөвшөөрөлгүй ашиглахыг хориглоно.</li>
+                            </ul>
+
+                            <h3 className="text-lg font-bold mt-6 mb-2">3. Нөхцөлд өөрчлөлт оруулах</h3>
+                            <p className="mb-4">Бид шаардлагатай тохиолдолд үйлчилгээний нөхцөлдөө өөрчлөлт оруулах эрхтэй бөгөөд өөрчлөлт орсон тохиолдолд системээр дамжуулан хэрэглэгчдэд мэдэгдэх болно.</p>
+                        </div>
                     </div>
 
                     <div className="mt-12 pt-8 border-t border-gray-100 text-sm text-gray-500">

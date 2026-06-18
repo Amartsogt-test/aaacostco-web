@@ -1,93 +1,179 @@
-import { Package, Truck, CheckCircle, Clock, XCircle } from 'lucide-react';
+import {
+    ClipboardList, BadgeCheck, ShoppingBag, Warehouse, Plane,
+    FileCheck, MapPin, Truck, PackageCheck, XCircle, Clock, PauseCircle, RotateCcw
+} from 'lucide-react';
+import {
+    ORDER_STAGES, RECEIVED_STAGE,
+    getStageDef, getCurrentStage, getStageIndex, getTrackingEvents, getStageProgress, isExceptionStage
+} from '../utils/orderTracking';
+import { formatDate } from '../utils/format';
 
-const ORDER_STATUSES = [
-    { key: 'Processing', label: 'Хүлээн авсан', icon: Clock, color: 'text-blue-500 bg-blue-50' },
-    { key: 'Confirmed', label: 'Баталгаажсан', icon: Package, color: 'text-indigo-500 bg-indigo-50' },
-    { key: 'Shipped', label: 'Ачигдсан', icon: Truck, color: 'text-orange-500 bg-orange-50' },
-    { key: 'Хүргэлтэнд', label: 'Хүргэлтэнд', icon: Truck, color: 'text-amber-500 bg-amber-50' },
-    { key: 'Хүргэгдсэн', label: 'Хүргэгдсэн', icon: CheckCircle, color: 'text-green-500 bg-green-50' }
-];
+// Stage key → icon. Kept here (not in the constants module) so that module stays
+// JSX/dependency-free.
+const STAGE_ICONS = {
+    received: ClipboardList,
+    confirmed: BadgeCheck,
+    purchased: ShoppingBag,
+    warehouse: Warehouse,
+    shipped: Plane,
+    customs: FileCheck,
+    arrived_ub: MapPin,
+    out_for_delivery: Truck,
+    delivered: PackageCheck,
+    cancelled: XCircle,
+    on_hold: PauseCircle,
+    failed: XCircle,
+    returned: RotateCcw,
+};
 
-const CANCELLED = { key: 'Cancelled', label: 'Цуцлагдсан', icon: XCircle, color: 'text-red-500 bg-red-50' };
-
-function getStatusIndex(status) {
-    return ORDER_STATUSES.findIndex(s => s.key === status);
-}
-
+/**
+ * Detailed, timestamped shipment timeline (AliExpress-style): a prominent current
+ * status header with a progress bar, the history of reached events newest-first,
+ * and a faint roadmap of the upcoming stages. Works for both logged-in customers
+ * and the guest tracking page; an order with no stored `trackingHistory` is
+ * rendered from its (possibly legacy) status via getTrackingEvents().
+ */
 export default function OrderTracking({ order }) {
     if (!order) return null;
 
-    const isCancelled = order.status === 'Cancelled';
-    const currentIndex = getStatusIndex(order.status);
+    const currentStage = getCurrentStage(order);
+    const isException = isExceptionStage(currentStage);     // cancelled / failed / returned / on_hold
+    const isAmber = currentStage === 'on_hold';             // amber (non-terminal) vs red
+    const isCancelled = currentStage === 'cancelled';
+    const currentDef = getStageDef(currentStage) || RECEIVED_STAGE;
 
-    if (isCancelled) {
-        return (
-            <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                        <XCircle size={20} className="text-red-500" />
-                    </div>
-                    <div>
-                        <p className="font-bold text-red-700">Захиалга цуцлагдсан</p>
-                        <p className="text-sm text-red-500">
-                            {order.cancelledAt ? new Date(order.cancelledAt).toLocaleDateString('mn-MN') : ''}
-                        </p>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    const events = getTrackingEvents(order);          // chronological (oldest → newest)
+    const reached = new Set(events.map((e) => e.stage));
+    const feed = [...events].reverse();               // newest first (matches reference)
+
+    const currentIndex = getStageIndex(currentStage); // -1 for received / cancelled
+    const upcoming = isException
+        ? []
+        : ORDER_STAGES.filter((s, i) => !reached.has(s.key) && i > currentIndex);
+
+    const CurrentIcon = STAGE_ICONS[currentStage] || Clock;
+    const progress = Math.round(getStageProgress(order) * 100);
+    const totalSteps = ORDER_STAGES.length;
+    const stepNum = currentStage === 'received' || currentIndex < 0 ? 0 : currentIndex + 1;
+    const lastTs = feed.length > 0 ? feed[0].timestamp : (order.date || order.createdAt);
+    const unpaidCharges = (order.additionalCharges || []).filter((c) => !c.paid);
+    const unpaidTotal = unpaidCharges.reduce((a, c) => a + (Number(c.amount) || 0), 0);
 
     return (
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-            <h4 className="text-sm font-bold text-gray-900 mb-4">Захиалгын явц</h4>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            {/* Current status header */}
+            <div className={`p-4 ${isException ? (isAmber ? 'bg-amber-50' : 'bg-red-50') : 'bg-gradient-to-br from-blue-50 to-white'}`}>
+                <div className="flex items-center gap-3">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${isException ? (isAmber ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-500') : 'bg-costco-blue text-white'}`}>
+                        <CurrentIcon size={22} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <p className={`font-extrabold text-lg leading-tight ${isException ? (isAmber ? 'text-amber-700' : 'text-red-700') : 'text-gray-900'}`}>
+                            {currentDef.label}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                            {lastTs ? `Шинэчлэгдсэн: ${formatDate(lastTs, { withTime: true })}` : currentDef.hint}
+                        </p>
+                        {order.trackingNumber && (
+                            <p className="text-xs text-gray-600 mt-0.5">Илгээмжийн дугаар: <span className="font-bold">{order.trackingNumber}</span></p>
+                        )}
+                        {order.estimatedDelivery && !isException && (
+                            <p className="text-xs text-gray-600 mt-0.5">Хүргэх хугацаа: <span className="font-bold">{order.estimatedDelivery}</span></p>
+                        )}
+                    </div>
+                </div>
 
-            <div className="relative">
-                {/* Progress line */}
-                <div className="absolute left-5 top-5 bottom-5 w-0.5 bg-gray-200" />
-                <div
-                    className="absolute left-5 top-5 w-0.5 bg-gradient-to-b from-green-400 to-blue-400 transition-all duration-500"
-                    style={{
-                        height: currentIndex >= 0
-                            ? `${(currentIndex / (ORDER_STATUSES.length - 1)) * 100}%`
-                            : '0%',
-                        maxHeight: 'calc(100% - 40px)'
-                    }}
-                />
+                {!isException && (
+                    <div className="mt-3">
+                        <div className="flex justify-between text-[11px] font-medium text-gray-500 mb-1">
+                            <span>Үе шат {stepNum}/{totalSteps}</span>
+                            <span>{progress}%</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-gradient-to-r from-green-400 to-costco-blue rounded-full transition-all duration-500"
+                                style={{ width: `${progress}%` }}
+                            />
+                        </div>
+                    </div>
+                )}
+            </div>
 
-                {/* Steps */}
-                <div className="space-y-4">
-                    {ORDER_STATUSES.map((step, index) => {
-                        const isCompleted = index <= currentIndex;
-                        const isCurrent = index === currentIndex;
-                        const Icon = step.icon;
+            {/* Outstanding additional charges (customs duty / weight difference) */}
+            {unpaidCharges.length > 0 && (
+                <div className="mx-4 mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-sm font-bold text-amber-800 mb-1">Төлөх нэмэлт төлбөр: {Math.round(unpaidTotal).toLocaleString()}₮</p>
+                    {unpaidCharges.map((c, i) => (
+                        <p key={i} className="text-xs text-amber-700 flex justify-between gap-2">
+                            <span className="truncate">{c.label}</span><span className="font-bold shrink-0">{Math.round(c.amount).toLocaleString()}₮</span>
+                        </p>
+                    ))}
+                </div>
+            )}
 
+            {/* Event feed — newest first */}
+            <div className="p-4">
+                <div className="relative">
+                    {feed.map((ev, idx) => {
+                        const def = getStageDef(ev.stage);
+                        const Icon = STAGE_ICONS[ev.stage] || Clock;
+                        const isCancelEv = ev.stage === 'cancelled';
+                        const isLatest = idx === 0 && !isCancelled;
+                        const isLast = idx === feed.length - 1;
                         return (
-                            <div key={step.key} className="flex items-center gap-3 relative">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center z-10 transition-all duration-300 ${isCompleted
-                                    ? step.color
-                                    : 'bg-gray-100 text-gray-300'
-                                    } ${isCurrent ? 'ring-2 ring-offset-2 ring-blue-300 scale-110' : ''}`}
-                                >
-                                    <Icon size={18} />
+                            <div key={`${ev.stage}-${idx}`} className="relative flex gap-3 pb-5 last:pb-0">
+                                {!isLast && <div className="absolute left-[11px] top-6 bottom-0 w-0.5 bg-gray-200" />}
+                                <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${isCancelEv
+                                    ? 'bg-red-100 text-red-500'
+                                    : isLatest
+                                        ? 'bg-costco-blue text-white ring-4 ring-blue-100'
+                                        : 'bg-green-100 text-green-600'
+                                    }`}>
+                                    <Icon size={13} />
                                 </div>
-                                <div className="flex-1">
-                                    <p className={`text-sm font-bold ${isCompleted ? 'text-gray-900' : 'text-gray-400'}`}>
-                                        {step.label}
+                                <div className="min-w-0 flex-1">
+                                    <p className={`text-sm font-bold ${isLatest ? 'text-gray-900' : isCancelEv ? 'text-red-600' : 'text-gray-700'}`}>
+                                        {ev.label || def?.label || ev.stage}
                                     </p>
-                                    {isCurrent && (
-                                        <p className="text-xs text-blue-500 font-medium animate-pulse">
-                                            Одоогийн төлөв
+                                    {(ev.note || def?.hint) && (
+                                        <p className="text-xs text-gray-500 mt-0.5">{ev.note || def?.hint}</p>
+                                    )}
+                                    {ev.timestamp && (
+                                        <p className="text-[11px] text-gray-400 mt-0.5">{formatDate(ev.timestamp, { withTime: true })}</p>
+                                    )}
+                                    {ev.stage === 'delivered' && order.deliveredReceiver && (
+                                        <p className="text-[11px] text-green-700 mt-0.5">
+                                            Хүлээн авсан: <b>{order.deliveredReceiver}</b>
+                                            {order.deliveredPhoto && (
+                                                <> · <a href={order.deliveredPhoto} target="_blank" rel="noopener noreferrer" className="underline">зураг</a></>
+                                            )}
                                         </p>
                                     )}
                                 </div>
-                                {isCompleted && !isCurrent && (
-                                    <CheckCircle size={16} className="text-green-400" />
-                                )}
                             </div>
                         );
                     })}
                 </div>
+
+                {/* Upcoming stages (faint roadmap) */}
+                {upcoming.length > 0 && (
+                    <div className="mt-1 pt-3 border-t border-dashed border-gray-200">
+                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Дараагийн үе шатууд</p>
+                        <div className="space-y-2.5">
+                            {upcoming.map((s) => {
+                                const Icon = STAGE_ICONS[s.key] || Clock;
+                                return (
+                                    <div key={s.key} className="flex gap-3 items-center opacity-60">
+                                        <div className="w-6 h-6 rounded-full bg-gray-100 text-gray-300 flex items-center justify-center shrink-0">
+                                            <Icon size={13} />
+                                        </div>
+                                        <p className="text-xs text-gray-400">{s.label}</p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

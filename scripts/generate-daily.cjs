@@ -9,7 +9,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
 const API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
 const SERVICE_ACCOUNT_PATH = path.join(__dirname, '../functions/service-account.json');
 const COLLECTION_NAME = 'products';
-const MODEL_NAME = 'gemini-2.0-flash';
+const MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 // Rate Limiting (Daily is smaller volume, but safety first)
 const DELAY_MS = 8000; // 8 seconds between products
@@ -30,6 +30,10 @@ if (!admin.apps.length) {
     });
 }
 const db = admin.firestore();
+// Drop undefined fields on writes instead of throwing. E.g. a sale item missing
+// both originalPrice and price would make oldPrice undefined and crash the daily
+// report write; with this, the bad field is simply omitted.
+db.settings({ ignoreUndefinedProperties: true });
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 // 3. Helpers

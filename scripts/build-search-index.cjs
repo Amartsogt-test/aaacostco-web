@@ -1,11 +1,17 @@
 const admin = require('firebase-admin');
+const fs = require('fs');
+const path = require('path');
 const serviceAccount = require('../functions/service-account.json');
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount)
 });
 
-const db = admin.firestore();
+// Target a region-local named database when FIRESTORE_DATABASE_ID is set (Asia migration).
+const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || '(default)';
+const db = FIRESTORE_DATABASE_ID === '(default)'
+    ? admin.firestore()
+    : require('firebase-admin/firestore').getFirestore(admin.app(), FIRESTORE_DATABASE_ID);
 
 // Size limit: We'll use ~700KB per chunk to be safe (Firestore limit is 1MB)
 const ITEMS_PER_CHUNK = 500;
@@ -13,33 +19,34 @@ const ITEMS_PER_CHUNK = 500;
 async function buildSearchIndex() {
     console.log('🔍 Building search index...');
 
-    const productsSnapshot = await db.collection('products')
-        .where('status', '!=', 'deleted')
-        .get();
-
     const indexItems = [];
 
-    productsSnapshot.forEach(doc => {
+    const stream = db.collection('products').stream();
+
+    for await (const doc of stream) {
         const data = doc.data();
+        if (data.status === 'deleted') continue; // Filter deleted in-memory
+        if (data.status !== 'active') continue;  // Only active products
         // Minimal fields only - reduce size
         indexItems.push({
             id: doc.id,
-            n: data.name || '',           // name (shortened key)
-            m: data.name_mn || '',         // name_mn
-            e: data.englishName || '',     // englishName
-            b: data.brand || '',           // brand
-            c: data.code || '',            // code
-            i: data.image || '',           // image
-            p: data.price?.value || data.price || 0,    // price
-            o: data.originalPrice?.value || data.originalPrice || 0, // originalPrice
-            d: data.hasDiscount || false,  // hasDiscount
-            s: data.status || 'active',    // status
-            cat: data.categoryCode || '',  // categoryCode
-            ac: data.additionalCategories || [], // additionalCategories
-            w: data.estimatedWarehousePrice || 0, // NEW: estimatedWarehousePrice
-            mk: data.estimatedMarkupKrw || 0  // NEW: estimatedMarkupKrw
+            n: data.name || '',
+            m: data.name_mn || '',
+            e: data.englishName || '',
+            b: data.brand || '',
+            c: data.code || '',
+            i: data.image || '',
+            p: data.price?.value || data.price || 0,
+            o: data.originalPrice?.value || data.originalPrice || 0,
+            d: data.hasDiscount || false,
+            s: data.status || 'active',
+            cat: data.categoryCode || '',
+            ac: data.additionalCategories || [],
+            w: data.estimatedWarehousePrice || 0,
+            mk: data.estimatedMarkupKrw || 0,
+            sm: (data.description_mn || data.shortDescription || data.description || '').replace(/<[^>]*>?/gm, ' ').substring(0, 500)
         });
-    });
+    }
 
     console.log(`Total products: ${indexItems.length}`);
 
@@ -77,7 +84,19 @@ async function buildSearchIndex() {
 
     await batch.commit();
 
-    console.log(`✅ Search index built: ${indexItems.length} items in ${chunks.length} chunks`);
+    // 🚀 Also write a single STATIC search index for the app to load from the CDN
+    // (Firebase Hosting edge, near Mongolia) instead of pulling meta + N chunks from
+    // the far-away Firestore on the user's first search. Same shortened-key shape as
+    // the chunks, so the client expands it with its existing logic.
+    const staticPayload = {
+        version: Date.now(),
+        totalItems: indexItems.length,
+        items: indexItems,
+    };
+    const outPath = path.join(__dirname, '../public/search-index.json');
+    fs.writeFileSync(outPath, JSON.stringify(staticPayload));
+    const kb = (fs.statSync(outPath).size / 1024).toFixed(1);
+    console.log(`✅ Search index built: ${indexItems.length} items in ${chunks.length} chunks + static public/search-index.json (${kb} KB)`);
     process.exit(0);
 }
 

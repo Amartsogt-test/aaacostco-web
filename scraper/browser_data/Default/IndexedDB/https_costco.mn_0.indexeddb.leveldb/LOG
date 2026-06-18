@@ -1,0 +1,11 @@
+2026/05/30-11:53:11.841 bb4 Reusing MANIFEST E:\aaacostco\scraper\browser_data\Default\IndexedDB\https_costco.mn_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/30-11:53:11.842 bb4 Recovering log #105
+2026/05/30-11:53:11.843 bb4 Reusing old log E:\aaacostco\scraper\browser_data\Default\IndexedDB\https_costco.mn_0.indexeddb.leveldb/000105.log 
+2026/05/30-11:53:11.843 bb4 Delete type=2 #98
+2026/05/30-11:53:11.843 bb4 Delete type=2 #99
+2026/05/30-11:53:11.843 bb4 Delete type=2 #100
+2026/05/30-11:53:11.843 bb4 Delete type=2 #101
+2026/05/30-11:53:11.843 bb4 Delete type=2 #102
+2026/05/30-11:53:11.843 bb4 Delete type=2 #103
+2026/05/30-11:53:11.844 bb4 Delete type=2 #107
+2026/05/30-11:53:12.001 56fc Manual compaction at level-0 from '\x00\x0b\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x0c\x00\x00\x00' @ 0 : 0; will stop at (end)

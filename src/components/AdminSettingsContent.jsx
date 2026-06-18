@@ -1,4 +1,4 @@
-import { X, Save, FileText, Phone, Info, Shield, Trash2, MapPin, Image as ImageIcon, Globe, Package } from 'lucide-react';
+import { X, Save, FileText, Phone, Info, Shield, Trash2, MapPin, Image as ImageIcon, Globe, Package, Mail, MessageCircle, Crown } from 'lucide-react';
 import React, { useState, useEffect, Suspense } from 'react';
 const AdminScraperSettings = React.lazy(() => import('./AdminScraperSettings'));
 const BannerManager = React.lazy(() => import('./BannerManager'));
@@ -18,7 +18,11 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
         aboutUs: '',
         address: '',
         phone: '',
-        transportationRates: { ground: 0, air: 0 }
+        chatReminder: '',
+        transportationRates: { ground: 0, air: 0 },
+        membershipBenefits: { silver: '', gold: '', platinum: '' },
+        discountRates: { silver: 0, gold: 0, platinum: 0 },
+        launchSale: { active: true, percent: 5, endsAt: '' }
     });
 
     const [activeTab, setActiveTab] = useState('contact'); // 'contact', 'terms', 'privacy', 'deletion', 'about'
@@ -39,8 +43,17 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
                 aboutUs: settings.aboutUs || '',
                 address: settings.address || '',
                 phone: settings.phone || '',
+                email: settings.email || 'admin@costco.mn',
+                messengerLink: settings.messengerLink || '',
                 // Map legacy 'transportation' or new 'transportationRates'
-                transportationRates: settings.transportationRates || settings.transportation || { ground: 0, air: 0 }
+                transportationRates: settings.transportationRates || settings.transportation || { ground: 0, air: 0 },
+                membershipBenefits: settings.membershipBenefits || { silver: '', gold: '', platinum: '' },
+                discountRates: settings.discountRates || { silver: 0, gold: 0, platinum: 0 },
+                launchSale: {
+                    active: settings.launchSale?.active !== false, // default ON
+                    percent: settings.launchSale?.percent ?? 5,
+                    endsAt: settings.launchSale?.endsAt || ''
+                }
             });
         }
     }, [settings]);
@@ -67,6 +80,8 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
         { id: 'privacy', label: 'Нууцлал', icon: Shield },
         { id: 'deletion', label: 'Өгөгдөл устгах', icon: Trash2 },
         { id: 'transportation', label: 'Тээвэр', icon: Package },
+        { id: 'membership', label: 'Гишүүнчлэл', icon: Crown },
+        { id: 'chatReminder', label: 'Чат Санамж', icon: MessageCircle },
         { id: 'banner', label: 'Баннер удирдах', icon: ImageIcon },
         { id: 'menuImages', label: 'Цэсний зураг', icon: ImageIcon },
         { id: 'scraper', label: 'Scraper', icon: Globe },
@@ -138,6 +153,33 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
                                             />
                                         </div>
                                     </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">И-мэйл</label>
+                                        <div className="relative">
+                                            <Mail className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                            <input
+                                                type="text"
+                                                value={formData.email}
+                                                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                                className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-costco-blue/20 outline-none"
+                                                placeholder="admin@costco.mn"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">Facebook Messenger холбоос</label>
+                                        <div className="relative">
+                                            <MessageCircle className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                                            <input
+                                                type="text"
+                                                value={formData.messengerLink}
+                                                onChange={e => setFormData({ ...formData, messengerLink: e.target.value })}
+                                                className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-costco-blue/20 outline-none"
+                                                placeholder="https://m.me/таны-page"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">Facebook хуудасныхаа m.me холбоосыг оруулна уу (ж: https://m.me/costco.mn). Чат цонхонд "Messenger-ээр холбогдох" товч гарч ирнэ. Хоосон бол товч харагдахгүй.</p>
+                                    </div>
                                 </div>
                             )}
 
@@ -150,6 +192,19 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
                                         className="flex-1 w-full p-4 border rounded-xl focus:ring-2 focus:ring-costco-blue/20 outline-none font-mono text-sm resize-none"
                                         placeholder="HTML эсвэл Текст оруулна уу..."
                                     />
+                                </div>
+                            )}
+
+                            {activeTab === 'chatReminder' && (
+                                <div className="h-full flex flex-col">
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Чат дээрх санамж (Text)</label>
+                                    <textarea
+                                        value={formData.chatReminder}
+                                        onChange={e => setFormData({ ...formData, chatReminder: e.target.value })}
+                                        className="flex-1 w-full p-4 border rounded-xl focus:ring-2 focus:ring-costco-blue/20 outline-none font-sans text-sm resize-none whitespace-pre-wrap"
+                                        placeholder="Санамж..."
+                                    />
+                                    <p className="text-xs text-gray-500 mt-2">Энэ санамж нь хэрэглэгч чат нээх үед автоматаар харагдана. Шинэ мөрнүүд шууд харагдана.</p>
                                 </div>
                             )}
 
@@ -189,6 +244,122 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
                                 </div>
                             )}
 
+                            {activeTab === 'membership' && (
+                                <div className="space-y-4 h-full flex flex-col">
+                                    <p className="text-sm text-gray-500 font-medium">Гишүүнчлэлийн давуу талуудыг энд оруулна уу. Энэ нь хэрэглэгчийн "Таны ангилал" хэсгийн "Гишүүнчлэлийн давуу тал" цэсэнд харагдах болно.</p>
+
+                                    <div className="flex flex-col flex-1 gap-2 border p-4 rounded-xl bg-gray-50/50">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-sm font-bold text-gray-700">Silver гишүүн</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    value={formData.discountRates.silver}
+                                                    onChange={e => setFormData({ ...formData, discountRates: { ...formData.discountRates, silver: Number(e.target.value) } })}
+                                                    className="w-16 px-2 py-1 text-sm border rounded text-right focus:ring-2 focus:ring-costco-blue/20 outline-none"
+                                                />
+                                                <span className="text-xs font-bold text-gray-600">% хямдрал</span>
+                                            </div>
+                                        </div>
+                                        <textarea
+                                            value={formData.membershipBenefits.silver}
+                                            onChange={e => setFormData({
+                                                ...formData,
+                                                membershipBenefits: { ...formData.membershipBenefits, silver: e.target.value }
+                                            })}
+                                            className="w-full h-20 p-3 border rounded-lg focus:ring-2 focus:ring-costco-blue/20 outline-none text-sm resize-none"
+                                            placeholder="Ж: Бүртгүүлсэн бүх хэрэглэгч. Таны худалдан авалт 10,000,000₩ хүртэл."
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-col flex-1 gap-2 border p-4 rounded-xl bg-gray-50/50">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-sm font-bold text-gray-700">Gold гишүүн</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    value={formData.discountRates.gold}
+                                                    onChange={e => setFormData({ ...formData, discountRates: { ...formData.discountRates, gold: Number(e.target.value) } })}
+                                                    className="w-16 px-2 py-1 text-sm border rounded text-right focus:ring-2 focus:ring-costco-blue/20 outline-none"
+                                                />
+                                                <span className="text-xs font-bold text-gray-600">% хямдрал</span>
+                                            </div>
+                                        </div>
+                                        <textarea
+                                            value={formData.membershipBenefits.gold}
+                                            onChange={e => setFormData({
+                                                ...formData,
+                                                membershipBenefits: { ...formData.membershipBenefits, gold: e.target.value }
+                                            })}
+                                            className="w-full h-20 p-3 border rounded-lg focus:ring-2 focus:ring-costco-blue/20 outline-none text-sm resize-none"
+                                            placeholder="Ж: Нийт худалдан авалт 10,000,000₩ давсан хэрэглэгч. 2% хөнгөлөлттэй."
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-col flex-1 gap-2 border p-4 rounded-xl bg-gray-50/50">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="block text-sm font-bold text-gray-700">Platinum гишүүн</label>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    value={formData.discountRates.platinum}
+                                                    onChange={e => setFormData({ ...formData, discountRates: { ...formData.discountRates, platinum: Number(e.target.value) } })}
+                                                    className="w-16 px-2 py-1 text-sm border rounded text-right focus:ring-2 focus:ring-costco-blue/20 outline-none"
+                                                />
+                                                <span className="text-xs font-bold text-gray-600">% хямдрал</span>
+                                            </div>
+                                        </div>
+                                        <textarea
+                                            value={formData.membershipBenefits.platinum}
+                                            onChange={e => setFormData({
+                                                ...formData,
+                                                membershipBenefits: { ...formData.membershipBenefits, platinum: e.target.value }
+                                            })}
+                                            className="w-full h-20 p-3 border rounded-lg focus:ring-2 focus:ring-costco-blue/20 outline-none text-sm resize-none"
+                                            placeholder="Ж: Нийт худалдан авалт 20,000,000₩ давсан хэрэглэгч. 5% хөнгөлөлттэй."
+                                        />
+                                    </div>
+
+                                {/* 🎉 Нээлтийн хямдрал (бонус оноо) */}
+                                <div className="mt-6 border-2 border-red-200 p-4 rounded-xl bg-red-50/50 space-y-4">
+                                    <h4 className="text-sm font-bold text-red-700">🎉 Нээлтийн хямдрал (бонус оноо)</h4>
+                                    <p className="text-xs text-gray-500">Үнийг шууд хасахгүй. Худалдан авалт баталгаажихад барааны дүнгийн доорх хувийг лояалти бонус оноо болгож хэрэглэгчийн дансанд (воноор) олгоно.</p>
+
+                                    <div>
+                                        <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-1">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.launchSale.active}
+                                                onChange={e => setFormData({ ...formData, launchSale: { ...formData.launchSale, active: e.target.checked } })}
+                                                className="w-4 h-4 accent-red-600"
+                                            />
+                                            Нээлтийн бонус идэвхтэй (бүх хэрэглэгчид)
+                                        </label>
+                                        <div className="flex items-center gap-2 ml-6">
+                                            <input
+                                                type="number"
+                                                value={formData.launchSale.percent}
+                                                onChange={e => setFormData({ ...formData, launchSale: { ...formData.launchSale, percent: Number(e.target.value) } })}
+                                                className="w-20 px-2 py-1 text-sm border rounded text-right focus:ring-2 focus:ring-costco-blue/20 outline-none"
+                                            />
+                                            <span className="text-xs font-bold text-gray-600">% бонус оноо</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Дуусах огноо (хоосон бол байнгын) */}
+                                    <div className="border-t border-red-100 pt-3">
+                                        <label className="block text-xs font-bold text-gray-600 mb-1">Дуусах огноо (хоосон = байнгын)</label>
+                                        <input
+                                            type="date"
+                                            value={formData.launchSale.endsAt}
+                                            onChange={e => setFormData({ ...formData, launchSale: { ...formData.launchSale, endsAt: e.target.value } })}
+                                            className="w-full px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-costco-blue/20 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                </div>
+                            )}
+
 
 
                             {activeTab === 'scraper' && (
@@ -213,11 +384,11 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Газар (₩/kg)
+                                            Газар (₮/kg)
                                         </label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <span className="text-gray-500 sm:text-sm">₩</span>
+                                                <span className="text-gray-500 sm:text-sm">₮</span>
                                             </div>
                                             <input
                                                 type="number"
@@ -233,11 +404,11 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Агаар (₩/kg)
+                                            Агаар (₮/kg)
                                         </label>
                                         <div className="relative">
                                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <span className="text-gray-500 sm:text-sm">₩</span>
+                                                <span className="text-gray-500 sm:text-sm">₮</span>
                                             </div>
                                             <input
                                                 type="number"

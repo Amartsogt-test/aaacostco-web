@@ -41,6 +41,19 @@ const branches = [
     { id: 'branch3', name: '3-р салбар', lat: 47.8916, lng: 106.9050, address: 'Хан-Уул дүүрэг, Зайсан' }
 ];
 
+// Map refresh helper — defined outside component to prevent remount
+const MapRefresh = () => {
+    const map = useMap();
+    useEffect(() => {
+        if (map) {
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 300);
+        }
+    }, [map]);
+    return null;
+};
+
 export default function LocationPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -49,12 +62,17 @@ export default function LocationPage() {
 
     const [pickedLocation, setPickedLocation] = useState(checkoutState.deliveryLocation);
 
-    // Initial load
-    useEffect(() => {
-        if (mode === 'delivery' && checkoutState.deliveryLocation) {
-            setPickedLocation(checkoutState.deliveryLocation);
-        }
-    }, [mode, checkoutState.deliveryLocation]);
+    // Keep pickedLocation in sync when an external delivery location changes,
+    // without calling setState inside an effect (React-recommended pattern).
+    const [prevDeliveryLocation, setPrevDeliveryLocation] = useState(checkoutState.deliveryLocation);
+    if (
+        mode === 'delivery' &&
+        checkoutState.deliveryLocation &&
+        checkoutState.deliveryLocation !== prevDeliveryLocation
+    ) {
+        setPrevDeliveryLocation(checkoutState.deliveryLocation);
+        setPickedLocation(checkoutState.deliveryLocation);
+    }
 
     const handleConfirmLocation = () => {
         if (pickedLocation) {
@@ -68,18 +86,6 @@ export default function LocationPage() {
         navigate(-1);
     };
 
-    // Map refresh helper
-    const MapRefresh = () => {
-        const map = useMap();
-        useEffect(() => {
-            if (map) {
-                setTimeout(() => {
-                    map.invalidateSize();
-                }, 300);
-            }
-        }, [map]);
-        return null;
-    };
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">

@@ -1,7 +1,6 @@
-import { db, storage } from '../firebase';
-import { collection, addDoc, getDocs, query, orderBy, limit, startAfter, doc, getDoc, where, onSnapshot, documentId } from 'firebase/firestore';
-
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, uploadFileToStorage, callFunction } from '../firebase';
+import { collection, addDoc, getDocs, query, orderBy, limit, startAfter, doc, getDoc, where, onSnapshot, documentId, updateDoc, deleteDoc, setDoc, getCountFromServer } from 'firebase/firestore';
+import { withRetry } from '../utils/async';
 
 const COLLECTION_NAME = 'products';
 
@@ -18,15 +17,11 @@ export const productService = {
             // For now, let's assume we handle the valid File object or Blob upload here.
 
             if (imageFile) {
-                const imageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-                const snapshot = await uploadBytes(imageRef, imageFile);
-                imageUrl = await getDownloadURL(snapshot.ref);
+                imageUrl = await uploadFileToStorage(`products/${Date.now()}_${imageFile.name}`, imageFile);
             }
 
             if (videoFile) {
-                const videoRef = ref(storage, `products/videos/${Date.now()}_${videoFile.name}`);
-                const snapshot = await uploadBytes(videoRef, videoFile);
-                videoUrl = await getDownloadURL(snapshot.ref);
+                videoUrl = await uploadFileToStorage(`products/videos/${Date.now()}_${videoFile.name}`, videoFile);
             }
 
             // Clean up undefined/null values that Firestore dislikes
@@ -51,22 +46,17 @@ export const productService = {
     // Update existing product
     async updateProduct(id, productData, imageFile, videoFile) {
         try {
-            // we need updateDoc from firestore
-            const { updateDoc, doc } = await import('firebase/firestore');
+            // updateDoc and doc are imported at the top of the file
 
             let imageUrl = productData.image;
             let videoUrl = productData.video;
 
             if (imageFile) {
-                const imageRef = ref(storage, `products/${Date.now()}_${imageFile.name}`);
-                const snapshot = await uploadBytes(imageRef, imageFile);
-                imageUrl = await getDownloadURL(snapshot.ref);
+                imageUrl = await uploadFileToStorage(`products/${Date.now()}_${imageFile.name}`, imageFile);
             }
 
             if (videoFile) {
-                const videoRef = ref(storage, `products/videos/${Date.now()}_${videoFile.name}`);
-                const snapshot = await uploadBytes(videoRef, videoFile);
-                videoUrl = await getDownloadURL(snapshot.ref);
+                videoUrl = await uploadFileToStorage(`products/videos/${Date.now()}_${videoFile.name}`, videoFile);
             }
 
             // Clean up undefined/null values
@@ -90,16 +80,6 @@ export const productService = {
             console.error("Error updating product: ", error);
             throw error;
         }
-    },
-
-    // Fetch recent products (limited)
-    async getProducts(limitCount = 50) {
-        const snapshot = await getDocs(query(
-            collection(db, COLLECTION_NAME),
-            orderBy('updatedAt', 'desc'),
-            limit(limitCount)
-        ));
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     },
 
     // Helper for fallback
@@ -147,7 +127,7 @@ export const productService = {
     // 🚀 NEW: Update product status across ALL collections
     async updateStatus(id, status) {
         try {
-            const { updateDoc, doc, getDoc } = await import('firebase/firestore');
+            // updateDoc, doc, getDoc are imported at the top of the file
 
             // 1. Update main products collection
             const productRef = doc(db, COLLECTION_NAME, id);
@@ -180,7 +160,7 @@ export const productService = {
     // 🚀 NEW: Permanently delete product from ALL collections
     async deleteProduct(id) {
         try {
-            const { deleteDoc, doc } = await import('firebase/firestore');
+            // deleteDoc, doc are imported at the top of the file
 
             // 1. Delete from main collection
             await deleteDoc(doc(db, COLLECTION_NAME, id));
@@ -230,25 +210,6 @@ export const productService = {
         }
     },
 
-    // 🚀 NEW: Permanently DELETE ALL records in 'Trash' (Bulk Action)
-    async deleteAllDeletedProducts() {
-        try {
-            const deletedProducts = await this.getDeletedProducts();
-            if (deletedProducts.length === 0) return 0;
-
-            console.log(`Permanently deleting ${deletedProducts.length} items from trash...`);
-
-            // Delete in parallel
-            const deletePromises = deletedProducts.map(p => this.deleteProduct(p.id));
-            await Promise.all(deletePromises);
-
-            return deletedProducts.length;
-        } catch (error) {
-            console.error("Error emptying trash:", error);
-            throw error;
-        }
-    },
-
     // 🚀 Performance: Fetch pre-sorted products from dedicated home_products collection
     async getHomeProducts(limitCount = 0) {
         try {
@@ -262,7 +223,7 @@ export const productService = {
                 q = query(q, limit(limitCount));
             }
 
-            const snapshot = await getDocs(q);
+            const snapshot = await withRetry(() => getDocs(q));
 
             if (snapshot.empty) {
                 console.warn("⚠️ home_products collection returned 0 docs. Forcing fallback to special products.");
@@ -271,7 +232,7 @@ export const productService = {
 
             // Filter out metadata if it somehow gets into the list (though select/doc ID usually prevents it)
             return snapshot.docs
-                .filter(doc => doc.id !== '__metadata__')
+                .filter(doc => doc.id !== '__metadata__' && doc.id !== 'sync_info')
                 .map(doc => {
                     const data = doc.data();
                     return {
@@ -286,6 +247,23 @@ export const productService = {
             console.error("Error fetching home products:", error);
             // Fallback to the multi-tag query if home_products fails or is empty
             return this.getAllSpecialProducts(40);
+        }
+    },
+
+    // 🚀 Fetch the STATIC home snapshot served from Firebase Hosting's CDN
+    // (generated by scripts/core/build-home-snapshot.js). This is dramatically
+    // faster than querying the US-region Firestore for first-time visitors in
+    // Mongolia, because the CDN has edge nodes near them. Returns null if the
+    // snapshot isn't available yet (the app then falls back to Firestore).
+    async getHomeSnapshot() {
+        try {
+            const res = await fetch('/home-snapshot.json', { cache: 'default' });
+            if (!res.ok) return null;
+            const data = await res.json();
+            if (!data || !Array.isArray(data.products) || data.products.length === 0) return null;
+            return data; // { generatedAt, productCount, categoryCounts, products }
+        } catch {
+            return null;
         }
     },
 
@@ -337,85 +315,6 @@ export const productService = {
         }
     },
 
-    // 🚀 NEW: Fetch featured products from featured_products collection
-    // limit: if provided, only fetch first N products (for fast initial load)
-    async getFeaturedProducts(filterName = null, limit = null) {
-        try {
-            let allProductIds = [];
-
-            if (filterName) {
-                // Fetch specific filter
-                const filterDoc = await getDoc(doc(db, 'featured_products', filterName));
-                if (filterDoc.exists()) {
-                    allProductIds = filterDoc.data().productIds || [];
-                }
-            } else {
-                // Fetch all featured products (Sale, Trend, New, Kirkland)
-                const featuredSnapshot = await getDocs(collection(db, 'featured_products'));
-                featuredSnapshot.forEach(doc => {
-                    const ids = doc.data().productIds || [];
-                    allProductIds.push(...ids);
-                });
-                // Remove duplicates
-                allProductIds = [...new Set(allProductIds)];
-            }
-
-            console.log(`Featured products: ${allProductIds.length} IDs loaded`);
-
-            if (allProductIds.length === 0) {
-                return { products: [], totalIds: 0, allIds: [] };
-            }
-
-            // Apply limit if provided (for progressive loading)
-            const idsToFetch = limit ? allProductIds.slice(0, limit) : allProductIds;
-
-            // Fetch product details in batches of 10 (Firestore 'in' limit)
-            const products = [];
-            for (let i = 0; i < idsToFetch.length; i += 10) {
-                const batch = idsToFetch.slice(i, i + 10);
-                const q = query(
-                    collection(db, COLLECTION_NAME),
-                    where('__name__', 'in', batch)
-                );
-                const snapshot = await getDocs(q);
-                snapshot.forEach(doc => {
-                    products.push({ id: doc.id, ...doc.data() });
-                });
-            }
-
-            return {
-                products,
-                totalIds: allProductIds.length,
-                allIds: allProductIds  // Return all IDs for background loading
-            };
-        } catch (error) {
-            console.error("Error fetching featured products:", error);
-            return { products: [], totalIds: 0, allIds: [] };
-        }
-    },
-
-    // 🚀 Fetch products by IDs (for background loading)
-    async getProductsByIds(ids) {
-        try {
-            const products = [];
-            for (let i = 0; i < ids.length; i += 10) {
-                const batch = ids.slice(i, i + 10);
-                const q = query(
-                    collection(db, COLLECTION_NAME),
-                    where('__name__', 'in', batch)
-                );
-                const snapshot = await getDocs(q);
-                snapshot.forEach(doc => {
-                    products.push({ id: doc.id, ...doc.data() });
-                });
-            }
-            return products;
-        } catch (error) {
-            console.error("Error fetching products by IDs:", error);
-            return [];
-        }
-    },
-
     // 🚀 Scalability: Paginated Fetching
     async getPaginatedProducts(lastDoc = null, pageSize = 40, filters = {}) {
         try {
@@ -425,8 +324,10 @@ export const productService = {
             // 1. Build Query Constraints
             const productsRef = collection(db, COLLECTION_NAME);
 
-            // 🔒 ALWAYS filter by active status - inactive/deleted products should not be visible
-            constraints.push(where('status', '==', 'active'));
+            // NOTE: inactive products are now SHOWN (greyed-out + non-orderable, sorted to
+            // the end) rather than hidden, so we no longer filter status==active here.
+            // 'deleted' products are excluded client-side in productStore (Firestore can't
+            // combine an inequality/`in` on status with the tag/category filters + ordering).
 
             // 🚀 TAG FILTERING (Highest Priority)
             if (tag) {
@@ -459,8 +360,8 @@ export const productService = {
                 constraints.push(where('targetCode', '==', 'BuyersPick'));
             } else if (category === 'ks_all' || category === 'Kirkland-Signature') {
                 constraints.push(where('targetCode', '==', 'ks_all'));
-            } else if (category) {
-                constraints.push(where('category', '==', category));
+            } else if (category && !subCategory) {
+                constraints.push(where('categoryPath', 'array-contains', category));
             }
 
             if (!tag && subCategory) {
@@ -502,7 +403,7 @@ export const productService = {
 
             const q = query(productsRef, ...constraints);
 
-            const snapshot = await getDocs(q);
+            const snapshot = await withRetry(() => getDocs(q));
 
             if (snapshot.empty && !lastDoc) {
                 // Only fallback if NO filters active? 
@@ -526,62 +427,10 @@ export const productService = {
         }
     },
 
-    // 🔍 Client-Side Search Support
-    // Fetch minimal metadata for ALL active products
-    async getAllProductsMetadata() {
-        try {
-            const productsRef = collection(db, COLLECTION_NAME);
-            // Removed orderBy to prevent errors with mixed types (String vs Timestamp)
-            const q = query(productsRef);
-            const snapshot = await getDocs(q);
-
-            // Map to minimal data
-            return snapshot.docs
-                .map(doc => {
-                    const d = doc.data();
-                    // 🔒 Filter out deleted AND inactive products - they should not appear in search
-                    if (d.status === 'deleted' || d.status === 'inactive') return null;
-                    return {
-                        id: doc.id,
-                        name: d.name,
-                        code: d.code, // Searchable code
-                        englishName: d.englishName,
-                        name_mn: d.name_mn,
-                        name_en: d.name_en,
-                        brand: d.brand,
-                        categoryName: d.categoryName,
-                        subCategoryName: d.subCategoryName,
-                        price: d.price || d.priceKRW || 0,
-                        basePrice: d.basePrice,
-                        image: d.image, // Needed for card
-                        additionalCategories: d.additionalCategories,
-                        discount: d.discount,
-                        oldPrice: d.oldPrice,
-                        originalPrice: d.originalPrice || d.originalPriceKRW || 0,
-                        stock: d.stock,
-                        status: d.status,
-                        estimatedWarehousePrice: d.estimatedWarehousePrice, // NEW: Include for search results
-                        updatedAt: d.updatedAt // Keep for sorting
-                    };
-                })
-                .filter(p => p !== null)
-                .sort((a, b) => {
-                    // Handle both String and Firestore Timestamp, or null
-                    const dateA = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt || 0);
-                    const dateB = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt || 0);
-                    return dateB - dateA;
-                });
-
-        } catch (error) {
-            console.error("Error fetching all products metadata:", error);
-            return [];
-        }
-    },
-
     // Get Total Count for current filter (for pagination UI)
     async getProductCount(filters = {}) {
         try {
-            const { getCountFromServer } = await import('firebase/firestore');
+            // getCountFromServer is imported at the top of the file
             const { category, subCategory, tag } = filters;
             let constraints = [];
             const productsRef = collection(db, COLLECTION_NAME);
@@ -599,8 +448,8 @@ export const productService = {
                 }
             } else if (category === 'Sale') {
                 constraints.push(where('hasDiscount', '==', true));
-            } else if (category) {
-                constraints.push(where('category', '==', category));
+            } else if (category && !subCategory) {
+                constraints.push(where('categoryPath', 'array-contains', category));
             }
 
             if (subCategory) {
@@ -616,10 +465,26 @@ export const productService = {
         }
     },
 
-    // 🚀 NEW: Get counts for all categories at once
+    // 🚀 Get counts for all categories at once.
+    // These power the category-menu badges and change only when the catalog is
+    // re-synced, so we cache them in localStorage (30 min). Without the cache this
+    // fired ~15 separate getCountFromServer round-trips on EVERY home load — the
+    // single biggest source of perceived slowness for users far from the DB region.
     async getAllCategoryCounts() {
+        const CACHE_KEY = 'costco_category_counts_v3';
+        const TTL_MS = 30 * 60 * 1000;
         try {
-            const { getCountFromServer } = await import('firebase/firestore');
+            const raw = typeof localStorage !== 'undefined' && localStorage.getItem(CACHE_KEY);
+            if (raw) {
+                const cached = JSON.parse(raw);
+                if (cached && cached.t && (Date.now() - cached.t) < TTL_MS && cached.counts) {
+                    return cached.counts; // instant — no network
+                }
+            }
+        } catch { /* ignore cache read errors */ }
+
+        try {
+            // getCountFromServer is imported at the top of the file
             const productsRef = collection(db, COLLECTION_NAME);
 
             // To be truly efficient and avoid 30+ separate network requests, 
@@ -633,7 +498,7 @@ export const productService = {
             const countPromises = categoryIds.map(async (catId) => {
                 const q = query(productsRef,
                     where('status', '==', 'active'),
-                    where('category', '==', catId)
+                    where('categoryPath', 'array-contains', catId)
                 );
                 const countSnap = await getCountFromServer(q);
                 return { id: catId, count: countSnap.data().count };
@@ -661,6 +526,9 @@ export const productService = {
             const results = await Promise.all([...countPromises, ...specialPromises]);
             const countMap = {};
             results.forEach(r => countMap[r.id] = r.count);
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), counts: countMap }));
+            } catch { /* ignore quota errors */ }
             return countMap;
         } catch (error) {
             console.error("Error fetching all category counts:", error);
@@ -674,7 +542,7 @@ export const productService = {
             const findExact = async (targetId) => {
                 // 1. Try by Doc ID
                 const docRef = doc(db, COLLECTION_NAME, targetId);
-                const docSnap = await getDoc(docRef);
+                const docSnap = await withRetry(() => getDoc(docRef));
 
                 if (docSnap.exists()) {
                     return { id: docSnap.id, ...docSnap.data() };
@@ -759,7 +627,7 @@ export const productService = {
 
     async updateSettings(settingId, data) {
         try {
-            const { setDoc, doc } = await import('firebase/firestore');
+            // setDoc, doc are imported at the top of the file
             const docRef = doc(db, 'settings', settingId);
             await setDoc(docRef, {
                 ...data,
@@ -786,7 +654,7 @@ export const productService = {
     // Specific Rate Update with History
     async updateWonRate(newRate, userStr = 'System') {
         try {
-            const { setDoc, addDoc, collection, doc } = await import('firebase/firestore');
+            // setDoc, addDoc, collection, doc are imported at the top of the file
 
             // 1. Update current rate
             const docRef = doc(db, 'settings', 'currency');
@@ -864,10 +732,8 @@ export const productService = {
     // 🚀 NEW: Trigger Cloud Function for Product Sync
     async triggerProductSync() {
         try {
-            const { functions } = await import('../firebase');
-            const { httpsCallable } = await import('firebase/functions');
-            const syncFn = httpsCallable(functions, 'syncProducts', { timeout: 540000 }); // 9m timeout
-            await syncFn();
+            // Functions SDK is lazily loaded by callFunction (see firebase.js)
+            await callFunction('syncProducts', undefined, { timeout: 540000 }); // 9m timeout
             return true;
         } catch (error) {
             console.error("Sync trigger failed:", error);
@@ -889,58 +755,59 @@ export const productService = {
     // 🚀 NEW: Fetch pre-built search index from Firestore (chunked for large datasets)
     // This is much faster than fetching all products metadata
     async getSearchIndex() {
+        // Shortened-key → full-shape expander (shared by both the CDN and Firestore paths).
+        const expand = (item) => ({
+            id: item.id,
+            name: item.n,
+            name_mn: item.m,
+            englishName: item.e,
+            brand: item.b,
+            code: item.c,
+            image: item.i,
+            price: item.p,
+            originalPrice: item.o,
+            hasDiscount: item.d,
+            status: item.s,
+            categoryCode: item.cat,
+            additionalCategories: item.ac,
+            estimatedWarehousePrice: item.w || 0,
+            estimatedMarkupKrw: item.mk || 0,
+            description: item.sm || '',
+        });
+
+        // 1) STATIC index from the CDN — one request from a nearby edge, far faster
+        //    (esp. from Mongolia) than pulling meta + N chunks from the US Firestore.
         try {
-            console.log("🔍 Fetching pre-built search index...");
+            const res = await fetch('/search-index.json', { cache: 'default' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data && Array.isArray(data.items) && data.items.length > 0) {
+                    console.log(`✅ Search index loaded (CDN): ${data.items.length} items`);
+                    return data.items.map(expand);
+                }
+            }
+        } catch { /* fall through to Firestore */ }
 
-            // First, get metadata to know how many chunks we have
+        // 2) Fallback: Firestore metadata + chunks.
+        try {
+            console.log("🔍 Fetching search index (Firestore fallback)...");
             const metaDoc = await getDoc(doc(db, 'system', 'search_index_meta'));
-
             if (!metaDoc.exists()) {
-                console.warn("⚠️ Search index metadata not found, falling back to full fetch");
+                console.warn("⚠️ Search index metadata not found");
                 return null;
             }
-
             const meta = metaDoc.data();
-            console.log(`📦 Search index: ${meta.totalItems} items in ${meta.totalChunks} chunks`);
-
-            // Fetch all chunks in parallel
             const chunkPromises = [];
             for (let i = 0; i < meta.totalChunks; i++) {
                 chunkPromises.push(getDoc(doc(db, 'system', `search_index_${i}`)));
             }
-
             const chunkDocs = await Promise.all(chunkPromises);
-
-            // Combine all items from chunks
             const allItems = [];
             for (const chunkDoc of chunkDocs) {
-                if (chunkDoc.exists()) {
-                    const chunkData = chunkDoc.data();
-                    // Expand shortened keys back to full names
-                    const expandedItems = chunkData.items.map(item => ({
-                        id: item.id,
-                        name: item.n,
-                        name_mn: item.m,
-                        englishName: item.e,
-                        brand: item.b,
-                        code: item.c,
-                        image: item.i,
-                        price: item.p,
-                        originalPrice: item.o,
-                        hasDiscount: item.d,
-                        status: item.s,
-                        categoryCode: item.cat,
-                        additionalCategories: item.ac,
-                        estimatedWarehousePrice: item.w || 0, // NEW
-                        estimatedMarkupKrw: item.mk || 0     // NEW
-                    }));
-                    allItems.push(...expandedItems);
-                }
+                if (chunkDoc.exists()) allItems.push(...chunkDoc.data().items.map(expand));
             }
-
-            console.log(`✅ Search index loaded: ${allItems.length} items`);
+            console.log(`✅ Search index loaded (Firestore): ${allItems.length} items`);
             return allItems;
-
         } catch (error) {
             console.error("❌ Error fetching search index:", error);
             return null;

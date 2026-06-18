@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { useParams, useLocation, useNavigationType, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
-import HeroBanner from '../components/HeroBanner';
 import { useProductStore } from '../store/productStore';
 import { useChatStore } from '../store/chatStore';
+import { useShallow } from 'zustand/react/shallow';
 import { cleanBarcode } from '../utils/productUtils';
+import ProductSkeleton from '../components/ProductSkeleton';
+import { PackageX, MessageCircle } from 'lucide-react';
+import { getDisplayPricing, resolveDiscount } from '../utils/pricing';
 
 
 
@@ -15,8 +18,22 @@ export default function Home() {
         setFilters, totalCount, currentPage, changePage,
         currentTag, setTagFilter, resetSearch,
         searchTerm, isSearching, searchProducts, setSearchTerm
-    } = useProductStore();
-    const { isOpen: isChatOpen } = useChatStore();
+    } = useProductStore(useShallow(state => ({
+        products: state.products,
+        isLoading: state.isLoading,
+        setFilters: state.setFilters,
+        totalCount: state.totalCount,
+        currentPage: state.currentPage,
+        changePage: state.changePage,
+        currentTag: state.currentTag,
+        setTagFilter: state.setTagFilter,
+        resetSearch: state.resetSearch,
+        searchTerm: state.searchTerm,
+        isSearching: state.isSearching,
+        searchProducts: state.searchProducts,
+        setSearchTerm: state.setSearchTerm
+    })));
+    const { isOpen: isChatOpen, openWithSearchQuery } = useChatStore();
 
     const [searchParams] = useSearchParams();
     const rawQuery = searchParams.get('q');
@@ -58,7 +75,7 @@ export default function Home() {
 
 
     // FIX: Use Global Sort State to persist across navigation
-    const { priceSort } = useProductStore();
+    const priceSort = useProductStore(state => state.priceSort);
 
     const [paginationRange, setPaginationRange] = useState(window.innerWidth < 640 ? 1 : 5);
 
@@ -94,63 +111,77 @@ export default function Home() {
     // availableTags computation removed - not used in current UI
 
     // Legacy/Priority constants for sorting if needed
-    const BEST_SELLING_IDS = ['525848', '669657', '622945', '674514', '674724'];
 
-    const getFilteredProducts = () => {
-        // Show all products except deleted ones AND hidden ones (inactive)
-        // User Request: "Hide from homepage, but keep in DB/Search"
-        // Also Filter out products with price <= 0 (member-only or data error)
-        let filtered = [...products].filter(p => {
-            const parsePrice = (val) => {
-                if (typeof val === 'number') return val;
-                if (typeof val === 'string') {
-                    return parseFloat(val.replace(/,/g, '')) || 0;
-                }
-                return 0;
-            };
+    const filteredProducts = useMemo(() => {
+        const parsePrice = (val) => {
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string') {
+                return parseFloat(val.replace(/,/g, '')) || 0;
+            }
+            return 0;
+        };
 
+        // 1. Filter and pre-calculate sort fields (Schwartzian transform)
+        const processed = [];
+        for (let i = 0; i < products.length; i++) {
+            const p = products[i];
             const price = parsePrice(p.price);
             const priceKRW = parsePrice(p.priceKRW);
             const finalPrice = parsePrice(p.finalPrice);
 
-            return (
+            if (
                 p.status !== 'deleted' &&
                 p.status !== 'inactive' &&
                 (searchTerm ? true : (price > 0 || priceKRW > 0 || finalPrice > 0))
-            );
-        });
+            ) {
+                const actualPrice = p.finalPrice !== undefined ? finalPrice : (price || priceKRW || 0);
+                const krwPrice = priceKRW || price || 0;
 
+                // Use robust pricing logic to determine if it's TRULY discounted
+                const pricing = getDisplayPricing(p, { useWarehousePrice: true });
+                const discountInfo = resolveDiscount({
+                    displayPrice: pricing.displayPrice,
+                    displayOldPrice: pricing.displayOldPrice,
+                    isExpired: pricing.isExpired,
+                    hasDiscount: p.hasDiscount === true,
+                    discountValue: p.discountPercent ?? p.discount,
+                });
+                
+                const isRealDiscount = discountInfo.isDiscounted;
 
-        // 2. SORT 
-        // If priceSort is NOT selected, we use the natural database order (sortOrder)
+                processed.push({
+                    _p: p,
+                    _price: actualPrice,
+                    _isCheapSale: isRealDiscount && krwPrice > 0 && krwPrice <= 50000,
+                    _isDiscounted: isRealDiscount,
+                    _date: p.updatedAt ? new Date(p.updatedAt).getTime() : 0
+                });
+            }
+        }
+
+        // 2. SORT
         if (priceSort) {
-            filtered.sort((a, b) => {
-                const parsePrice = (val) => {
-                    if (typeof val === 'number') return val;
-                    if (typeof val === 'string') {
-                        return parseFloat(val.replace(/,/g, '')) || 0;
-                    }
-                    return 0;
-                };
-
-                const actualPriceA = a.finalPrice !== undefined ? a.finalPrice : (a.price || a.priceKRW || 0);
-                const priceA = parsePrice(actualPriceA);
-
-                const actualPriceB = b.finalPrice !== undefined ? b.finalPrice : (b.price || b.priceKRW || 0);
-                const priceB = parsePrice(actualPriceB);
-
+            processed.sort((a, b) => {
                 if (priceSort === 'desc') {
-                    return priceB - priceA;
+                    return b._price - a._price;
                 }
-                return priceA - priceB;
+                return a._price - b._price;
+            });
+        } else {
+            // Default Sort: < 50,000 KRW and on sale goes to very top, then on sale, then recent
+            processed.sort((a, b) => {
+                if (a._isCheapSale && !b._isCheapSale) return -1;
+                if (!a._isCheapSale && b._isCheapSale) return 1;
+
+                if (a._isDiscounted && !b._isDiscounted) return -1;
+                if (!a._isDiscounted && b._isDiscounted) return 1;
+
+                return b._date - a._date;
             });
         }
-        // else: Maintain original array order (fetched pre-sorted from DB)
 
-        return filtered;
-    };
-
-    const filteredProducts = getFilteredProducts();
+        return processed.map(item => item._p);
+    }, [products, searchTerm, priceSort]);
 
     // Dynamic Pagination: Use filtered count if client filters are active
     // This prevents showing 18 pages (900 items) when only 40 items are "On Sale"
@@ -174,7 +205,8 @@ export default function Home() {
 
 
     // Load filters on mount
-    const { filters, fetchFilters } = useProductStore();
+    const fetchFilters = useProductStore(state => state.fetchFilters);
+    const filters = useProductStore(state => state.filters);
     useEffect(() => {
         if (!filters || filters.length === 0) {
             fetchFilters();
@@ -251,17 +283,7 @@ export default function Home() {
 
     return (
         <div className="pb-4">
-            {/* Hero Section / Banner */}
-            {!mainId ? (
-                <div className="mt-2">
-                    <HeroBanner />
-                </div>
-            ) : (
-                <div className="mt-2">
-                    {/* User requested to replace Title with Banner */}
-                    <HeroBanner settingId="home_banner" />
-                </div>
-            )}
+            {/* Top banner removed per user request */}
 
             {/* Search/Filter moved to fixed SearchFilterBar */}
 
@@ -269,13 +291,47 @@ export default function Home() {
             <div>
                 {filteredProducts.length === 0 ? (
                     isLoading ? (
-                        <div className="text-center py-20 text-gray-500 flex flex-col items-center">
-                            <p className="text-lg font-bold">Уншиж байна...</p>
-                            <p className="text-sm">Түр хүлээнэ үү</p>
+                        <div className={`grid gap-2 ${isChatOpen
+                                ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4'
+                                : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                            }`}>
+                            {[...Array(15)].map((_, i) => <ProductSkeleton key={i} />)}
                         </div>
                     ) : (
-                        <div className="text-center py-20 text-gray-500">
-                            <p className="text-xl">Бүтээгдэхүүн олдсонгүй.</p>
+                        <div className="text-center py-20 text-gray-500 flex flex-col items-center bg-white rounded-2xl shadow-sm border border-gray-100">
+                            <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-5">
+                                <PackageX size={48} className="text-gray-300" />
+                            </div>
+                            <p className="text-xl font-bold text-gray-800 mb-2">Бүтээгдэхүүн олдсонгүй</p>
+                            <p className="text-sm text-gray-500 mb-6 max-w-md text-center">
+                                {searchTerm 
+                                    ? `Таны хайсан "${searchTerm}" утгатай бараа одоогоор байхгүй байна.` 
+                                    : "Энэ ангилалд одоогоор бараа ороогүй байна."}
+                            </p>
+                            {searchTerm && (
+                                <div className="w-full max-w-md mb-6 px-4">
+                                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 text-center">
+                                        <p className="text-sm text-gray-700 mb-4">
+                                            Хайсан бараагаа олсонгүй юу? Манай оператортой чатлаарай — бид таны хайсан барааг олж өгөх боломжтой. 💬
+                                        </p>
+                                        <button
+                                            onClick={() => openWithSearchQuery(searchTerm)}
+                                            className="inline-flex items-center justify-center gap-2 bg-costco-blue text-white px-8 py-3 rounded-full font-bold hover:bg-blue-800 transition shadow-sm active:scale-95 w-full"
+                                        >
+                                            <MessageCircle size={20} />
+                                            Оператортой чатлах
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {(searchTerm || currentTag) && (
+                                <button
+                                    onClick={() => { resetSearch(); setTagFilter(null); window.scrollTo(0, 0); }}
+                                    className="text-gray-500 px-8 py-3 rounded-full font-bold hover:text-costco-blue transition active:scale-95"
+                                >
+                                    Шүүлтүүр устгах
+                                </button>
+                            )}
                         </div>
                     )
                 ) : (
@@ -293,7 +349,14 @@ export default function Home() {
                             : filteredProducts;
 
                         if (usePagination && pageItems.length === 0 && isLoading) {
-                            return <div className="text-center py-20 text-gray-500 flex flex-col items-center"><p className="text-lg font-bold">Уншиж байна...</p><p className="text-sm">Түр хүлээнэ үү</p></div>;
+                            return (
+                                <div className={`grid gap-2 ${isChatOpen
+                                    ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4'
+                                    : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+                                    }`}>
+                                    {[...Array(15)].map((_, i) => <ProductSkeleton key={i} />)}
+                                </div>
+                            );
                         }
 
                         return (
@@ -339,6 +402,7 @@ export default function Home() {
                                 <button
                                     onClick={() => changePage(currentPage - 1)}
                                     disabled={currentPage === 1}
+                                    aria-label="Өмнөх хуудас"
                                     className="h-10 w-10 flex items-center justify-center rounded-full border bg-white disabled:opacity-30 hover:bg-gray-100"
                                 >
                                     &lt;
@@ -364,7 +428,8 @@ export default function Home() {
                                             <button
                                                 key={p}
                                                 onClick={() => changePage(p)}
-                                                // disabled={!canGoTo} // ENABLED ALL
+                                                aria-label={`Хуудас ${p}`}
+                                                aria-current={active ? 'page' : undefined}
                                                 className={`h-10 w-10 flex items-center justify-center rounded-full border text-sm font-bold transition
                                                     ${active ? 'bg-costco-blue text-white border-costco-blue' : 'bg-white text-gray-700 hover:bg-gray-50'}
                                                 `}
@@ -383,6 +448,7 @@ export default function Home() {
                                 <button
                                     onClick={() => changePage(currentPage + 1)}
                                     disabled={currentPage >= totalPages}
+                                    aria-label="Дараах хуудас"
                                     className="h-10 w-10 flex items-center justify-center rounded-full border bg-white disabled:opacity-30 hover:bg-gray-100"
                                 >
                                     &gt;

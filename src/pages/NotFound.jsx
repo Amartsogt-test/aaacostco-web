@@ -1,7 +1,21 @@
 import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Home, ArrowLeft } from 'lucide-react';
 
 export default function NotFound() {
+    useEffect(() => {
+        // If the PWA service worker incorrectly intercepted a Firebase reserved URL,
+        // unregister the service worker and hard reload to hit the network.
+        if (window.location.pathname.startsWith('/__/') && 'serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then((registrations) => {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
+                window.location.reload();
+            });
+        }
+    }, []);
+
     return (
         <div className="min-h-[70vh] flex flex-col items-center justify-center px-4 text-center">
             <div className="text-8xl font-bold text-costco-blue/20 mb-4">404</div>

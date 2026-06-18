@@ -16,19 +16,42 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // SECURITY: signing credentials are read from environment variables (or
+    // ~/.gradle/gradle.properties / android/keystore.properties), NOT hardcoded.
+    // The old config committed the keystore AND the password "password", so anyone
+    // could re-sign a malicious APK as this app. Generate a NEW keystore (the old
+    // one is compromised) and set: COSTCO_KEYSTORE_FILE, COSTCO_KEYSTORE_PASSWORD,
+    // COSTCO_KEY_ALIAS, COSTCO_KEY_PASSWORD.
+    def keystorePropsFile = rootProject.file("keystore.properties")
+    def keystoreProps = new Properties()
+    if (keystorePropsFile.exists()) {
+        keystoreProps.load(new FileInputStream(keystorePropsFile))
+    }
+    def ksFile = System.getenv("COSTCO_KEYSTORE_FILE") ?: keystoreProps.getProperty("storeFile") ?: "release-key.keystore"
+    def ksPass = System.getenv("COSTCO_KEYSTORE_PASSWORD") ?: keystoreProps.getProperty("storePassword")
+    def ksAlias = System.getenv("COSTCO_KEY_ALIAS") ?: keystoreProps.getProperty("keyAlias") ?: "costco-client"
+    def ksKeyPass = System.getenv("COSTCO_KEY_PASSWORD") ?: keystoreProps.getProperty("keyPassword")
+    def hasSigning = ksPass != null && ksKeyPass != null
     signingConfigs {
         release {
-            storeFile file("release-key.keystore")
-            storePassword "password"
-            keyAlias "costco-client"
-            keyPassword "password"
+            if (hasSigning) {
+                storeFile file(ksFile)
+                storePassword ksPass
+                keyAlias ksAlias
+                keyPassword ksKeyPass
+            }
         }
     }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // Only attach the release signing config when credentials are present,
+            // so CI without secrets falls back to an unsigned build instead of
+            // failing or shipping a "password"-signed APK.
+            if (hasSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

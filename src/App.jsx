@@ -3,8 +3,14 @@ import { useEffect, lazy, Suspense } from 'react';
 import { useProductStore } from './store/productStore';
 import { useSettingsStore } from './store/settingsStore';
 import Layout from './components/Layout';
-
 import ScrollToTop from './components/ScrollToTop';
+import AuthRedirectHandler from './components/AuthRedirectHandler';
+import InstallPrompt from './components/InstallPrompt';
+import { IS_MAINTENANCE_MODE } from './maintenance';
+import { initGA } from './utils/analytics';
+import { startCartSync } from './utils/cartSync';
+import Maintenance from './pages/Maintenance';
+import PwaUpdater from './components/PwaUpdater';
 
 // Lazy load pages
 const Home = lazy(() => import('./pages/Home'));
@@ -23,18 +29,20 @@ const AdminChat = lazy(() => import('./pages/AdminChat'));
 const DebugPage = lazy(() => import('./pages/DebugPage'));
 const AdminSync = lazy(() => import('./pages/AdminSync'));
 const AdminInactiveProducts = lazy(() => import('./pages/AdminInactiveProducts'));
-const AdminGiftCards = lazy(() => import('./pages/AdminGiftCards'));
 const AdminSettings = lazy(() => import('./pages/AdminSettings'));
 const AdminAIReview = lazy(() => import('./pages/AdminAIReview'));
 const AdminDailyReports = lazy(() => import('./pages/AdminDailyReports'));
+const AdminDailyManifests = lazy(() => import('./pages/AdminDailyManifests'));
+const AdminCoupons = lazy(() => import('./pages/AdminCoupons'));
 const AdminRoute = lazy(() => import('./components/AdminRoute'));
+const PriceTagScanner = lazy(() => import('./pages/PriceTagScanner'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const BrokerageAgreement = lazy(() => import('./pages/BrokerageAgreement'));
 const DataDeletion = lazy(() => import('./pages/DataDeletion'));
 const AboutUs = lazy(() => import('./pages/AboutUs'));
 const Chat = lazy(() => import('./pages/Chat'));
 const NotFound = lazy(() => import('./pages/NotFound'));
-
 // Full Page components (converted from modals)
 const InfoPage = lazy(() => import('./pages/InfoPage'));
 const PaymentPage = lazy(() => import('./pages/PaymentPage'));
@@ -57,22 +65,32 @@ const LoadingSpinner = () => (
   </div>
 );
 
+
 function App() {
   const subscribeToWonRate = useProductStore(state => state.subscribeToWonRate);
 
   // Initialize exchange rate sync on app startup
   useEffect(() => {
+    if (IS_MAINTENANCE_MODE) return;
+    initGA();
     subscribeToWonRate();
 
     // Subscribe to general settings (shipping rates, etc)
     const unsubscribeSettings = useSettingsStore.getState().subscribeToSettings();
+    const unsubCart = startCartSync();
 
-    return () => unsubscribeSettings();
+    return () => { unsubscribeSettings(); unsubCart(); };
   }, [subscribeToWonRate]);
+
+  // Maintenance Mode Check
+  if (IS_MAINTENANCE_MODE) {
+    return <Maintenance />;
+  }
 
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <AuthRedirectHandler />
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
           <Route path="/" element={<Layout />}>
@@ -89,10 +107,10 @@ function App() {
 
             <Route path="privacy" element={<PrivacyPolicy />} />
             <Route path="terms" element={<TermsOfService />} />
+            <Route path="brokerage" element={<BrokerageAgreement />} />
             <Route path="delete-data" element={<DataDeletion />} />
             <Route path="about" element={<AboutUs />} />
             <Route path="chat" element={<Chat />} />
-
             {/* Full Page Routes (converted from modals) */}
             <Route path="info" element={<InfoPage />} />
             <Route path="payment" element={<PaymentPage />} />
@@ -111,10 +129,12 @@ function App() {
               <Route path="admin/chat" element={<AdminChat />} />
               <Route path="admin/sync" element={<AdminSync />} />
               <Route path="admin/inactive-products" element={<AdminInactiveProducts />} />
-              <Route path="admin/gift-cards" element={<AdminGiftCards />} />
               <Route path="admin/settings" element={<AdminSettings />} />
               <Route path="admin/ai-review" element={<AdminAIReview />} />
               <Route path="admin/daily-reports" element={<AdminDailyReports />} />
+              <Route path="admin/daily-manifests" element={<AdminDailyManifests />} />
+              <Route path="admin/coupons" element={<AdminCoupons />} />
+              <Route path="admin/scanner" element={<PriceTagScanner />} />
               <Route path="debug" element={<DebugPage />} />
               {/* Admin Full Pages */}
               <Route path="admin/banner" element={<AdminBanner />} />
@@ -127,6 +147,8 @@ function App() {
           </Route>
         </Routes>
       </Suspense>
+      <InstallPrompt />
+      <PwaUpdater />
     </BrowserRouter>
   );
 }

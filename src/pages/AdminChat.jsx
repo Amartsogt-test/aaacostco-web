@@ -1,48 +1,48 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, Send, ArrowLeft, User, Clock, Pin, Heart, Plus, Image as ImageIcon, Mic, StopCircle, Gift, X, Facebook, Instagram, AlertCircle } from 'lucide-react';
+import { MessageCircle, Send, ArrowLeft, User, Clock, Pin, Heart, Plus, Image as ImageIcon, Mic, StopCircle, X, Facebook, Instagram, AlertCircle, Megaphone } from 'lucide-react';
 import { chatService } from '../services/chatService';
-import { giftCardService } from '../services/giftCardService';
+import { useUIStore } from '../store/uiStore';
 import { db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 export default function AdminChat({ isSidebar = false, onClose }) {
+    const { showToast } = useUIStore();
     const [conversations, setConversations] = useState([]);
     const [selectedConversation, setSelectedConversation] = useState(null);
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
 
-    // Media State
-    const [isMediaMenuOpen, setIsMediaMenuOpen] = useState(false);
-    const [isGiftCardMenuOpen, setIsGiftCardMenuOpen] = useState(false); // New State
-    const [isRecording, setIsRecording] = useState(false);
-    const [recordingTime, setRecordingTime] = useState(0);
+    // Broadcast State
+    const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
+    const [broadcastText, setBroadcastText] = useState('');
+    const [broadcastImage, setBroadcastImage] = useState(null);
+    const [isBroadcasting, setIsBroadcasting] = useState(false);
+    const broadcastFileInputRef = useRef(null);
 
-    // Gift Card Handler
-    const handleSendGiftCard = async (amount) => {
-        if (!selectedConversation) return;
-        setIsGiftCardMenuOpen(false);
-        setIsMediaMenuOpen(false);
-
+    const handleBroadcast = async () => {
+        if (!broadcastText.trim() && !broadcastImage) return;
+        if (!confirm('Энэ мессэжийг чатлаж байсан БҮХ ХЭРЭГЛЭГЧИД рүү илгээхдээ итгэлтэй байна уу?')) return;
+        
+        setIsBroadcasting(true);
         try {
-            const result = await giftCardService.createGiftCard({
-                amount: amount,
-                expiresDays: 365,
-                // If user has phone, attach it, otherwise just generic
-                recipientPhone: userData?.phone || null,
-                message: "Админаас илгээв",
-                createdBy: 'AdminChat'
-            });
-
-            if (result.success) {
-                const message = `🎁 **Digital Gift Card**\n\nТанд **${amount.toLocaleString()}₮**-ийн эрхийн бичиг илгээлээ.\n\nCode: **${result.code}**\nPin: 1234 (Жишээ)\n\nТа энэ кодыг ашиглан худалдан авалт хийгээрэй.`;
-                await chatService.sendMessage(selectedConversation.id, message, true);
-            }
+            const count = await chatService.broadcastMessage(broadcastText, broadcastImage);
+            showToast(`Амжилттай! Нийт ${count} хэрэглэгч рүү илгээлээ.`, 'success');
+            setIsBroadcastModalOpen(false);
+            setBroadcastText('');
+            setBroadcastImage(null);
         } catch (error) {
-            console.error("Failed to creat gift card:", error);
-            alert(`Gift Card үүсгэхэд алдаа гарлаа: ${error.message}`);
+            console.error(error);
+            showToast('Алдаа гарлаа: ' + error.message, 'error');
+        } finally {
+            setIsBroadcasting(false);
         }
     };
+
+    // Media State
+    const [isMediaMenuOpen, setIsMediaMenuOpen] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingTime, setRecordingTime] = useState(0);
 
     const messagesEndRef = useRef(null);
     const unsubscribeRef = useRef(null);
@@ -139,7 +139,7 @@ export default function AdminChat({ isSidebar = false, onClose }) {
 
         // Check if image
         if (!file.type.startsWith('image/')) {
-            alert('Зөвхөн зураг оруулах боломжтой');
+            showToast('Зөвхөн зураг оруулах боломжтой', 'warning');
             return;
         }
 
@@ -150,7 +150,7 @@ export default function AdminChat({ isSidebar = false, onClose }) {
             setIsMediaMenuOpen(false);
         } catch (error) {
             console.error("Failed to send image:", error);
-            alert("Зураг илгээхэд алдаа гарлаа");
+            showToast('Зураг илгээхэд алдаа гарлаа', 'error');
         }
     };
 
@@ -178,7 +178,7 @@ export default function AdminChat({ isSidebar = false, onClose }) {
                     await chatService.sendMessage(selectedConversation.id, '', true, null, { type: 'audio', url });
                 } catch (error) {
                     console.error("Failed to send voice:", error); // Added error logging
-                    alert("Дуут мессеж илгээхэд алдаа гарлаа"); // Added error alert
+                    showToast('Дуут мессеж илгээхэд алдаа гарлаа', 'error');
                 }
 
                 // Stop all tracks
@@ -195,7 +195,7 @@ export default function AdminChat({ isSidebar = false, onClose }) {
             setIsMediaMenuOpen(false);
         } catch (error) {
             console.error("Error accessing microphone:", error);
-            alert('Микрофон ашиглах эрх өгнө үү.');
+            showToast('Микрофон ашиглах эрх өгнө үү.', 'warning');
         }
     };
 
@@ -247,11 +247,18 @@ export default function AdminChat({ isSidebar = false, onClose }) {
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Conversations List */}
-                <div className={`${isSidebar ? 'w-full' : 'w-full md:w-1/3'} border-r ${selectedConversation && !isSidebar ? 'hidden md:block' : selectedConversation ? 'hidden' : ''}`}>
-                    <div className="p-4 border-b bg-gray-50">
+                <div className={`${isSidebar ? 'w-full' : 'w-full md:w-1/3'} border-r flex flex-col ${selectedConversation && !isSidebar ? 'hidden md:flex' : selectedConversation ? 'hidden' : ''}`}>
+                    <div className="p-4 border-b bg-gray-50 flex items-center justify-between">
                         <h2 className="font-bold text-gray-700">Харилцагчид ({conversations.length})</h2>
+                        <button
+                            onClick={() => setIsBroadcastModalOpen(true)}
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors group relative"
+                            title="Бүх хэрэглэгч рүү илгээх"
+                        >
+                            <Megaphone size={20} />
+                        </button>
                     </div>
-                    <div className="overflow-y-auto h-full">
+                    <div className="overflow-y-auto flex-1">
                         {isLoading ? (
                             <div className="flex items-center justify-center h-40">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -324,8 +331,8 @@ export default function AdminChat({ isSidebar = false, onClose }) {
                                                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase
                                                         ${userData.tier === 'Platinum' ? 'bg-gray-200 text-gray-700 border border-gray-300' :
                                                         userData.tier === 'Gold' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
-                                                            'bg-blue-50 text-blue-600 border border-blue-100'}`}>
-                                                    {userData.tier}
+                                                            'bg-gray-100 text-gray-600 border border-gray-200'}`}>
+                                                    {userData.tier === 'Member' ? 'Silver' : userData.tier}
                                                 </span>
                                             )}
                                         </div>
@@ -344,15 +351,6 @@ export default function AdminChat({ isSidebar = false, onClose }) {
                                                         {userData.followStatus.facebook ? 'Followed' : 'Unfollowed'}
                                                     </span>
                                                 )}
-                                                {userData.followStatus.instagram !== null && (
-                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${userData.followStatus.instagram
-                                                        ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700'
-                                                        : 'bg-red-100 text-red-600'
-                                                        }`}>
-                                                        <Instagram size={10} />
-                                                        {userData.followStatus.instagram ? 'Followed' : 'Unfollowed'}
-                                                    </span>
-                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -360,10 +358,10 @@ export default function AdminChat({ isSidebar = false, onClose }) {
 
                                 {/* Follow Request Button - Only show if user hasn't followed */}
                                 {userData?.followStatus &&
-                                    (userData.followStatus.facebook === false || userData.followStatus.instagram === false) && (
+                                    (userData.followStatus.facebook === false) && (
                                         <button
                                             onClick={async () => {
-                                                const message = `📢 Сайн байна уу!\n\nТа манай Facebook/Instagram хуудсыг дагавал шинэ бараа, хямдралын мэдээллийг шууд хүлээн авах боломжтой.\n\n👉 Facebook: https://www.facebook.com/costcomongolia\n👉 Instagram: https://www.instagram.com/costcomongolia\n\nБаярлалаа! 🙏`;
+                                                const message = `📢 Сайн байна уу!\n\nТа манай Facebook хуудсыг дагавал шинэ бараа, хямдралын мэдээллийг шууд хүлээн авах боломжтой.\n\n👉 Facebook: https://www.facebook.com/costcomongolia\n\nБаярлалаа! 🙏`;
                                                 await chatService.sendMessage(selectedConversation.id, message, true);
                                             }}
                                             className="flex items-center gap-1 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600 transition shadow-sm"
@@ -528,53 +526,6 @@ export default function AdminChat({ isSidebar = false, onClose }) {
 
                             {/* Input */}
                             <div className="p-3 bg-white border-t relative">
-                                {/* Gift Card Toolbar or Quick Actions */}
-                                {isGiftCardMenuOpen && !isRecording ? (
-                                    <div className="mb-2 flex items-center gap-2 overflow-x-auto no-scrollbar bg-pink-50 p-2 rounded-lg border border-pink-100 animate-in slide-in-from-bottom-2">
-                                        <span className="text-xs font-bold text-pink-600 flex items-center gap-1 shrink-0">
-                                            <Gift size={14} /> Gift Card:
-                                        </span>
-                                        {[50000, 100000, 200000, 500000].map(amt => (
-                                            <button
-                                                key={amt}
-                                                onClick={() => handleSendGiftCard(amt)}
-                                                className="whitespace-nowrap px-3 py-1 bg-white border border-pink-200 rounded-full text-xs font-bold text-pink-700 hover:bg-pink-100 transition"
-                                            >
-                                                {amt.toLocaleString()}₮
-                                            </button>
-                                        ))}
-                                        <div className="flex items-center gap-1 border-l pl-2 ml-1 border-pink-200">
-                                            <input
-                                                id="custom-gift-input-toolbar"
-                                                type="number"
-                                                placeholder="Дүн..."
-                                                className="w-20 px-2 py-1 text-xs border border-pink-200 rounded focus:outline-none focus:border-pink-500"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        const val = Number(e.target.value);
-                                                        if (val > 0) handleSendGiftCard(val);
-                                                    }
-                                                }}
-                                            />
-                                            <button
-                                                onClick={() => {
-                                                    const val = Number(document.getElementById('custom-gift-input-toolbar').value);
-                                                    if (val > 0) handleSendGiftCard(val);
-                                                }}
-                                                className="px-2 py-1 bg-pink-500 text-white rounded text-xs font-bold hover:bg-pink-600"
-                                            >
-                                                OK
-                                            </button>
-                                        </div>
-                                        <button
-                                            onClick={() => setIsGiftCardMenuOpen(false)}
-                                            className="ml-auto p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full"
-                                        >
-                                            <X size={16} />
-                                        </button>
-                                    </div>
-                                ) : null}
-
                                 {isRecording ? (
                                     <div className="flex items-center gap-3 bg-red-50 p-2 rounded-full border border-red-100 animate-in fade-in duration-200">
                                         <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse ml-2"></div>
@@ -613,16 +564,6 @@ export default function AdminChat({ isSidebar = false, onClose }) {
                                                     >
                                                         <Mic size={16} className="text-red-500" />
                                                         Voice
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setIsMediaMenuOpen(false);
-                                                            setIsGiftCardMenuOpen(true);
-                                                        }}
-                                                        className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded-lg text-sm text-gray-700 transition"
-                                                    >
-                                                        <Gift size={16} className="text-pink-500" />
-                                                        Gift Card
                                                     </button>
                                                 </div>
                                             )}
@@ -668,6 +609,98 @@ export default function AdminChat({ isSidebar = false, onClose }) {
                     )}
                 </div>
             </div>
+
+            {/* Broadcast Modal */}
+            {isBroadcastModalOpen && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+                        <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                                <Megaphone className="text-blue-500" />
+                                Нийтэд илгээх
+                            </h3>
+                            <button
+                                onClick={() => !isBroadcasting && setIsBroadcastModalOpen(false)}
+                                disabled={isBroadcasting}
+                                className="p-2 text-gray-400 hover:bg-gray-200 rounded-full transition-colors disabled:opacity-50"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <p className="text-sm text-gray-600">
+                                Энэ мессэж чатлаж байсан <b>бүх хэрэглэгчид</b> рүү очих бөгөөд тэдний чат дээр шинэ мессэж ирсэн мэт улаан дохио асна.
+                            </p>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Мессэж</label>
+                                <textarea
+                                    value={broadcastText}
+                                    onChange={(e) => setBroadcastText(e.target.value)}
+                                    disabled={isBroadcasting}
+                                    placeholder="Сайн байна уу? Манай дэлгүүрт шинэ бараа ирлээ..."
+                                    className="w-full border rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Зураг хавсаргах (Сонголтоор)</label>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        ref={broadcastFileInputRef}
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files[0]) {
+                                                setBroadcastImage(e.target.files[0]);
+                                            }
+                                        }}
+                                        disabled={isBroadcasting}
+                                    />
+                                    <button
+                                        onClick={() => broadcastFileInputRef.current?.click()}
+                                        disabled={isBroadcasting}
+                                        className="flex items-center gap-2 px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                    >
+                                        <ImageIcon size={18} />
+                                        {broadcastImage ? 'Зураг солих' : 'Зураг сонгох'}
+                                    </button>
+                                    {broadcastImage && (
+                                        <span className="text-sm text-gray-500 truncate max-w-[150px]">
+                                            {broadcastImage.name}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
+                            <button
+                                onClick={() => setIsBroadcastModalOpen(false)}
+                                disabled={isBroadcasting}
+                                className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors font-medium disabled:opacity-50"
+                            >
+                                Болих
+                            </button>
+                            <button
+                                onClick={handleBroadcast}
+                                disabled={isBroadcasting || (!broadcastText.trim() && !broadcastImage)}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isBroadcasting ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        Илгээж байна...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send size={18} />
+                                        Илгээх
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

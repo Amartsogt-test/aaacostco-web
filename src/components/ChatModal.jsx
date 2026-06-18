@@ -2,11 +2,18 @@ import { useState, useRef, useEffect } from 'react';
 import { Send, X, Package, Pin, Heart, Plus, Image as ImageIcon, Mic, StopCircle, Maximize2, Minimize2, ChevronDown } from 'lucide-react';
 import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
+import { useSettingsStore } from '../store/settingsStore';
+import { useUIStore } from '../store/uiStore';
+import { auth, db } from '../firebase';
+import { signInWithPopup, OAuthProvider, signInWithRedirect } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 
 export default function ChatModal({ isSidebar = false, isFullScreen = false, onClose }) {
     const { messages, sendMessage, sendAdminMessage, closeChat, isLoading, markAsRead, pendingProductMessage, clearPendingMessage: _clearPendingMessage, togglePinMessage, toggleLikeMessage, sendAttachment, loadMoreMessages, messageLimit, isAiLoading } = useChatStore();
     const { user: _user } = useAuthStore();
+    const { settings, fetchSettings } = useSettingsStore();
+    const { showToast } = useUIStore();
     const [input, setInput] = useState('');
     const [isMediaMenuOpen, setIsMediaMenuOpen] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
@@ -57,7 +64,8 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
     // Mark as read when opening
     useEffect(() => {
         markAsRead();
-    }, [markAsRead]);
+        fetchSettings();
+    }, [markAsRead, fetchSettings]);
 
     // Toggle body class for mobile chat visibility (Hides floating toggle)
     useEffect(() => {
@@ -72,13 +80,22 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
         let botText = '';
 
         if (type === 'LINK_ORDER') {
+            // Check if user is logged in with social auth
+            const { user, isAuthenticated } = useAuthStore.getState();
+            const hasSocialLogin = isAuthenticated && user?.loginProvider;
+
+            if (!hasSocialLogin) {
+                setShowLoginModal(true);
+                return;
+            }
+
             userText = 'Link-ээр бараа, үйлчилгээ захиалах';
 
             // NEW: Explicitly request admin support
             const { requestAdmin } = useChatStore.getState();
             requestAdmin();
 
-            botText = 'Сайн байна уу? Би таныг админ руу шилжүүллээ. Та барааныхаа линкийг энд бичээд үлдээнэ үү. Бид шалгаад танд удахгүй хариу өгөх болно. Баярлалаа!';
+            botText = 'Сайн байна уу? Би таныг оператор руу шилжүүллээ. Та барааныхаа линкийг энд бичээд үлдээнэ үү. Бид шалгаад танд удахгүй хариу өгөх болно. Баярлалаа!';
         } else if (type === 'ADMIN') {
             // Check if user is logged in with social auth
             const { user, isAuthenticated } = useAuthStore.getState();
@@ -90,7 +107,7 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                 return;
             }
 
-            userText = 'Админтай чатлах';
+            userText = 'Оператортой чатлах';
             botText = 'Сайн байна уу? Танд юугаар туслах вэ? Та асуултаа бичээд үлдээгээрэй. Бид удахгүй хариу өгөх болно.';
             // NEW: Explicitly request admin support
             const { requestAdmin } = useChatStore.getState();
@@ -107,6 +124,15 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
 
     const handleSend = () => {
         if (!input.trim()) return;
+
+        // Check if user is logged in
+        const { user, isAuthenticated } = useAuthStore.getState();
+        const hasSocialLogin = isAuthenticated && user?.loginProvider;
+        if (!hasSocialLogin) {
+            setShowLoginModal(true);
+            return;
+        }
+
         sendMessage(input);
         setInput('');
     };
@@ -121,8 +147,17 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
     const handleFileSelect = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Check if user is logged in
+        const { user, isAuthenticated } = useAuthStore.getState();
+        const hasSocialLogin = isAuthenticated && user?.loginProvider;
+        if (!hasSocialLogin) {
+            setShowLoginModal(true);
+            return;
+        }
+
         if (!file.type.startsWith('image/')) {
-            alert('Зөвхөн зураг оруулах боломжтой');
+            showToast('Зөвхөн зураг оруулах боломжтой', 'warning');
             return;
         }
         await sendAttachment(file, 'image');
@@ -130,6 +165,14 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
     };
 
     const startRecording = async () => {
+        // Check if user is logged in
+        const { user, isAuthenticated } = useAuthStore.getState();
+        const hasSocialLogin = isAuthenticated && user?.loginProvider;
+        if (!hasSocialLogin) {
+            setShowLoginModal(true);
+            return;
+        }
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             const mediaRecorder = new MediaRecorder(stream);
@@ -159,7 +202,7 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
             setIsMediaMenuOpen(false);
         } catch (error) {
             console.error("Error accessing microphone:", error);
-            alert('Микрофон ашиглах эрх өгнө үү.');
+            showToast('Микрофон ашиглах эрх өгнө үү.', 'warning');
         }
     };
 
@@ -211,7 +254,7 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
             {/* Header */}
             <div className="bg-[#F9FAFB] text-black px-4 py-3 flex items-center justify-between relative z-10 border-b border-gray-100">
                 <div className="flex items-center gap-3">
-                    <h3 className="font-bold">Admin chat</h3>
+                    <h3 className="font-bold">Оператортой чатлах</h3>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Pinned Messages Toggle */}
@@ -251,12 +294,18 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                 <div className={`overflow-hidden transition-all duration-1000 ease-in-out ${showReminder ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
                     <div className="bg-yellow-100 px-4 py-3 border-b border-yellow-100 text-xs text-gray-700 leading-relaxed relative">
                         <p className="font-bold mb-1 text-yellow-800">Санамж</p>
-                        <p className="mb-2">Costco-ийн онлайн дэлгүүр болон бодит дэлгүүрийн үнэ зөрүүтэй байх тохиолдол гардаг.</p>
-                        <ul className="space-y-1 list-none pl-1">
-                            <li>• Зарим бараа онлайнд хямд бол зарим нь дэлгүүрт хямд байдаг.</li>
-                            <li>• Онлайн дэлгүүрт хямдарсан байхад, бодит дэлгүүр хямдраагүй тохиолдолд байдаг.</li>
-                            <li>• Бид танд аль хямд үнээр нь тооцоолж авч өгөх болно.</li>
-                        </ul>
+                        {settings?.chatReminder ? (
+                            <p className="whitespace-pre-wrap">{settings.chatReminder}</p>
+                        ) : (
+                            <>
+                                <p className="mb-2">Costco-ийн онлайн дэлгүүр болон бодит дэлгүүрийн үнэ зөрүүтэй байх тохиолдол гардаг.</p>
+                                <ul className="space-y-1 list-none pl-1">
+                                    <li>• Зарим бараа онлайнд хямд бол зарим нь дэлгүүрт хямд байдаг.</li>
+                                    <li>• Онлайн дэлгүүрт хямдарсан байхад, бодит дэлгүүр хямдраагүй тохиолдолд байдаг.</li>
+                                    <li>• Бид танд аль хямд үнээр нь тооцоолж авч өгөх болно.</li>
+                                </ul>
+                            </>
+                        )}
 
                         {/* Collapse Button */}
                         <div className="flex justify-center mt-2">
@@ -310,7 +359,7 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                                         <div className="flex justify-between items-start mb-1">
                                             <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${msg.isFromAdmin ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-700'
                                                 }`}>
-                                                {msg.isFromAdmin ? 'Админ' : 'Та'}
+                                                {msg.isFromAdmin ? 'Оператор' : 'Та'}
                                             </span>
                                             <span className="text-[10px] text-gray-400">
                                                 {formatTime(msg.createdAt)}
@@ -373,18 +422,15 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
                                 <MessageCircleIcon className="w-8 h-8 text-blue-600" />
                             </div>
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">Админтай чатлахын тулд нэвтэрнэ үү</h3>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">Оператортой чатлахын тулд нэвтэрнэ үү</h3>
 
                             <div className="w-full max-w-xs space-y-3 mt-4">
                                 <button
                                     onClick={async () => {
                                         try {
-                                            const { signInWithPopup, FacebookAuthProvider } = await import('firebase/auth');
-                                            const { auth, db } = await import('../firebase');
-                                            const { doc, getDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
-                                            const provider = new FacebookAuthProvider();
+                                            const provider = new OAuthProvider('facebook.com');
                                             provider.addScope('public_profile');
-                                            provider.addScope('email');
+                                            
 
                                             const result = await signInWithPopup(auth, provider);
                                             const user = result.user;
@@ -408,42 +454,48 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
 
                                             await setDoc(userRef, userData, { merge: true });
 
-                                            // Store user data for later login after follow confirmation
-                                            setPendingLoginUser({
+                                            const fullUser = {
                                                 ...userData,
                                                 followStatus: userDoc.exists() ? userDoc.data().followStatus : { facebook: null, instagram: null }
-                                            });
+                                            };
+
+                                            // Login immediately so Profile and other components see the user
+                                            const { login } = useAuthStore.getState();
+                                            login(fullUser);
+
+                                            // Store user data for follow confirmation updates
+                                            setPendingLoginUser(fullUser);
 
                                             setShowLoginModal(false);
                                             setPendingLoginPlatform('facebook');
                                             setShowFollowPrompt(true); // Show follow prompt instead of proceeding
                                         } catch (error) {
                                             console.error('Facebook login error:', error);
+                                            // Fallback for mobile in-app browsers
+                                            const code = error?.code;
+                                            const shouldFallback = [
+                                                'auth/popup-blocked',
+                                                'auth/popup-closed-by-user',
+                                                'auth/operation-not-supported-in-this-environment',
+                                                'auth/web-storage-unsupported',
+                                                'auth/internal-error',
+                                            ].includes(code);
+                                            
+                                            if (shouldFallback || error.message.includes('popup')) {
+                                                try {
+                                                    const provider = new OAuthProvider('facebook.com');
+                                                    provider.addScope('public_profile');
+                                                    await signInWithRedirect(auth, provider);
+                                                } catch (redirectErr) {
+                                                    console.error('Redirect failed:', redirectErr);
+                                                }
+                                            }
                                         }
                                     }}
                                     className="w-full py-3 px-4 bg-[#1877F2] text-white font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-[#166FE5] transition shadow-lg"
                                 >
                                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
                                     Facebook-ээр нэвтрэх
-                                </button>
-
-                                <button
-                                    onClick={() => {
-                                        // Instagram doesn't have OAuth, so create a temporary user
-                                        const instagramUser = {
-                                            name: 'Instagram User',
-                                            loginProvider: 'instagram',
-                                            followStatus: { facebook: null, instagram: null }
-                                        };
-                                        setPendingLoginUser(instagramUser);
-                                        setPendingLoginPlatform('instagram');
-                                        setShowLoginModal(false);
-                                        setShowFollowPrompt(true);
-                                    }}
-                                    className="w-full py-3 px-4 bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] text-white font-bold rounded-xl flex items-center justify-center gap-3 hover:opacity-90 transition shadow-lg"
-                                >
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
-                                    Instagram-ээр нэвтрэх
                                 </button>
                             </div>
 
@@ -459,72 +511,53 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                             </button>
                         </div>
                     ) : showFollowPrompt ? (
-                        /* FOLLOW PROMPT - Shows after Facebook/Instagram login */
+                        /* FOLLOW PROMPT - Shows after Facebook login */
                         <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10">
                             {/* Platform-specific icon */}
-                            {pendingLoginPlatform === 'instagram' ? (
-                                <div className="w-20 h-20 bg-gradient-to-br from-[#833AB4] via-[#FD1D1D] to-[#F77737] rounded-full flex items-center justify-center mb-5 shadow-lg">
-                                    <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
-                                </div>
-                            ) : (
-                                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mb-5 shadow-lg">
-                                    <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                                    </svg>
-                                </div>
-                            )}
+                            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mb-5 shadow-lg">
+                                <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                                </svg>
+                            </div>
 
                             <h3 className="text-xl font-bold text-gray-900 mb-2">
                                 Сайн байна уу, {pendingLoginUser?.name?.split(' ')[0] || 'Хэрэглэгч'}! 👋
                             </h3>
                             <p className="text-gray-500 mb-6 text-sm max-w-xs">
-                                Чатлахын тулд манай {pendingLoginPlatform === 'instagram' ? 'Instagram' : 'Facebook'} хуудсыг дагаарай. Шинэ бараа, урамшуулал, хямдралын мэдээг авах боломжтой!
+                                Чатлахын тулд манай Facebook хуудсыг дагаарай. Шинэ бараа, урамшуулал, хямдралын мэдээг авах боломжтой!
                             </p>
 
                             <div className="w-full max-w-xs space-y-3">
                                 {/* Open social media page button */}
                                 <button
                                     onClick={() => window.open(
-                                        pendingLoginPlatform === 'instagram'
-                                            ? 'https://www.instagram.com/costcomongolia'
-                                            : 'https://www.facebook.com/costcomongolia',
+                                        'https://www.facebook.com/costcomongolia',
                                         '_blank'
                                     )}
-                                    className={`w-full py-3 px-4 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition shadow-lg ${pendingLoginPlatform === 'instagram'
-                                            ? 'bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#F77737] hover:opacity-90'
-                                            : 'bg-[#1877F2] hover:bg-[#166FE5]'
-                                        }`}
+                                    className="w-full py-3 px-4 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition shadow-lg bg-[#1877F2] hover:bg-[#166FE5]"
                                 >
-                                    {pendingLoginPlatform === 'instagram' ? (
-                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
-                                    ) : (
-                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
-                                    )}
-                                    {pendingLoginPlatform === 'instagram' ? 'Instagram' : 'Facebook'} хуудас нээх
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
+                                    Facebook хуудас нээх
                                 </button>
 
                                 {/* Confirm follow button */}
                                 <button
                                     onClick={async () => {
                                         // User confirmed they followed - update Firestore and login
-                                        const { doc, setDoc } = await import('firebase/firestore');
-                                        const { db } = await import('../firebase');
-
                                         if (pendingLoginUser?.uid) {
                                             await setDoc(doc(db, 'users', pendingLoginUser.uid), {
                                                 followStatus: { [pendingLoginPlatform]: true }
                                             }, { merge: true });
                                         }
 
-                                        const { login, updateFollowStatus } = useAuthStore.getState();
-                                        login(pendingLoginUser);
+                                        const { updateFollowStatus } = useAuthStore.getState();
                                         updateFollowStatus(pendingLoginPlatform, true);
 
                                         setShowFollowPrompt(false);
                                         setPendingLoginUser(null);
                                         setPendingLoginPlatform(null);
-                                        handleQuickReply('ADMIN');
+                                        // Delay to allow chat initialization after login
+                                        setTimeout(() => handleQuickReply('ADMIN'), 500);
                                     }}
                                     className="w-full py-3 px-4 bg-green-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-lg"
                                 >
@@ -535,13 +568,12 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                                 {/* Skip button */}
                                 <button
                                     onClick={() => {
-                                        // Skip - login without confirming follow
-                                        const { login } = useAuthStore.getState();
-                                        login(pendingLoginUser);
+                                        // Skip - already logged in
                                         setShowFollowPrompt(false);
                                         setPendingLoginUser(null);
                                         setPendingLoginPlatform(null);
-                                        handleQuickReply('ADMIN');
+                                        // Delay to allow chat initialization after login
+                                        setTimeout(() => handleQuickReply('ADMIN'), 500);
                                     }}
                                     className="w-full py-2 text-gray-400 text-sm hover:text-gray-600 transition"
                                 >
@@ -644,6 +676,14 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                                         </a>
                                     )}
 
+                                    {/* Search Inquiry Metadata — highlights what the user searched for */}
+                                    {msg.metadata?.type === 'search_inquiry' && msg.metadata.query && (
+                                        <div className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 border border-gray-200 text-gray-800 text-xs font-bold max-w-full">
+                                            <span>🔍 Хайсан:</span>
+                                            <span className="truncate">{msg.metadata.query}</span>
+                                        </div>
+                                    )}
+
                                     <div className={`flex items-center justify-between mt-1 gap-2 ${msg.isFromAdmin ? 'text-gray-400' : 'text-blue-200'}`}>
                                         <div className="flex gap-1">
                                             {msg.pinned && <Pin size={10} className="fill-current text-yellow-500" />}
@@ -699,8 +739,26 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                                 className="w-full text-left px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs text-gray-600 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition flex items-center gap-2"
                             >
                                 <span>💬</span>
-                                <span>Админтай чатлах</span>
+                                <span>Оператортой чатлах</span>
                             </button>
+                            {(() => {
+                                // Prefer the admin-configured link; otherwise fall back to the
+                                // Facebook Page id from env (m.me deep link). Hidden if neither set.
+                                const pageId = import.meta.env.VITE_FACEBOOK_PAGE_ID;
+                                const messengerHref = settings?.messengerLink || (pageId ? `https://m.me/${pageId}` : null);
+                                if (!messengerHref) return null;
+                                return (
+                                    <a
+                                        href={messengerHref}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="w-full text-left px-3 py-2 bg-[#0084FF]/5 border border-[#0084FF]/20 rounded-lg text-xs text-[#0084FF] font-semibold hover:bg-[#0084FF]/10 transition flex items-center gap-2"
+                                    >
+                                        <span>📘</span>
+                                        <span>Facebook Messenger-ээр холбогдох</span>
+                                    </a>
+                                );
+                            })()}
                         </div>
                     )
                 }

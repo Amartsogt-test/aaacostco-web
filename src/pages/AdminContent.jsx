@@ -85,10 +85,10 @@ export default function AdminContent() {
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="px-6 py-2.5 bg-costco-blue text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:opacity-50"
+                        className={`px-6 py-2.5 bg-costco-blue text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:opacity-50 ${['images', 'banner', 'scraper'].includes(activeTab) ? 'hidden' : ''}`}
                     >
                         <Save size={18} />
-                        {isSaving ? 'Хадгалж байна...' : 'Хадгалах'}
+                        {isSaving ? 'Хадгалж байна...' : 'Ерөнхий тохиргоо хадгалах'}
                     </button>
                 </div>
             </div>
@@ -225,11 +225,11 @@ export default function AdminContent() {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Газар (₩/kg)
+                                                    Газар (₮/kg)
                                                 </label>
                                                 <div className="relative">
                                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                        <span className="text-gray-500 sm:text-sm">₩</span>
+                                                        <span className="text-gray-500 sm:text-sm">₮</span>
                                                     </div>
                                                     <input
                                                         type="number"
@@ -245,11 +245,11 @@ export default function AdminContent() {
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Агаар (₩/kg)
+                                                    Агаар (₮/kg)
                                                 </label>
                                                 <div className="relative">
                                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                        <span className="text-gray-500 sm:text-sm">₩</span>
+                                                        <span className="text-gray-500 sm:text-sm">₮</span>
                                                     </div>
                                                     <input
                                                         type="number"

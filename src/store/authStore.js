@@ -1,25 +1,37 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { FacebookAuthProvider, linkWithPopup } from 'firebase/auth';
+import { orderService } from '../services/orderService';
+import { useCartStore } from './cartStore';
+import { useProductStore } from './productStore';
 
 // Helper for Tier Calculation
+// Loyalty tiers, measured in won (KRW):
+//   Silver:   0 – 10,000,000
+//   Gold:     10,000,000 – 20,000,000
+//   Platinum: 20,000,000 +
 const calculateTier = (amount) => {
-    if (amount >= 10000000) return { tier: 'Platinum', nextTier: null, remain: 0 };
-    if (amount >= 5000000) return { tier: 'Gold', nextTier: 'Platinum', remain: 10000000 - amount };
-    return { tier: 'Member', nextTier: 'Gold', remain: 5000000 - amount };
+    if (amount >= 20000000) return { tier: 'Platinum', nextTier: null, remain: 0 };
+    if (amount >= 10000000) return { tier: 'Gold', nextTier: 'Platinum', remain: 20000000 - amount };
+    return { tier: 'Silver', nextTier: 'Gold', remain: 10000000 - amount };
 };
 
 export const useAuthStore = create(
     persist(
         (set) => ({
-            user: null, // { phone: string, name?: string, totalSpend?: number, tier?: 'Member' | 'Gold' | 'Platinum', loginProvider?: 'facebook' | 'instagram', followStatus?: { facebook: null | boolean, instagram: null | boolean } }
+            user: null, // { phone: string, name?: string, totalSpend?: number, tier?: 'Silver' | 'Gold' | 'Platinum', loginProvider?: 'facebook' | 'instagram', followStatus?: { facebook: null | boolean, instagram: null | boolean } }
             isAuthenticated: false,
             login: (userData) => {
-                const tierInfo = calculateTier(userData.totalSpend || 0);
+                // Prefer the server-authoritative lifetime spend (totalSpendKRW), written
+                // by the notifyOrderStage Cloud Function. Fall back to legacy totalSpend.
+                const spendKRW = userData.totalSpendKRW ?? userData.totalSpend ?? 0;
+                const tierInfo = calculateTier(spendKRW);
                 set({
                     user: {
                         ...userData,
+                        totalSpend: spendKRW,
                         ...tierInfo,
                         followStatus: userData.followStatus || { facebook: null, instagram: null }
                     },
@@ -36,9 +48,10 @@ export const useAuthStore = create(
                     }
                 } : null
             })),
-            refreshUserSpend: async (phoneNumber) => {
-                const { orderService } = await import('../services/orderService');
-                const totalSpend = await orderService.calculateUserSpend(phoneNumber);
+            // Loyalty is measured in won; the caller passes the current wonRate so MNT
+            // orders are normalised to KRW inside calculateUserSpend.
+            refreshUserSpend: async (uid, phone, wonRate = 0) => {
+                const totalSpend = await orderService.calculateUserSpend(uid, phone, wonRate);
                 const tierInfo = calculateTier(totalSpend);
 
                 set(state => ({
@@ -51,20 +64,57 @@ export const useAuthStore = create(
                     const userDoc = await getDoc(doc(db, 'users', uid));
                     if (userDoc.exists()) {
                         const userData = userDoc.data();
+
+                        // Derive tier from the server-authoritative spend so the cart
+                        // discount and profile always reflect the persisted membership.
+                        const spendKRW = userData.totalSpendKRW ?? userData.totalSpend;
+                        const tierInfo = (spendKRW !== undefined && spendKRW !== null)
+                            ? { totalSpend: spendKRW, ...calculateTier(spendKRW) }
+                            : {};
+
                         set(state => ({
-                            user: state.user ? { ...state.user, ...userData } : null
+                            user: state.user ? { ...state.user, ...userData, ...tierInfo } : null
                         }));
+
+                        // Hydrate cart checkout state
+                        if (userData.checkoutState) {
+                            useCartStore.getState().setCheckoutState(userData.checkoutState);
+                        }
+
+                        // Hydrate cart items
+                        if (userData.cart) {
+                            const cartStore = useCartStore.getState();
+                            if (userData.cart.groundItems) {
+                                cartStore.setGroundItems(userData.cart.groundItems);
+                            }
+                            if (userData.cart.airItems) {
+                                cartStore.setAirItems(userData.cart.airItems);
+                            }
+                        }
+
+                        // Hydrate search history
+                        if (userData.searchHistory) {
+                            useProductStore.getState().setSearchHistory(userData.searchHistory);
+                        }
                     }
                 } catch (error) {
                     console.error("Failed to sync user:", error);
                 }
             },
-            linkFacebook: async (currentUser) => {
-                const { auth, db } = await import('../firebase');
+            updateUserProfile: async (uid, data) => {
+                if (!uid) return;
                 try {
-                    // Dynamic imports 
-                    const { doc, setDoc } = await import('firebase/firestore');
-                    const { FacebookAuthProvider, linkWithPopup } = await import('firebase/auth');
+                    await setDoc(doc(db, 'users', uid), data, { merge: true });
+                    set(state => ({
+                        user: state.user ? { ...state.user, ...data } : null
+                    }));
+                } catch (error) {
+                    console.error("Failed to update user profile:", error);
+                }
+            },
+            linkFacebook: async (currentUser) => {
+                try {
+                    // auth, db, doc, setDoc, FacebookAuthProvider, linkWithPopup are imported at the top
 
                     const user = currentUser;
 

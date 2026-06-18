@@ -28,7 +28,9 @@ try {
     process.exit(1);
 }
 
-const db = getFirestore();
+const db = (process.env.FIRESTORE_DATABASE_ID && process.env.FIRESTORE_DATABASE_ID !== '(default)')
+    ? getFirestore(process.env.FIRESTORE_DATABASE_ID)
+    : getFirestore();
 const agent = new https.Agent({ rejectUnauthorized: false });
 
 // --- Helper: Get Date Strings ---

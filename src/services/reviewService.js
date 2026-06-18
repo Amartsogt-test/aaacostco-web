@@ -1,8 +1,9 @@
 import { db } from '../firebase';
 import {
     collection, addDoc, getDocs, query, where, orderBy, doc,
-    updateDoc, deleteDoc, serverTimestamp, getDoc, setDoc, increment
+    updateDoc, deleteDoc, serverTimestamp, increment
 } from 'firebase/firestore';
+import { withRetry } from '../utils/async';
 
 const COLLECTION = 'reviews';
 
@@ -35,8 +36,9 @@ export const reviewService = {
 
             const docRef = await addDoc(collection(db, COLLECTION), reviewData);
 
-            // Update product aggregate rating
-            await this._updateProductRating(productId);
+            // The product aggregate (products_ratings) is recomputed server-side by
+            // the recalcProductRating Cloud Function — clients can no longer write it,
+            // which closes a tampering hole (Firestore rules deny client writes there).
 
             return { id: docRef.id, ...reviewData };
         } catch (error) {
@@ -53,7 +55,7 @@ export const reviewService = {
                 where('productId', '==', productId),
                 orderBy('createdAt', 'desc')
             );
-            const snap = await getDocs(q);
+            const snap = await withRetry(() => getDocs(q));
             return snap.docs.map(d => ({
                 id: d.id,
                 ...d.data(),
@@ -65,11 +67,11 @@ export const reviewService = {
         }
     },
 
-    // Delete a review (admin or owner)
-    async deleteReview(reviewId, productId) {
+    // Delete a review (admin or owner). The products_ratings aggregate is refreshed
+    // server-side by the recalcProductRating Cloud Function.
+    async deleteReview(reviewId) {
         try {
             await deleteDoc(doc(db, COLLECTION, reviewId));
-            await this._updateProductRating(productId);
         } catch (error) {
             console.error("Error deleting review:", error);
             throw error;
@@ -84,39 +86,6 @@ export const reviewService = {
             });
         } catch (error) {
             console.error("Error marking helpful:", error);
-        }
-    },
-
-    // Update aggregate rating on product
-    async _updateProductRating(productId) {
-        try {
-            const reviews = await this.getProductReviews(productId);
-            const count = reviews.length;
-            const avg = count > 0
-                ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / count
-                : 0;
-
-            // Store aggregate in products_rating collection (read-only for clients)
-            await setDoc(doc(db, 'products_ratings', productId), {
-                averageRating: Math.round(avg * 10) / 10,
-                reviewCount: count,
-                updatedAt: serverTimestamp()
-            }, { merge: true });
-        } catch (error) {
-            console.error("Error updating product rating:", error);
-        }
-    },
-
-    // Get aggregate rating for a product
-    async getProductRating(productId) {
-        try {
-            const snap = await getDoc(doc(db, 'products_ratings', productId));
-            if (snap.exists()) {
-                return snap.data();
-            }
-            return { averageRating: 0, reviewCount: 0 };
-        } catch {
-            return { averageRating: 0, reviewCount: 0 };
         }
     }
 };

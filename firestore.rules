@@ -2,10 +2,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Check if user is admin via custom claims
+    // Check if user is admin via custom claims or user document.
+    // SECURITY: the hardcoded `token.email == '00880088@sms.costco.mn'` grant was
+    // REMOVED — combined with the SMS login backdoor it let anyone become admin.
+    // Admin is now driven by the `isAdmin` custom claim (set by scripts/grant-admin.cjs)
+    // with the users/{uid}.isAdmin doc field as a fallback (clients cannot set that
+    // field — see the users rules below).
     function isAdmin() {
-      return request.auth != null && 
-             request.auth.token.isAdmin == true;
+      return request.auth != null && (
+        request.auth.token.isAdmin == true ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
+      );
     }
 
     // Check if user is authenticated
@@ -72,21 +79,21 @@ service cloud.firestore {
     // Orders collection
     match /orders/{orderId} {
       allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuth();
+      allow create: if !isAuth() || request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     // Chats collection - authenticated users can access their own chats
     match /chats/{conversationId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
-      allow update: if isAuth();
+      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
       
       // Messages subcollection
       match /messages/{messageId} {
-        allow read: if isAuth();
-        allow create: if isAuth();
+        allow read: if isAuth() && (get(/databases/$(database)/documents/chats/$(conversationId)).data.userId == request.auth.uid || isAdmin());
+        allow create: if isAuth() && (get(/databases/$(database)/documents/chats/$(conversationId)).data.userId == request.auth.uid || isAdmin());
         allow update: if isAdmin();
       }
     }
@@ -94,33 +101,49 @@ service cloud.firestore {
     // Users collection - users read/write their own data, admin reads all
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId);
+      allow create: if isOwner(userId) && (!request.resource.data.keys().hasAny(['isAdmin']) || request.resource.data.isAdmin == false);
+      // Clients may update their own profile EXCEPT server-authoritative fields:
+      // isAdmin (privilege) and loyaltyPointsKRW/pointsCredited (loyalty balance — only
+      // Cloud Functions via the admin SDK may write these). This blocks self-crediting.
+      allow update: if isOwner(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'loyaltyPointsKRW', 'loyaltyLots', 'pointsCredited', 'pointsCreditedKRW', 'totalSpendKRW', 'tier']));
+      allow write: if isAdmin();
     }
 
-    // Gift cards - public read (for validation), admin write
+    // Gift cards - admin only. Reads were previously open to ANY signed-in user,
+    // letting them enumerate every card code/balance; locked to admins. Customer
+    // validation/redemption (currently unused) must go through a Cloud Function
+    // (Admin SDK) if/when it's built — clients never read or write cards directly.
     match /giftCards/{cardId} {
-      allow read: if isAuth();
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
     // Gift cards (alternate collection name)
     match /gift_cards/{cardId} {
-      allow read: if isAuth();
+      allow read: if isAdmin();
       allow write: if isAdmin();
+    }
+
+    // Gift card transactions - admin read; writes only via the Admin SDK (a future
+    // redeem Cloud Function). Explicit deny so it can't be written from a client.
+    match /gift_card_transactions/{txId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // Reviews - public read, authenticated create, owner/admin delete
     match /reviews/{reviewId} {
       allow read: if true;
-      allow create: if isAuth();
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if isAdmin() || (isAuth() && resource.data.userId == request.auth.uid);
     }
 
-    // Product ratings aggregate - public read, authenticated write
+    // Product ratings aggregate - public read; writes ONLY from the Admin SDK
+    // (recalcProductRating Cloud Function). Clients can't tamper with ratings.
     match /products_ratings/{productId} {
       allow read: if true;
-      allow write: if isAuth();
+      allow write: if false;
     }
 
     // Banners - public read, admin write
@@ -145,6 +168,38 @@ service cloud.firestore {
     match /home_products/{productId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // Daily manifests (generated by the dailyManifest scheduled function via the
+    // Admin SDK) — admins read; clients never write.
+    match /dailyManifests/{dateId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // Coupons — admins manage; customers never read directly (they validate via
+    // the validateCoupon Cloud Function, so codes can't be enumerated).
+    match /coupons/{code} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Abandoned-cart snapshots — each user mirrors their own cart here (cartSync);
+    // the reminder function reads them via the Admin SDK.
+    match /carts/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // SMS verification codes — written/read ONLY by Cloud Functions (Admin SDK).
+    // Clients never access this collection directly.
+    match /sms_codes/{docId} {
+      allow read, write: if false;
+    }
+
+    // Mail queue for the "Trigger Email" extension. Written only by Cloud
+    // Functions (Admin SDK) and read by the extension; clients have no access.
+    match /mail/{mailId} {
+      allow read, write: if false;
     }
 
     // Catch-all: DENY by default (forces explicit rules above)

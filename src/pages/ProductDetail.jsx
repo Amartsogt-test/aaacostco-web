@@ -3,13 +3,23 @@ import DOMPurify from 'dompurify';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useProductStore } from '../store/productStore';
-import { ShoppingCart, ArrowLeft, Star, ShieldCheck, MessageCircle, Check, Heart, Minus, Plus } from 'lucide-react';
+import { ShoppingCart, ArrowLeft, Star, ShieldCheck, Check, Heart, Minus, Plus, X } from 'lucide-react';
 import { useUIStore } from '../store/uiStore';
-import { useChatStore } from '../store/chatStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { getProductWeight, getPriceBreakdown } from '../utils/productUtils';
-import ProductReviews from '../components/ProductReviews';
+import { getDisplayPricing, resolveDiscount } from '../utils/pricing';
+import { formatMoney } from '../utils/format';
+
+// Inline SVG placeholder shown when a product image fails to load (no broken-image icon)
+const IMG_PLACEHOLDER =
+    'data:image/svg+xml;charset=utf-8,' +
+    encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">' +
+        '<rect width="200" height="200" fill="#f3f4f6"/>' +
+        '<text x="100" y="105" font-family="sans-serif" font-size="14" fill="#9ca3af" text-anchor="middle">Зураг алга</text>' +
+        '</svg>'
+    );
 
 export default function ProductDetail() {
     const { id } = useParams();
@@ -27,7 +37,6 @@ export default function ProductDetail() {
     const addToGround = useCartStore(state => state.addToGround);
     const addToAir = useCartStore(state => state.addToAir);
 
-    const { openWithProduct } = useChatStore();
     const navigate = useNavigate();
     const { settings } = useSettingsStore();
     const { isInWishlist, toggleWishlist } = useWishlistStore();
@@ -105,61 +114,41 @@ export default function ProductDetail() {
             };
             loadProduct();
         }
-    }, [id, storeProduct]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]); // Only re-fetch when product ID changes, not when store reference changes
 
     const product = fetchedProduct || storeProduct;
 
     const { currency, showToast } = useUIStore();
     const { wonRate } = useProductStore();
 
-    // Price Calculation Logic
-    // Price Calculation Logic
-    let displayPrice = 0;
-    let displayOldPrice = null;
-    let priceInKRW = 0;
-    let warehousePriceKRW = 0; // 🏪 Warehouse price for shipping calculations
+    // 🏪 Centralised, unit-tested pricing — single source of truth (src/utils/pricing.js).
+    const { displayPrice, displayOldPrice, isExpired, priceInKRW, warehousePriceKRW, currencySymbol } =
+        getDisplayPricing(product, { currency, wonRate, useWarehousePrice: true });
+    
+    const { isDiscounted, comparisonOldPrice, percent: discountPct } = resolveDiscount({
+        displayPrice,
+        displayOldPrice,
+        isExpired,
+        hasDiscount: product?.hasDiscount === true,
+        discountValue: product?.discountPercent ?? product?.discount,
+    });
 
-    if (product) {
-        // Expiration Check Logic (New)
-        const now = new Date();
-        const discountEnd = product.discountEndDate ? new Date(product.discountEndDate) : null;
-        const isExpired = discountEnd && discountEnd < now;
+    // 🎉 Нээлтийн хямдрал нь үнийг ШУУД ХАСАХГҮЙ — худалдан авсны дараа лояалти бонус оноо
+    // болж ороно. Энд зөвхөн жинхэнэ дэлгүүрийн хямдралыг үнэнд тусгаж, launch-ийг бонус тэмдэг болгоно.
+    const launchSale = settings?.launchSale;
+    const launchNotExpired = !launchSale?.endsAt || Date.now() < new Date(launchSale.endsAt).getTime();
+    const launchActive = (launchSale?.active !== false) && launchNotExpired;
+    const launchPercent = launchActive ? Number(launchSale?.percent ?? 0) : 0;
 
-        priceInKRW = product.price || product.priceKRW || 0;
-        let oldPriceInKRW = product.originalPrice || product.originalPriceKRW || product.oldPrice || product.baseOldPrice || 0;
-
-        // REVERT if expired
-        if (isExpired && oldPriceInKRW > 0) {
-            priceInKRW = oldPriceInKRW;
-            oldPriceInKRW = 0;
-        }
-
-        // 🏪 Warehouse price = estimatedWarehousePrice or online price
-        warehousePriceKRW = product.estimatedWarehousePrice || priceInKRW;
-
-        if (currency === 'MNT') {
-            displayPrice = Math.round(priceInKRW * wonRate);
-        } else {
-            displayPrice = priceInKRW;
-        }
-
-        if (oldPriceInKRW && oldPriceInKRW > priceInKRW) {
-            if (currency === 'MNT') {
-                displayOldPrice = Math.round(oldPriceInKRW * wonRate);
-            } else {
-                displayOldPrice = oldPriceInKRW;
-            }
-        }
-    }
-
-    // handleAddToCart removed - functionality moved to inline shipping buttons
-
-
-
-    const currencySymbol = currency === 'MNT' ? '₮' : '₩';
+    const finalDisplayPrice = displayPrice;
+    const finalOldPrice = comparisonOldPrice;
+    const finalIsDiscounted = isDiscounted;
+    const baseDiscountPct = discountPct ?? Math.round(((comparisonOldPrice - displayPrice) / comparisonOldPrice) * 100);
 
     // Gallery State
     const [selectedImage, setSelectedImage] = useState(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
 
     // Reset selected image when ID changes (pattern for derived state)
     const [prevId, setPrevId] = useState(id);
@@ -169,6 +158,50 @@ export default function ProductDetail() {
     }
 
     const weightInfo = getProductWeight(product);
+
+    // 🔎 SEO: set the document title + meta description from the product (helps search
+    // engines and social-share previews). Restored on unmount.
+    useEffect(() => {
+        if (!product) return;
+        const name = product.name_mn || product.englishName || product.name || 'Бараа';
+        const prevTitle = document.title;
+        document.title = `${name} | Costco Mongolia`;
+
+        let meta = document.querySelector('meta[name="description"]');
+        let created = false;
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('name', 'description');
+            document.head.appendChild(meta);
+            created = true;
+        }
+        const prevDesc = meta.getAttribute('content');
+        const desc = (product.description_mn || product.description || '')
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 155);
+        meta.setAttribute('content', desc || `${name} - Costco-гоос захиалаарай.`);
+
+        return () => {
+            document.title = prevTitle;
+            if (created) meta.remove();
+            else if (prevDesc !== null) meta.setAttribute('content', prevDesc);
+        };
+    }, [product]);
+
+    // ⎋ Fullscreen image: close on Escape + lock body scroll while open
+    useEffect(() => {
+        if (!isFullscreen) return;
+        const onKey = (e) => { if (e.key === 'Escape') setIsFullscreen(false); };
+        window.addEventListener('keydown', onKey);
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            document.body.style.overflow = prevOverflow;
+        };
+    }, [isFullscreen]);
 
     if (loading) {
         return (
@@ -190,14 +223,6 @@ export default function ProductDetail() {
 
     const isInactive = product.status === 'inactive' || product.stock === 'outOfStock';
 
-    const handleProductInquiry = () => {
-        openWithProduct(product);
-        // Navigate to chat page on mobile devices (matching lg breakpoint)
-        if (window.innerWidth < 1024) {
-            navigate('/chat');
-        }
-    };
-
     return (
         <div className={`bg-white min-h-screen py-8 ${isInactive ? 'grayscale-[50%]' : ''}`}>
             <div className="container mx-auto px-4">
@@ -209,11 +234,16 @@ export default function ProductDetail() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                     {/* Image Gallery */}
                     <div className="flex flex-col gap-4">
-                        <div className={`border rounded bg-white flex items-center justify-center h-[500px] overflow-hidden relative ${isInactive ? 'grayscale' : ''}`}>
+                        <div 
+                            className={`border rounded bg-white flex items-center justify-center h-[500px] overflow-hidden relative cursor-zoom-in group ${isInactive ? 'grayscale' : ''}`}
+                            onClick={() => !isInactive && setIsFullscreen(true)}
+                        >
                             <img
-                                src={selectedImage || product.image}
-                                alt={product.name}
-                                className={`w-full h-full object-contain ${isInactive ? 'opacity-70' : ''}`}
+                                src={selectedImage || product.image || IMG_PLACEHOLDER}
+                                alt={product.name_mn || product.englishName || product.name}
+                                decoding="async"
+                                onError={(e) => { if (e.target.src !== IMG_PLACEHOLDER) e.target.src = IMG_PLACEHOLDER; }}
+                                className={`w-full h-full object-contain transition-transform duration-300 group-hover:scale-105 ${isInactive ? 'opacity-70' : ''}`}
                             />
                             {/* Out of Stock Overlay */}
                             {isInactive && (
@@ -271,7 +301,14 @@ export default function ProductDetail() {
                                             onClick={() => setSelectedImage(imgUrl)}
                                             className={`w-20 h-20 border rounded p-1 flex-shrink-0 bg-white ${selectedImage === imgUrl ? 'border-costco-blue ring-1 ring-costco-blue' : 'border-gray-200 hover:border-gray-400'}`}
                                         >
-                                            <img src={imgUrl} alt="" className="w-full h-full object-contain" />
+                                            <img
+                                                src={imgUrl}
+                                                alt=""
+                                                loading="lazy"
+                                                decoding="async"
+                                                onError={(e) => { if (e.target.src !== IMG_PLACEHOLDER) e.target.src = IMG_PLACEHOLDER; }}
+                                                className="w-full h-full object-contain"
+                                            />
                                         </button>
                                     ))}
                                 </div>
@@ -350,6 +387,34 @@ export default function ProductDetail() {
                             </h2>
                         )}
 
+                        {/* ⚠️ Restock Alerts & Package Info */}
+                        {product.restockStatus === 'no_restock' && (
+                            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-red-700 animate-pulse">
+                                <span className="flex h-2.5 w-2.5 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+                                </span>
+                                <span className="text-sm font-bold">⚠️ Сүүлчийн үлдэгдэл! (Дахин шинээр татагдахгүй сүүлчийн боломж)</span>
+                            </div>
+                        )}
+                        {product.restockStatus === 'uncertain' && (
+                            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-700">
+                                <span className="flex h-2.5 w-2.5 relative">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                                </span>
+                                <span className="text-sm font-bold">⏳ Нийлүүлэлт тодорхойгүй (Дахин ирэх эсэх нь тодорхойгүй)</span>
+                            </div>
+                        )}
+
+                        {product.packageQuantity && (
+                            <div className="mb-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl flex items-center gap-2 text-slate-800 text-sm">
+                                <span className="font-bold text-costco-blue">📦 Савлагаа:</span>
+                                <span className="font-semibold">{product.packageQuantity} {product.packageUnit || '개'}</span>
+                                {product.extractedBundleInfo && <span className="text-slate-500">({product.extractedBundleInfo})</span>}
+                            </div>
+                        )}
+
 
                         <div className="flex items-center gap-4 mb-4">
                             <div className="flex items-center text-yellow-500">
@@ -370,11 +435,6 @@ export default function ProductDetail() {
                         <div className="flex flex-wrap items-center gap-4 mb-6 border-b pb-6 text-sm">
                             <div className="flex items-center gap-1 text-gray-600 bg-gray-100 px-2 py-1 rounded">
                                 <span className="font-semibold">Code:</span> {product.productId || product.id}
-                            </div>
-
-                            <div className="flex items-center gap-1 text-gray-600">
-                                <ShieldCheck size={16} />
-                                <span>Баталгаат чанар</span>
                             </div>
 
                             <div className="flex items-center gap-1 text-gray-500 text-xs text-wrap break-all max-w-md">
@@ -405,70 +465,41 @@ export default function ProductDetail() {
                         </div>
 
                         <div className="mb-8 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                            {/* Price Section - Warehouse Price as Main */}
-                            <div className="flex items-end gap-3 mb-2">
-                                <div className="text-4xl font-bold text-costco-red tracking-tight">
-                                    {/* Show warehouse price if available, else show online price */}
-                                    {product.estimatedWarehousePrice
-                                        ? (currency === 'MNT'
-                                            ? Math.round(product.estimatedWarehousePrice * wonRate).toLocaleString()
-                                            : product.estimatedWarehousePrice.toLocaleString())
-                                        : displayPrice.toLocaleString()
-                                    }{currencySymbol}
-                                </div>
-
-                                {/* New Badge */}
+                            {/* Badges Section */}
+                            <div className="flex flex-col items-start gap-1 mb-2">
                                 {product.additionalCategories?.includes('New') && !isInactive && (
-                                    <span className="bg-red-600 text-white text-sm font-bold px-2 py-0.5 rounded shadow-sm uppercase tracking-wider mb-1">
+                                    <span className="bg-red-600 text-white text-sm font-bold px-2 py-0.5 rounded shadow-sm uppercase tracking-wider">
                                         NEW
                                     </span>
                                 )}
-
-                                {displayOldPrice && (
-                                    <div className="text-xl text-gray-400 line-through mb-1">
-                                        {displayOldPrice.toLocaleString()}{currencySymbol}
-                                    </div>
+                                {launchPercent > 0 && (
+                                    <span className="text-sm font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded whitespace-nowrap inline-block">
+                                        🎉 Нээлтийн бонус: худалдан авалтын {launchPercent}% оноо (+{formatMoney(Math.round(finalDisplayPrice * launchPercent / 100), currencySymbol)})
+                                    </span>
                                 )}
-                                {/* Discount Percentage - Only if hasDiscount */}
-                                {displayOldPrice && displayOldPrice > displayPrice && (product.hasDiscount || product.discount) && (
-                                    <span className="text-lg font-bold text-red-500 bg-red-100 px-2 py-1 rounded mb-1">
-                                        -{Math.round((1 - displayPrice / displayOldPrice) * 100)}%
+                                {finalIsDiscounted && isDiscounted && (
+                                    <span className="text-lg font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded whitespace-nowrap inline-block">
+                                        Costco хямдрал -{baseDiscountPct}%
                                     </span>
                                 )}
                             </div>
 
-                            {/* Store Price Label */}
-                            {product.estimatedWarehousePrice && (
-                                <div className="mb-3 flex items-center gap-2">
-                                    <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded uppercase">
-                                        🏪 Дэлгүүрийн үнэ
+                            {/* Price Section - Warehouse Price as Main */}
+                            <div className="flex items-end gap-3 mb-4">
+                                {/* Original price (strikethrough) */}
+                                {finalIsDiscounted && (
+                                    <span className="text-lg text-gray-400 line-through mb-1">
+                                        {formatMoney(finalOldPrice, currencySymbol)}
                                     </span>
+                                )}
+                                <div className="text-4xl font-bold text-costco-red tracking-tight">
+                                    {formatMoney(finalDisplayPrice, currencySymbol)}
                                 </div>
-                            )}
-
-                            {/* Online Price (Secondary) */}
-                            {product.estimatedWarehousePrice && (
-                                <div className="mb-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <span className="text-blue-600 font-medium">🌐 Онлайн:</span>
-                                        <span className="font-bold text-gray-700">
-                                            {displayPrice.toLocaleString()}{currencySymbol}
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Note about availability */}
-                            <div className="mb-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-xs text-yellow-800">
-                                <p className="font-medium mb-1">💡 Санамж:</p>
-                                <ul className="list-disc list-inside space-y-1 text-yellow-700">
-                                    <li>Дэлгүүрт байхгүй бол онлайнаар захиалах боломжтой.</li>
-                                    <li>Үнэ өөрчлөгдөх боломжтой.</li>
-                                </ul>
                             </div>
 
-                            {/* Discount Date Info (Moved here) */}
-                            {product.discountEndDate && (
+
+                            {/* Discount Date Info - Only show if discount is active */}
+                            {product.hasDiscount === true && product.discountEndDate && (
                                 <div className="mb-4 inline-flex items-center gap-2 text-sm text-costco-red font-medium bg-red-50 px-3 py-1 rounded-full">
                                     <span>⏰ Хямдрал дуусах:</span>
                                     <span>{new Date(product.discountEndDate).toLocaleDateString()}</span>
@@ -509,7 +540,7 @@ export default function ProductDetail() {
                                             type="number"
                                             min="1"
                                             value={quantity}
-                                            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
                                             className="w-12 text-center font-bold text-lg focus:outline-none bg-transparent"
                                         />
                                         <button
@@ -531,19 +562,35 @@ export default function ProductDetail() {
                             )}
 
                             {/* Weight / Capacity Display */}
-                            <div className="text-gray-700 font-medium text-sm mb-3 flex items-start gap-2 bg-white p-2 rounded border border-gray-100">
-                                <span className="text-gray-500 whitespace-nowrap">Жин:</span>
-                                <span className="text-gray-900">
-                                    {(weightInfo && weightInfo.value) ? weightInfo.value : "Барааны жин олдоогүй тул та чатаар мэдээлэл авна уу?"}
-                                </span>
+                            <div className="text-gray-700 font-medium text-sm mb-3 flex flex-col gap-1.5 bg-white p-3 rounded-xl border border-gray-100">
+                                <div className="flex items-start gap-2">
+                                    <span className="text-gray-500 whitespace-nowrap">Жин:</span>
+                                    <span className="text-gray-900 font-semibold">
+                                        {product.weightKg ? `${product.weightKg} кг (Тээврийн жин)` : ((weightInfo && weightInfo.value) ? weightInfo.value : "Барааны жин олдоогүй")}
+                                    </span>
+                                </div>
+                                {product.dimensions && (
+                                    <div className="flex items-start gap-2 pt-1 border-t border-gray-100 text-xs">
+                                        <span className="text-gray-500 whitespace-nowrap font-medium">Овор хэмжээ:</span>
+                                        <span className="text-gray-700">
+                                            Урт: {product.dimensions.lengthCm}см × Өргөн: {product.dimensions.widthCm}см × Өндөр: {product.dimensions.heightCm}см
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Shipping Cost Breakdown - Clickable Cart Buttons */}
                             <div className="mt-2 space-y-3 p-3 bg-blue-50/50 rounded-lg border border-blue-100 mb-3 text-xs">
                                 <h3 className="font-bold text-gray-500 uppercase tracking-wide mb-2">Тээврийн сонголтууд (Дэлгэрэнгүй)</h3>
+                                {/* Won Rate Info */}
+                                <div className="flex items-center gap-2 text-[11px] text-gray-500 bg-white px-2 py-1.5 rounded border border-gray-100 mb-2">
+                                    <span>💱</span>
+                                    <span>Өнөөдрийн ханш: <span className="font-bold text-gray-700">1₩ = {wonRate}₮</span></span>
+                                </div>
 
                                 {['ground', 'air'].map(type => {
-                                    // 🏪 Use warehouse price for shipping calculation
+                                    // 🏪 Use the warehouse price directly — launch is a post-purchase
+                                    // bonus, not a price cut, so it must NOT reduce the shipping/price calc.
                                     const breakdown = getPriceBreakdown(product, warehousePriceKRW, settings?.transportationRates, wonRate, type, quantity);
                                     if (!breakdown) return null;
 
@@ -556,11 +603,16 @@ export default function ProductDetail() {
                                     const isInCart = cartItems.some(item => (item.cartItemId || item.id) === currentCartItemId);
 
                                     const handleClick = () => {
+                                        if (priceInKRW === null || priceInKRW === undefined) {
+                                            showToast('Үнэ тооцоологдоогүй эсвэл бэлэн бус байна.', 'error');
+                                            return;
+                                        }
+
                                         // Validation: Check if all options are selected
                                         if (product.options && product.options.length > 0) {
                                             const missingOptions = product.options.filter(opt => !selectedOptions[opt.name]);
                                             if (missingOptions.length > 0) {
-                                                alert('Төрөл сонгоно уу!');
+                                                showToast('Төрөл сонгоно уу!', 'warning');
                                                 return;
                                             }
                                         }
@@ -572,6 +624,10 @@ export default function ProductDetail() {
                                                 removeFromAir(currentCartItemId);
                                             }
                                         } else {
+                                            if (isInactive) {
+                                                showToast('Идэвхгүй бараа — захиалах боломжгүй', 'warning');
+                                                return;
+                                            }
                                             if (type === 'ground') {
                                                 addToGround(product, selectedOptions, quantity);
                                             } else {
@@ -581,29 +637,11 @@ export default function ProductDetail() {
                                         }
                                     };
 
-                                    // Dynamic values based on currency
-                                    const isMNT = currency === 'MNT';
-                                    const sym = currencySymbol;
-
-                                    const finalTotalDisplay = isMNT
-                                        ? breakdown.finalMNT.toLocaleString()
-                                        : breakdown.totalKRW.toLocaleString();
-
-                                    const basePriceDisplay = isMNT
-                                        ? Math.round(breakdown.basePriceKRW * wonRate).toLocaleString()
-                                        : breakdown.basePriceKRW.toLocaleString();
-
-                                    const shippingCostDisplay = isMNT
-                                        ? Math.round(breakdown.shippingCostKRW * wonRate).toLocaleString()
-                                        : breakdown.shippingCostKRW.toLocaleString();
-
-                                    const rateDisplay = isMNT
-                                        ? Math.round(breakdown.rateKRW * wonRate).toLocaleString()
-                                        : breakdown.rateKRW.toLocaleString();
-
-                                    const totalDisplay = isMNT
-                                        ? Math.round(breakdown.totalKRW * wonRate).toLocaleString()
-                                        : breakdown.totalKRW.toLocaleString();
+                                    // Base price always in ₩, shipping & total always in ₮
+                                    const basePriceDisplay = breakdown.basePriceKRW.toLocaleString();
+                                    const shippingCostDisplay = breakdown.shippingCostMNT.toLocaleString();
+                                    const rateDisplay = breakdown.rateMNT.toLocaleString();
+                                    const finalTotalDisplay = breakdown.finalMNT.toLocaleString();
 
                                     return (
                                         <button
@@ -620,13 +658,13 @@ export default function ProductDetail() {
                                                     {isInCart && <span className="text-green-600 text-xs ml-1">✓ Сагсанд</span>}
                                                 </span>
                                                 <span className={`text-xl ${type === 'ground' ? 'text-blue-600' : 'text-orange-600'}`}>
-                                                    Нийт : {finalTotalDisplay}{sym}
+                                                    {finalTotalDisplay}₮
                                                 </span>
                                             </div>
                                             <div className="text-gray-600 text-[11px] sm:text-xs text-left space-y-0.5">
-                                                <div>Барааны үнэ: <span className="font-semibold text-gray-800">{basePriceDisplay}{sym}</span></div>
-                                                <div>Тээвэр: <span className="font-semibold text-gray-800">{shippingCostDisplay}{sym}</span> <span className="text-gray-400">({breakdown.weightDisplay} x {rateDisplay}{sym})</span></div>
-                                                <div className="font-bold text-gray-900">Нийт: {totalDisplay}{sym}</div>
+                                                <div>Барааны үнэ: <span className="font-semibold text-gray-800">{basePriceDisplay}₩</span></div>
+                                                <div>Тээвэр: <span className="font-semibold text-gray-800">{shippingCostDisplay}₮</span> <span className="text-gray-400">({breakdown.weightDisplay} x {rateDisplay}₮)</span></div>
+                                                <div className="font-bold text-gray-900">Нийт төлөх: {finalTotalDisplay}₮</div>
                                             </div>
                                         </button>
                                     );
@@ -643,15 +681,6 @@ export default function ProductDetail() {
 
 
                         <div className="flex flex-col gap-3 mb-8">
-                            {/* Product Inquiry Button */}
-                            <button
-                                onClick={handleProductInquiry}
-                                className="w-full bg-white text-red-600 border-2 border-red-600 px-6 py-3 rounded-lg font-bold hover:bg-red-50 transition-all duration-200 flex items-center justify-center gap-3 text-lg shadow-sm active:scale-95"
-                            >
-                                <MessageCircle size={24} />
-                                Барааны мэдээлэл авах
-                            </button>
-
                             {/* Wishlist Button */}
                             <button
                                 onClick={() => toggleWishlist(product)}
@@ -717,10 +746,26 @@ export default function ProductDetail() {
                         </div>
                     )}
                 </div>
-
-                {/* Reviews Section */}
-                <ProductReviews productId={id} />
             </div>
+            {/* Fullscreen Image Modal */}
+            {isFullscreen && (
+                <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4">
+                    <button
+                        onClick={() => setIsFullscreen(false)}
+                        aria-label="Хаах"
+                        className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-full transition"
+                    >
+                        <X size={32} />
+                    </button>
+                    <img
+                        src={selectedImage || product.image || IMG_PLACEHOLDER}
+                        alt={product.name_mn || product.englishName || product.name}
+                        onError={(e) => { if (e.target.src !== IMG_PLACEHOLDER) e.target.src = IMG_PLACEHOLDER; }}
+                        className="max-w-full max-h-full object-contain cursor-zoom-out"
+                        onClick={() => setIsFullscreen(false)}
+                    />
+                </div>
+            )}
         </div>
     );
 }

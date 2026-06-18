@@ -27,18 +27,29 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # ============ CATEGORIES TO SCRAPE ============
+# Updated 2026-05-23: All 18 active Costco Korea categories
+# API query type MUST be 'allCategories' (not 'category') for cos_X codes
+# cos_13 and cos_16 are empty/inactive - excluded
 
 CATEGORIES = [
-    {"name": "Electronics", "code": "cos_1", "url": "https://www.costco.co.kr/Electronics/c/cos_1/results"},
-    {"name": "Computers", "code": "cos_2", "url": "https://www.costco.co.kr/Computers/c/cos_2/results"},
-    {"name": "Appliances", "code": "cos_3", "url": "https://www.costco.co.kr/Appliances/c/cos_3/results"},
-    {"name": "Grocery", "code": "cos_4", "url": "https://www.costco.co.kr/Grocery/c/cos_4/results"},
-    {"name": "Health", "code": "cos_5", "url": "https://www.costco.co.kr/Health-Beauty/c/cos_5/results"},
-    {"name": "Home", "code": "cos_6", "url": "https://www.costco.co.kr/Home-Kitchen-Patio-Garden/c/cos_6/results"},
-    {"name": "Baby", "code": "cos_7", "url": "https://www.costco.co.kr/Baby-Kids-Toys/c/cos_7/results"},
-    {"name": "Sports", "code": "cos_8", "url": "https://www.costco.co.kr/Sports-Outdoor/c/cos_8/results"},
-    {"name": "Clothing", "code": "cos_9", "url": "https://www.costco.co.kr/Clothing-Luggage/c/cos_9/results"},
-    {"name": "Office", "code": "cos_10", "url": "https://www.costco.co.kr/Office-Products/c/cos_10/results"},
+    {"name": "디지털/TV/컴퓨터",       "name_en": "Electronics",         "code": "cos_1"},
+    {"name": "가구/침구/인테리어",       "name_en": "Furniture/Bedding",   "code": "cos_2"},
+    {"name": "유아동/완구/반려동물용품",   "name_en": "Baby/Toys/Pets",      "code": "cos_3"},
+    {"name": "스포츠/헬스/캠핑",        "name_en": "Sports/Camping",      "code": "cos_4"},
+    {"name": "파티오/정원/창고",        "name_en": "Patio/Garden",        "code": "cos_5"},
+    {"name": "의류/가방/잡화",         "name_en": "Clothing/Bags",       "code": "cos_6"},
+    {"name": "보석/시계/액세서리",       "name_en": "Jewelry/Watches",     "code": "cos_7"},
+    {"name": "화장품/미용/제지",        "name_en": "Cosmetics/Beauty",    "code": "cos_8"},
+    {"name": "공구/생활/자동차",        "name_en": "Tools/Auto",          "code": "cos_9"},
+    {"name": "식품",                 "name_en": "Food",                "code": "cos_10"},
+    {"name": "문구/사무",             "name_en": "Stationery/Office",   "code": "cos_11"},
+    {"name": "건강/영양제",            "name_en": "Health/Supplements",  "code": "cos_12"},
+    {"name": "대형/생활가전",           "name_en": "Appliances",          "code": "cos_14"},
+    {"name": "홈/키친",              "name_en": "Home/Kitchen",        "code": "cos_15"},
+    {"name": "비즈니스 딜리버리",        "name_en": "Business Delivery",   "code": "cos_17"},
+    {"name": "그로서리",              "name_en": "Grocery",             "code": "cos_18"},
+    {"name": "타이어",               "name_en": "Tires",               "code": "cos_19"},
+    {"name": "타이어/자동차용품",        "name_en": "Tires/Auto Parts",    "code": "cos_20"},
 ]
 
 # ============ FIREBASE INIT ============
@@ -171,28 +182,38 @@ def extract_product_data(api_item: dict, category: dict) -> dict:
         
         # Source
         'source': 'costco_kr_api',
-        
-        # Timestamps (will be set by Firebase)
-        'lastSeenAt': firestore.SERVER_TIMESTAMP,
     }
     
     return product
 
 
 # ============ FETCH FROM API ============
+# IMPORTANT: Must use 'allCategories' query type (not 'category') for cos_X codes
+# The REST search API is the only reliable way to get products by category
+
+API_BASE = "https://www.costco.co.kr/rest/v2/korea/products/search"
+PAGE_SIZE = 100
 
 def fetch_all_products(context) -> list:
     """
-    Fetch all products from Costco API using browser context
+    Fetch all products from Costco REST API using browser context.
+    Uses 'allCategories' query type which is the only working method for cos_X codes.
     """
     all_products = []
+    seen_codes = set()  # Deduplicate products across categories
     
     for category in CATEGORIES:
-        logger.info(f"📦 Fetching category: {category['name']}")
+        cat_label = f"{category['name']} ({category.get('name_en', '')}) [{category['code']}]"
+        logger.info(f"📦 Fetching category: {cat_label}")
         category_products = []
         
         for page_num in range(100):  # Max 100 pages per category
-            api_url = f"{category['url']}?q=:relevance&page={page_num}"
+            # Use REST search API with allCategories query type
+            api_url = (
+                f"{API_BASE}?fields=products(FULL),pagination"
+                f"&query=%3Arelevance%3AallCategories%3A{category['code']}"
+                f"&pageSize={PAGE_SIZE}&currentPage={page_num}"
+            )
             
             try:
                 response = context.request.get(api_url, headers={
@@ -210,30 +231,47 @@ def fetch_all_products(context) -> list:
                     logger.warning(f"  JSON parse error on page {page_num}")
                     break
                 
-                # Get products from response
-                products = data.get('results', []) or data.get('products', [])
+                # REST API returns products in 'products' key
+                products = data.get('products', [])
+                pagination = data.get('pagination', {})
+                total_pages = pagination.get('totalPages', 1)
+                total_results = pagination.get('totalResults', 0)
+                
+                if page_num == 0:
+                    logger.info(f"  Total: {total_results} products, {total_pages} pages")
                 
                 if not products:
                     logger.info(f"  No more products (page {page_num})")
                     break
                 
+                new_count = 0
                 for item in products:
                     try:
-                        product = extract_product_data(item, category)
-                        category_products.append(product)
+                        code = item.get('code', '')
+                        if code and code not in seen_codes:
+                            product = extract_product_data(item, category)
+                            category_products.append(product)
+                            seen_codes.add(code)
+                            new_count += 1
                     except Exception as e:
                         logger.error(f"  Error extracting product: {e}")
                 
-                logger.info(f"  Page {page_num}: {len(products)} products")
+                logger.info(f"  Page {page_num}: {len(products)} fetched, {new_count} new")
+                
+                # Stop if we've reached the last page
+                if page_num >= total_pages - 1:
+                    break
+                
                 time.sleep(0.5)  # Rate limiting
                 
             except Exception as e:
                 logger.error(f"  Page {page_num} error: {e}")
                 break
         
-        logger.info(f"  ✓ {category['name']}: {len(category_products)} total products")
+        logger.info(f"  ✓ {category['name']}: {len(category_products)} products")
         all_products.extend(category_products)
     
+    logger.info(f"\n📊 Total unique products: {len(all_products)} (from {len(CATEGORIES)} categories)")
     return all_products
 
 
@@ -241,16 +279,29 @@ def fetch_all_products(context) -> list:
 
 def sync_to_firebase(db, products: list) -> dict:
     """
-    Sync products to Firebase
-    Returns: {new: count, updated: count, pending_review: count}
+    Sync products to Firebase (optimized - only writes when data actually changed)
+    Returns: list of new products that need translation
     """
-    stats = {'new': 0, 'updated': 0, 'pending_review': 0}
+    stats = {'new': 0, 'updated': 0, 'skipped': 0, 'pending_review': 0}
     
-    # Get existing product IDs
-    existing_ids = set()
-    existing_docs = db.collection('products').select(['id', 'status']).stream()
+    # Read existing products with price/stock fields for comparison
+    # This avoids unnecessary writes when nothing changed
+    logger.info("📖 Reading existing products from Firebase...")
+    existing_data = {}  # {id: {priceKRW, originalPriceKRW, discountPercent, stockStatus}}
+    existing_docs = db.collection('products').select(
+        ['priceKRW', 'originalPriceKRW', 'discountPercent', 'stockStatus', 'status', 'estimatedMarkupKrw']
+    ).stream()
     for doc in existing_docs:
-        existing_ids.add(doc.id)
+        d = doc.to_dict()
+        existing_data[doc.id] = {
+            'priceKRW': d.get('priceKRW', 0),
+            'originalPriceKRW': d.get('originalPriceKRW', 0),
+            'discountPercent': d.get('discountPercent', 0),
+            'stockStatus': d.get('stockStatus', ''),
+            'estimatedMarkupKrw': d.get('estimatedMarkupKrw'),
+        }
+    
+    logger.info(f"  Found {len(existing_data)} existing products")
     
     # Current product IDs from API
     current_ids = set(p['id'] for p in products)
@@ -262,49 +313,81 @@ def sync_to_firebase(db, products: list) -> dict:
     batch = db.batch()
     batch_count = 0
     
-    for product in products:
-        product_id = product['id']
-        doc_ref = db.collection('products').document(product_id)
-        
-        if product_id not in existing_ids:
-            # New product
-            product['createdAt'] = firestore.SERVER_TIMESTAMP
-            batch.set(doc_ref, product)
-            new_products.append(product)
-            stats['new'] += 1
-        else:
-            # Existing product - update fields but preserve translations
-            update_data = {
-                'priceKRW': product['priceKRW'],
-                'originalPriceKRW': product['originalPriceKRW'],
-                'hasDiscount': product['hasDiscount'],
-                'discountPercent': product['discountPercent'],
-                'discountMessage': product['discountMessage'],
-                'stockStatus': product['stockStatus'],
-                'lastSeenAt': firestore.SERVER_TIMESTAMP,
-                'updatedAt': firestore.SERVER_TIMESTAMP,
-            }
-            batch.update(doc_ref, update_data)
-            stats['updated'] += 1
-        
-        batch_count += 1
-        
-        # Commit batch every 400 operations
-        if batch_count >= 400:
+    def commit_batch():
+        nonlocal batch, batch_count
+        if batch_count > 0:
             batch.commit()
             batch = db.batch()
             batch_count = 0
     
-    # Commit remaining
-    if batch_count > 0:
-        batch.commit()
+    for product in products:
+        product_id = product['id']
+        doc_ref = db.collection('products').document(product_id)
+        
+        if product_id not in existing_data:
+            # ── New product ──
+            product['createdAt'] = firestore.SERVER_TIMESTAMP
+            product['lastSeenAt'] = firestore.SERVER_TIMESTAMP
+            
+            default_markup = 0 if product['priceKRW'] > 100000 else 2000
+            product['estimatedMarkupKrw'] = default_markup
+            product['estimatedWarehousePrice'] = max(0, product['priceKRW'] - default_markup)
+            
+            batch.set(doc_ref, product)
+            new_products.append(product)
+            stats['new'] += 1
+            batch_count += 1
+        else:
+            # ── Existing product - only update if price/stock actually changed ──
+            old = existing_data[product_id]
+            price_changed = (
+                old['priceKRW'] != product['priceKRW'] or
+                old['originalPriceKRW'] != product['originalPriceKRW'] or
+                old['discountPercent'] != product['discountPercent']
+            )
+            stock_changed = old['stockStatus'] != product['stockStatus']
+            
+            if price_changed or stock_changed:
+                update_data = {
+                    'priceKRW': product['priceKRW'],
+                    'originalPriceKRW': product['originalPriceKRW'],
+                    'hasDiscount': product['hasDiscount'],
+                    'discountPercent': product['discountPercent'],
+                    'discountMessage': product['discountMessage'],
+                    'stockStatus': product['stockStatus'],
+                    'lastSeenAt': firestore.SERVER_TIMESTAMP,
+                    'updatedAt': firestore.SERVER_TIMESTAMP,
+                }
+                if price_changed:
+                    update_data['priceHistory'] = firestore.ArrayUnion([{
+                        'price': product['priceKRW'],
+                        'originalPrice': product['originalPriceKRW'],
+                        'date': datetime.now().strftime('%Y-%m-%d'),
+                    }])
+                    
+                    markup = old.get('estimatedMarkupKrw')
+                    if markup is None:
+                        markup = 0 if product['priceKRW'] > 100000 else 2000
+                    update_data['estimatedWarehousePrice'] = max(0, product['priceKRW'] - markup)
+                batch.update(doc_ref, update_data)
+                stats['updated'] += 1
+                batch_count += 1
+            else:
+                # Nothing changed - skip write entirely
+                stats['skipped'] += 1
+        
+        # Commit batch every 400 operations
+        if batch_count >= 400:
+            commit_batch()
     
-    # Check for products not seen in API (potential inactive)
-    missing_ids = existing_ids - current_ids
+    # Commit remaining
+    commit_batch()
+    
+    # ── Mark products not seen in API as pendingReview ──
+    missing_ids = set(existing_data.keys()) - current_ids
     if missing_ids:
         logger.warning(f"⚠️ {len(missing_ids)} products not found in API")
-        batch = db.batch()
-        for pid in list(missing_ids)[:400]:  # Limit batch size
+        for pid in missing_ids:
             doc_ref = db.collection('products').document(pid)
             batch.update(doc_ref, {
                 'status': 'pendingReview',
@@ -312,9 +395,15 @@ def sync_to_firebase(db, products: list) -> dict:
                 'pendingReviewAt': firestore.SERVER_TIMESTAMP
             })
             stats['pending_review'] += 1
-        batch.commit()
+            batch_count += 1
+            
+            if batch_count >= 400:
+                commit_batch()
+        
+        commit_batch()
     
-    logger.info(f"📊 Sync complete: {stats['new']} new, {stats['updated']} updated, {stats['pending_review']} pending review")
+    logger.info(f"📊 Sync: {stats['new']} new, {stats['updated']} updated, {stats['skipped']} skipped (unchanged), {stats['pending_review']} pending review")
+    logger.info(f"💰 Firebase writes saved: {stats['skipped']} (skipped unchanged products)")
     
     return new_products
 
@@ -371,13 +460,43 @@ def run_full_sync(max_products: int = None, skip_translate: bool = False):
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         )
         
-        # Load cookies if available
+        # Load cookies if available (Try local state.json, fallback to Firestore settings/scraper)
+        cookies_loaded = False
         try:
             with open('state.json', 'r') as f:
                 context.add_cookies(json.load(f)['cookies'])
             logger.info("✓ Loaded cookies from state.json")
+            cookies_loaded = True
         except:
-            logger.info("No saved cookies, running as guest")
+            pass
+
+        if not cookies_loaded:
+            try:
+                doc = db.collection('settings').document('scraper').get()
+                if doc.exists:
+                    data = doc.to_dict()
+                    cookie_str = data.get('cookie', '')
+                    if cookie_str:
+                        playwright_cookies = []
+                        for cookie_part in cookie_str.split(';'):
+                            cookie_part = cookie_part.strip()
+                            if '=' in cookie_part:
+                                name, val = cookie_part.split('=', 1)
+                                playwright_cookies.append({
+                                    'name': name.strip(),
+                                    'value': val.strip(),
+                                    'domain': '.costco.co.kr',
+                                    'path': '/'
+                                })
+                        if playwright_cookies:
+                            context.add_cookies(playwright_cookies)
+                            logger.info(f"✓ Loaded {len(playwright_cookies)} cookies from Firestore settings/scraper")
+                            cookies_loaded = True
+            except Exception as e:
+                logger.warning(f"Failed to load cookies from Firestore: {e}")
+
+        if not cookies_loaded:
+            logger.info("No saved cookies found, running as guest")
         
         # Visit home page first
         page = context.new_page()

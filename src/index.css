@@ -7,10 +7,61 @@
     @apply bg-gray-50 text-gray-900 antialiased;
     font-family: 'Outfit', sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
   }
-}  
+
+  /* Accessibility: visible keyboard focus ring (does not show on mouse clicks). */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid #1f3a8a;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
 @media (max-width: 1024px) { body.mobile-chat-open #mobile-bottom-nav { display: none !important; } } 
   
 body.mobile-chat-open #floating-chat-toggle { display: none !important; } 
   
 body.chat-modal-active #floating-chat-toggle { display: none !important; } 
+
+/* 🚀 Performance: Skip rendering off-screen product cards */
+.grid > div, .grid > a {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+/* 🚀 Performance: GPU-accelerated animations */
+.animate-spin, .animate-pulse, .animate-bounce {
+  will-change: transform;
+}
+
+/* 🚀 Smooth image loading */
+img {
+  content-visibility: auto;
+}
+
+/* 🚀 Hide scrollbar utility */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 🚀 Performance: Faster touch response on mobile */
+a, button {
+  touch-action: manipulation;
+}
+
+/* 🚀 Performance: Reduce layout shifts */
+img, video {
+  max-width: 100%;
+  height: auto;
+}

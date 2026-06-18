@@ -108,6 +108,11 @@ export const getProductWeight = (prod) => {
         return null;
     };
 
+    // -1. Priority: Explicit weightKg (from new admin fields)
+    if (prod.weightKg !== undefined && prod.weightKg !== null) {
+        return { label: 'Жин:', value: `${parseFloat(prod.weightKg).toFixed(1)}kg` };
+    }
+
     // 0. Priority: Explicit Weight Field (from cache/scraper/manual edit)
     if (prod.weight) {
         // If it's a number, format it. If string, just show it.
@@ -160,20 +165,20 @@ export const getProductWeight = (prod) => {
  * Calculates the final display price in MNT including shipping costs.
  * 
  * Logic:
- * 1. Base Price (KRW)
- * 2. Shipping Cost (KRW) = Weight (kg) * Rate (KRW/kg)
- * 3. Total (KRW) = Base + Shipping
- * 4. Final (MNT) = Total (KRW) * Won Rate
+ * 1. Base Price (KRW) → convert to MNT
+ * 2. Shipping Cost (MNT) = Weight (kg) * Rate (MNT/kg)
+ * 3. Final (MNT) = Base (MNT) + Shipping (MNT)
  * 
  * @param {Object} product - The product object
  * @param {number} basePriceKRW - The price in KRW to calculate for (price or originalPrice)
- * @param {Object} rates - Transportation rates { ground: number, air: number } (in KRW)
+ * @param {Object} rates - Transportation rates { ground: number, air: number } (in MNT/kg)
  * @param {number} wonRate - Current MNT/KRW exchange rate
  * @param {string} [shippingType='ground'] - 'ground' or 'air'
  * @returns {number} Final price in MNT
  */
 export const calculateFinalPrice = (product, basePriceKRW, rates, wonRate, shippingType = 'ground') => {
-    if (!basePriceKRW) return 0;
+    const numericBasePrice = Number(basePriceKRW) || 0;
+    if (!numericBasePrice) return 0;
 
     // 1. Get Weight
     const weightInfo = getProductWeight(product);
@@ -181,16 +186,11 @@ export const calculateFinalPrice = (product, basePriceKRW, rates, wonRate, shipp
 
     // Try to parse weight value from the helper result
     if (weightInfo && weightInfo.value) {
-        // If the weight calculation returns something like "0.6kg x 24 = 14.4kg", we want the TOTAL weight (14.4kg).
-        // The getProductWeight function returns formatted total in `value` like "14.4kg".
-        // Let's parse that.
         const valStr = weightInfo.value;
-        // Match explicit total first if equals exists " ... = 2.5kg"
         const equalsMatch = valStr.match(/=\s*(\d+(?:\.\d+)?)\s*kg/i);
         if (equalsMatch) {
             weightKg = parseFloat(equalsMatch[1]);
         } else {
-            // Fallback to simple match
             const match = valStr.match(/(\d+(?:\.\d+)?)\s*kg/i);
             if (match) {
                 weightKg = parseFloat(match[1]);
@@ -201,25 +201,25 @@ export const calculateFinalPrice = (product, basePriceKRW, rates, wonRate, shipp
         }
     }
 
-    // 2. Get Rate
-    const ratePerKg = (rates?.[shippingType] || 0);
+    // 2. Get Rate (now in MNT/kg)
+    const rateMNTPerKg = (rates?.[shippingType] || 0);
 
-    // 3. Calculate Shipping Cost in KRW
-    const shippingCostKRW = weightKg * ratePerKg;
+    // 3. Calculate Shipping Cost in MNT
+    const shippingCostMNT = weightKg * rateMNTPerKg;
 
-    // 4. Total KRW
-    const totalKRW = basePriceKRW + shippingCostKRW;
+    // 4. Base price in MNT
+    const basePriceMNT = numericBasePrice * wonRate;
 
-    // 5. Convert to MNT
-    // Round to nearest integer or 100? Usually MNT prices are rounded. Let's standard round.
-    return Math.round(totalKRW * wonRate);
+    // 5. Final MNT = Base (MNT) + Shipping (MNT)
+    return Math.round(basePriceMNT + shippingCostMNT);
 };
 
 /**
  * Returns detailed price breakdown for display.
  */
 export const getPriceBreakdown = (product, basePriceKRW, rates, wonRate, shippingType = 'ground', quantity = 1) => {
-    if (!basePriceKRW) return null;
+    const numericBasePrice = Number(basePriceKRW) || 0;
+    if (!numericBasePrice) return null;
 
     // 1. Get Weight
     const weightInfo = getProductWeight(product);
@@ -242,26 +242,29 @@ export const getPriceBreakdown = (product, basePriceKRW, rates, wonRate, shippin
     }
 
     const totalWeightKg = unitWeightKg * quantity;
-    const ratePerKg = (rates?.[shippingType] || 0);
-    const shippingCostKRW = totalWeightKg * ratePerKg;
-    const totalBasePriceKRW = basePriceKRW * quantity;
-    const totalKRW = totalBasePriceKRW + shippingCostKRW;
-    const finalMNT = Math.round(totalKRW * wonRate);
+    const rateMNTPerKg = (rates?.[shippingType] || 0);
+    const shippingCostMNT = totalWeightKg * rateMNTPerKg;
+    const totalBasePriceKRW = numericBasePrice * quantity;
+    const basePriceMNT = Math.round(totalBasePriceKRW * wonRate);
+    const finalMNT = Math.round(basePriceMNT + shippingCostMNT);
 
     return {
         unitWeightKg,
         totalWeightKg,
         quantity,
-        rateKRW: ratePerKg,
-        shippingCostKRW,
+        rateMNTPerKg,
+        shippingCostMNT: Math.round(shippingCostMNT),
         basePriceKRW: totalBasePriceKRW,
-        totalKRW,
+        basePriceMNT,
+        totalKRW: totalBasePriceKRW,
         finalMNT,
+        // For KRW display (reverse from MNT)
+        rateMNT: Math.round(rateMNTPerKg),
         weightDisplay: `${totalWeightKg.toFixed(1)}kg`,
-        rateDisplay: `${ratePerKg.toLocaleString()}₩`,
-        shippingDisplay: `${shippingCostKRW.toLocaleString()}₩`,
-        baseDisplay: `${totalBasePriceKRW.toLocaleString()}₩`,
-        totalDisplay: `${totalKRW.toLocaleString()}₩`
+        rateDisplay: `${Math.round(rateMNTPerKg).toLocaleString()}₮`,
+        shippingDisplay: `${Math.round(shippingCostMNT).toLocaleString()}₮`,
+        baseDisplay: `${basePriceMNT.toLocaleString()}₮`,
+        totalDisplay: `${finalMNT.toLocaleString()}₮`
     };
 };
 

@@ -2,14 +2,17 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, GripVertical, Image as ImageIcon, Plus, RefreshCw, Trash2, Upload, Film } from 'lucide-react';
 import { adminService } from '../services/adminService';
+import { useUIStore } from '../store/uiStore';
 
 export default function BannerManager({ isEmbedded = false }) {
     const navigate = useNavigate();
+    const { showToast } = useUIStore();
     const [banners, setBanners] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [_loading, setLoading] = useState(true); // prefixed with _ to ignore unused warning
     const fileInputRef = useRef(null);
+    const [isActive, setIsActive] = useState(true);
 
     // Exchange rate banner text settings
     const [exchangeRateText, setExchangeRateText] = useState({
@@ -24,11 +27,13 @@ export default function BannerManager({ isEmbedded = false }) {
 
     const fetchBanners = async () => {
         try {
-            const { items, exchangeRateText: text } = await adminService.getHomeBanners();
+            const data = await adminService.getHomeBanners();
+            const { items, exchangeRateText: text, isActive: activeStatus } = data || {};
             setBanners((items || []).map(item => ({ ...item, duration: Number(item.duration) || 5 })));
             if (text) {
                 setExchangeRateText(text);
             }
+            setIsActive(activeStatus !== false); // default to true if undefined
         } catch (error) {
             console.error("Error fetching banners:", error);
         } finally {
@@ -43,7 +48,7 @@ export default function BannerManager({ isEmbedded = false }) {
         e.target.value = '';
 
         if (banners.length >= 10) {
-            window.alert("Хамгийн ихдээ 10 баннер оруулах боломжтой.");
+            showToast('Хамгийн ихдээ 10 баннер оруулах боломжтой.', 'warning');
             return;
         }
 
@@ -63,7 +68,7 @@ export default function BannerManager({ isEmbedded = false }) {
             setBanners(prev => [...prev, newItem]);
         } catch (error) {
             console.error("Upload error:", error);
-            window.alert(`Файл хуулахад алдаа гарлаа: ${error.message}`);
+            showToast(`Файл хуулахад алдаа гарлаа: ${error.message}`, 'error');
         } finally {
             setIsUploading(false);
         }
@@ -90,16 +95,16 @@ export default function BannerManager({ isEmbedded = false }) {
         setIsSaving(true);
         try {
             console.log("Saving banners:", banners);
-            await adminService.saveHomeBanners(banners, exchangeRateText);
+            await adminService.saveHomeBanners(banners, exchangeRateText, isActive);
 
             // Re-fetch to verify
             await fetchBanners();
 
-            window.alert("Амжилттай хадгалагдлаа!");
+            showToast('Амжилттай хадгалагдлаа!', 'success');
             // if (!isEmbedded) navigate(-1); 
         } catch (error) {
             console.error("Save error:", error);
-            window.alert("Хадгалахад алдаа гарлаа.");
+            showToast('Хадгалахад алдаа гарлаа.', 'error');
         } finally {
             setIsSaving(false);
         }
@@ -126,7 +131,7 @@ export default function BannerManager({ isEmbedded = false }) {
             });
         } catch (error) {
             console.error("Replace error:", error);
-            window.alert("Зураг солиход алдаа гарлаа.");
+            showToast('Зураг солиход алдаа гарлаа.', 'error');
         } finally {
             setIsUploading(false);
         }
@@ -161,6 +166,22 @@ export default function BannerManager({ isEmbedded = false }) {
             </div>
 
             <div className="flex-1 p-4 w-full overflow-y-auto">
+                <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-200 mb-6 shadow-sm">
+                    <div>
+                        <h3 className="font-bold text-gray-900">Баннер харуулах</h3>
+                        <p className="text-sm text-gray-500">Нүүр хуудсан дээр баннер (зураг, ханш) хэсгийг харуулах эсэх</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={isActive}
+                            onChange={(e) => setIsActive(e.target.checked)}
+                        />
+                        <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-500"></div>
+                    </label>
+                </div>
+
                 <p className="text-sm text-gray-500 mb-6">
                     Хамгийн ихдээ 10 зураг эсвэл бичлэг оруулах боломжтой.
                 </p>

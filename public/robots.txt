@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Keep crawlers out of private / transactional areas
+Disallow: /admin
+Disallow: /cart
+Disallow: /payment
+Disallow: /profile
+Disallow: /chat
+
+Sitemap: https://costco.mn/sitemap.xml

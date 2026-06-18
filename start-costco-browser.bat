@@ -1,5 +1,5 @@
 @echo off
-cd /d "e:\Google Drive\aaacostco"
+cd /d E:\aaacostco
 echo Starting Costco Browser...
 npm run refresh-cookie
 pause

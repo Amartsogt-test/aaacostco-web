@@ -6,14 +6,13 @@ class ErrorBoundary extends React.Component {
         this.state = { hasError: false };
     }
 
-    // eslint-disable-next-line no-unused-vars
-    static getDerivedStateFromError(_error) {
-        return { hasError: true };
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
     }
 
     componentDidCatch(error, errorInfo) {
-        // Log to console only in development (drop_console removes in prod)
         console.error("Uncaught error:", error, errorInfo);
+        this.setState({ errorInfo });
     }
 
     render() {
@@ -37,6 +36,13 @@ class ErrorBoundary extends React.Component {
                     <p style={{ color: '#6b7280', marginBottom: '24px', textAlign: 'center' }}>
                         Уучлаарай, ямар нэг алдаа гарлаа. Хуудсаа дахин ачаална уу.
                     </p>
+                    {this.state.error && (
+                        <pre style={{ backgroundColor: '#fee2e2', color: '#991b1b', padding: '12px', borderRadius: '8px', fontSize: '12px', maxWidth: '90%', overflowX: 'auto', marginBottom: '24px' }}>
+                            {this.state.error.toString()}
+                            <br />
+                            {this.state.errorInfo?.componentStack}
+                        </pre>
+                    )}
                     <button
                         onClick={() => window.location.reload()}
                         style={{

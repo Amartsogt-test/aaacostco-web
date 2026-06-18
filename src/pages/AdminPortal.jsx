@@ -1,4 +1,4 @@
-import { ExternalLink, ChevronRight, ShieldCheck, Plus, Minus, TrendingUp, Package, FileText, Scan, RefreshCw, MessageCircle, Wand2 } from 'lucide-react';
+import { ChevronRight, ShieldCheck, Plus, Minus, TrendingUp, Package, FileText, Scan, RefreshCw, MessageCircle, Wand2, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
@@ -6,14 +6,16 @@ import { useAuthStore } from '../store/authStore';
 // db, doc, setDoc, onSnapshot moved to service
 import { useProductStore } from '../store/productStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { useUIStore } from '../store/uiStore';
 
 
-const AdminPortal = () => {
+const AdminPortal = ({ embedded = false }) => {
     const navigate = useNavigate();
     const { user } = useAuthStore();
     const isAdmin = user?.isAdmin;
     const { wonRate, setWonRate, subscribeToWonRate } = useProductStore();
-    const { currencyRates, subscribeToCurrencyRates, refreshBankRates } = useSettingsStore();
+    const { refreshBankRates } = useSettingsStore();
+    const { showToast } = useUIStore();
 
     const [tempRate, setTempRate] = useState(wonRate || '');
     // Sync tempRate when wonRate changes from store (avoids setState-in-effect)
@@ -23,22 +25,14 @@ const AdminPortal = () => {
         if (wonRate) setTempRate(wonRate);
     }
 
-    // Derive bank rates directly from store (no local state sync needed)
-    const golomtRates = currencyRates?.golomtRates || null;
-    const tdbRates = currencyRates?.tdbRates || null;
-    const khanRates = currencyRates?.khanRates || null;
-    const prevGolomtRates = currencyRates?.previousGolomtRates || null;
-    const prevTdbRates = currencyRates?.previousTdbRates || null;
-    const prevKhanRates = currencyRates?.previousKhanRates || null;
-
     useEffect(() => {
-        const unsubWon = subscribeToWonRate();
-        const unsubCurrency = subscribeToCurrencyRates();
-        return () => {
-            if (unsubWon) unsubWon();
-            if (unsubCurrency) unsubCurrency();
-        };
-    }, [subscribeToWonRate, subscribeToCurrencyRates]);
+        // wonRate is an APP-LEVEL live subscription (started in App.jsx) and is
+        // idempotent (memoised on window.__wonRateUnsubscribe). Ensure it's active,
+        // but DON'T unsubscribe on unmount — doing so killed the shared subscription
+        // for the rest of the session (the guard then refused to re-subscribe), so
+        // the exchange rate silently stopped updating app-wide after leaving admin.
+        subscribeToWonRate();
+    }, [subscribeToWonRate]);
 
     const adjustRate = (amount) => {
         const current = parseFloat(tempRate) || 0;
@@ -62,10 +56,10 @@ const AdminPortal = () => {
         if (!window.confirm("Банкны ханшийг автоматаар татах уу?")) return;
         try {
             await refreshBankRates();
-            alert("Команд илгээгдлээ!");
+            showToast('Команд илгээгдлээ!', 'success');
         } catch (e) {
             console.error(e);
-            alert("Алдаа гарлаа");
+            showToast('Алдаа гарлаа. Дахин оролдоно уу.', 'error');
         }
     };
 
@@ -77,30 +71,6 @@ const AdminPortal = () => {
         window.open('/admin/sync?autostart=true', 'CostcoSync', `width=${width},height=${height},left=${left},top=${top},resizable=yes`);
     };
 
-    const renderRateCell = (label, current, prev, styleClass = "text-gray-700 bg-white border-gray-200") => {
-        const diff = prev ? parseFloat((current - prev).toFixed(3)) : 0;
-        const hasChange = Math.abs(diff) >= 0.001;
-        const _isUp = diff > 0;
-
-        return (
-            <div className={`rounded-xl p-1 flex items-center gap-2 ${styleClass} transition-transform active:scale-95`}>
-                <div className="flex items-baseline gap-1.5 leading-none">
-                    <span className={`text-[10px] font-bold ${prev ? 'opacity-25 line-through' : 'opacity-60 uppercase tracking-wider'}`}>
-                        {prev || label}
-                    </span>
-                    <div className="text-xl font-black flex items-center gap-0.5">
-                        {current}
-                        {hasChange && (
-                            <span className={`text-[10px] ${_isUp ? 'text-green-600' : 'text-red-500'}`}>
-                                {_isUp ? '▲' : '▼'}
-                            </span>
-                        )}
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
     if (!isAdmin) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -110,75 +80,28 @@ const AdminPortal = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 pb-20">
+        <div className={embedded ? "w-full" : "min-h-screen bg-gray-50 pb-20"}>
+            <div className={`container mx-auto max-w-lg px-4 space-y-3 ${embedded ? '' : 'pt-6'}`}>
+                {/* 🤖 Premium AI Price Tag Scanner Banner at the top */}
+                <div 
+                    onClick={() => navigate('/admin/scanner')}
+                    className="bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-900 rounded-3xl p-5 shadow-lg border border-indigo-900/40 cursor-pointer hover:shadow-indigo-950/20 active:scale-98 transition flex items-center justify-between text-white group"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-indigo-500/25 text-indigo-300 rounded-2xl flex items-center justify-center border border-indigo-500/30 group-hover:scale-105 transition">
+                            <Camera size={24} />
+                        </div>
+                        <div className="text-left">
+                            <h3 className="font-black text-[10px] uppercase tracking-wider text-indigo-300">AI Сканнер</h3>
+                            <h2 className="font-extrabold text-base text-slate-50 leading-tight">Үнийн шошго уншуулах</h2>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Солонгос 🇰🇷 & Америк 🇺🇸 Costco шошгоны AI уншилт</p>
+                        </div>
+                    </div>
+                    <ChevronRight size={20} className="text-indigo-400 group-hover:text-white transition-colors" />
+                </div>
 
-
-            <div className="container mx-auto max-w-lg px-4 space-y-2 pt-6">
-                {/* Group 4: Exchange Rates & Adjuster */}
+                {/* Group 4: Exchange Rate Refresh & Adjuster */}
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden divide-y divide-gray-50 p-1">
-                    {golomtRates && (
-                        <div className="py-0.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <a
-                                    href="https://www.golomtbank.com/exchange"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm font-bold text-gray-700 uppercase tracking-wide hover:text-blue-600 transition-colors flex items-center gap-2"
-                                >
-                                    <img src="/bank-logos/golomt.png" onError={(e) => e.target.style.display = 'none'} className="w-6 h-6 object-contain hidden" alt="" />
-                                    ГОЛОМТ БАНК
-                                    <ExternalLink size={14} className="text-gray-400" />
-                                </a>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                {renderRateCell("Авах", golomtRates.nonCashBuy, prevGolomtRates?.nonCashBuy, "text-green-700 w-24")}
-                                {renderRateCell("Зарах", golomtRates.nonCashSell, prevGolomtRates?.nonCashSell, "text-blue-700 w-24")}
-                            </div>
-                        </div>
-                    )}
-
-                    {tdbRates && (
-                        <div className="py-0.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <a
-                                    href="https://www.tdbm.mn/mn/exchange-rates"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm font-bold text-gray-700 uppercase tracking-wide hover:text-blue-600 transition-colors flex items-center gap-2"
-                                >
-                                    <img src="/bank-logos/tdb.png" onError={(e) => e.target.style.display = 'none'} className="w-6 h-6 object-contain hidden" alt="" />
-                                    ХУДАЛДАА ХӨГЖИЛ
-                                    <ExternalLink size={14} className="text-gray-400" />
-                                </a>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                {renderRateCell("Авах", tdbRates.nonCashBuy, prevTdbRates?.nonCashBuy, "text-green-700 w-24")}
-                                {renderRateCell("Зарах", tdbRates.nonCashSell, prevTdbRates?.nonCashSell, "text-blue-700 w-24")}
-                            </div>
-                        </div>
-                    )}
-
-                    {khanRates && (
-                        <div className="py-0.5 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <a
-                                    href="https://www.khanbank.com/personal/rates/exchange-rate"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-sm font-bold text-gray-700 uppercase tracking-wide hover:text-blue-600 transition-colors flex items-center gap-2"
-                                >
-                                    <img src="/bank-logos/khan.png" onError={(e) => e.target.style.display = 'none'} className="w-6 h-6 object-contain hidden" alt="" />
-                                    ХААН БАНК
-                                    <ExternalLink size={14} className="text-gray-400" />
-                                </a>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                {renderRateCell("Авах", khanRates.nonCashBuy, prevKhanRates?.nonCashBuy, "text-green-700 w-24")}
-                                {renderRateCell("Зарах", khanRates.nonCashSell, prevKhanRates?.nonCashSell, "text-blue-700 w-24")}
-                            </div>
-                        </div>
-                    )}
-
                     <div className="py-0.5 px-4 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <button
@@ -192,18 +115,19 @@ const AdminPortal = () => {
                         </div>
 
                         <div className="flex items-center gap-2">
-                            <button onClick={() => adjustRate(-0.01)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-all">
+                            <button onClick={() => adjustRate(-0.01)} aria-label="Ханш бууруулах" className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-all">
                                 <Minus size={18} />
                             </button>
                             <input
                                 type="number"
                                 value={tempRate}
+                                aria-label="Вон-ийн ханш"
                                 onChange={(e) => setTempRate(e.target.value)}
                                 onBlur={saveRate}
                                 onKeyDown={(e) => e.key === 'Enter' && saveRate()}
                                 className="w-16 bg-transparent text-center font-black text-gray-800 outline-none text-lg [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
-                            <button onClick={() => adjustRate(0.01)} className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-all">
+                            <button onClick={() => adjustRate(0.01)} aria-label="Ханш нэмэгдүүлэх" className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-gray-50 rounded-lg transition-all">
                                 <Plus size={18} />
                             </button>
                         </div>
@@ -281,6 +205,24 @@ const AdminPortal = () => {
                             <span className="text-base font-bold text-gray-700">Өдөр тутмын тайлан</span>
                         </div>
                         <ChevronRight size={18} className="text-gray-300 group-hover:text-purple-600 transition-colors" />
+                    </button>
+                    <button onClick={() => navigate('/admin/daily-manifests')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-blue-50 text-costco-blue rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                <FileText size={18} />
+                            </div>
+                            <span className="text-base font-bold text-gray-700">Өдрийн manifest (гаалийн)</span>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
+                    </button>
+                    <button onClick={() => navigate('/admin/coupons')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 bg-blue-50 text-costco-blue rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                <FileText size={18} />
+                            </div>
+                            <span className="text-base font-bold text-gray-700">Промо код / купон</span>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-300 group-hover:text-costco-blue transition-colors" />
                     </button>
                     <button onClick={() => navigate('/scanner')} className="w-full flex items-center justify-between p-1.5 hover:bg-blue-50 transition-colors group">
                         <div className="flex items-center gap-3">

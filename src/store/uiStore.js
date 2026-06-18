@@ -3,8 +3,9 @@ import { create } from 'zustand';
 export const useUIStore = create((set) => ({
     currency: 'KRW',
     exchangeRate: 0.408, // 1 KRW = 2.45 MNT -> 1 MNT ≈ 0.408 KRW
-    toast: null, // { message: '', type: 'info' | 'error' | 'success' | 'warning' }
-    showToast: (message, type = 'info') => set({ toast: { message, type } }),
+    toast: null, // { message: '', type: 'info' | 'error' | 'success' | 'warning', duration?: number }
+    // duration is optional (ms); Toast falls back to its default when omitted.
+    showToast: (message, type = 'info', duration) => set({ toast: { message, type, duration } }),
     hideToast: () => set({ toast: null }),
     toggleCurrency: () => set((state) => ({ currency: state.currency === 'MNT' ? 'KRW' : 'MNT' })),
     isMenuOpen: false,

@@ -8,7 +8,7 @@ import { useUIStore } from '../store/uiStore';
 export default function Notifications() {
     const { alerts, removeAlert } = useSaleAlertStore();
     const { products, wonRate } = useProductStore();
-    const { addToCart } = useCartStore();
+    const { addToGround } = useCartStore();
     const { currency, showToast } = useUIStore();
 
     const alertProducts = products.filter(p => alerts.includes(p.id));
@@ -41,7 +41,7 @@ export default function Notifications() {
                         return (
                             <div key={product.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex gap-4">
                                 <Link to={`/product/${product.id}`} className="shrink-0 w-24 h-24 bg-gray-100 rounded-lg overflow-hidden">
-                                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                                    <img src={product.image} alt={product.name} loading="lazy" decoding="async" onError={(e) => { e.target.style.visibility = 'hidden'; }} className="w-full h-full object-cover" />
                                 </Link>
                                 <div className="flex-1 min-w-0 flex flex-col">
                                     <Link to={`/product/${product.id}`} className="font-bold text-gray-900 line-clamp-2 mb-1 hover:text-costco-blue">
@@ -61,11 +61,15 @@ export default function Notifications() {
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => {
-                                                    addToCart(product);
-                                                    showToast('Сагсанд нэмэгдлээ', 'success');
+                                                    // addToGround handles the login gate + its own toast;
+                                                    // only show success when it actually added.
+                                                    if (addToGround(product, null, 1)) {
+                                                        showToast('Сагсанд нэмэгдлээ', 'success');
+                                                    }
                                                 }}
                                                 className="p-2 bg-blue-50 text-costco-blue rounded-lg hover:bg-blue-100 transition"
                                                 title="Сагсанд нэмэх"
+                                                aria-label="Сагсанд нэмэх"
                                             >
                                                 <ShoppingCart size={18} />
                                             </button>
@@ -73,6 +77,7 @@ export default function Notifications() {
                                                 onClick={() => removeAlert(product.id)}
                                                 className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition"
                                                 title="Жагсаалтаас хасах"
+                                                aria-label="Жагсаалтаас хасах"
                                             >
                                                 <Trash2 size={18} />
                                             </button>

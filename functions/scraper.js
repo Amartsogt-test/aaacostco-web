@@ -1,18 +1,44 @@
+/**
+ * scraper.js — Costco Korea (costco.co.kr) product scraper.
+ *
+ * Pulls products from Costco's hybris/OCC REST API and upserts them into the
+ * Firestore `products` collection. Three public entry points:
+ *   • syncWithTargets(targets, admin)   — scrape a list of category targets.
+ *   • syncSpecialCategories(admin)      — convenience wrapper (Sale/Featured/New/Kirkland).
+ *   • fixZeroPriceProducts(admin, ids?) — re-fetch prices for items that have none.
+ *
+ * ⚠️ IMPORTANT (content negotiation): Costco's REST API returns XML unless the
+ * request sends `Accept: application/json`. Missing that header makes JSON.parse
+ * fail, so every detail fetch silently returns null and the price is never stored.
+ * fetchJson() sets the header — do not remove it.
+ */
 
 const admin = require('firebase-admin');
-const { HttpsError } = require("firebase-functions/v2/https");
 
-// Helper Utils
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// ---------------------------------------------------------------------------
+// Low-level helpers
+// ---------------------------------------------------------------------------
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const DEFAULT_UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/**
+ * GET a Costco REST endpoint and parse the JSON body. Retries on failure.
+ * Returns the parsed object, or null if every attempt failed.
+ */
 async function fetchJson(url, cookie = '', userAgent = '', retries = 3) {
     try {
         const headers = {
-            'User-Agent': userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            // REQUIRED: without this the API replies with XML → JSON.parse throws →
+            // the product (and its price) is dropped. This was the root cause of the
+            // "Бэлэн бус" / zero-price products.
+            Accept: 'application/json',
+            'User-Agent': userAgent || DEFAULT_UA,
         };
-        if (cookie) {
-            headers['Cookie'] = cookie;
-        }
+        if (cookie) headers.Cookie = cookie;
 
         const response = await fetch(url, { headers });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -26,123 +52,123 @@ async function fetchJson(url, cookie = '', userAgent = '', retries = 3) {
     }
 }
 
+/** Absolute-ize a Costco image path. */
 function fixImageUrl(url) {
     if (!url) return '';
     return url.startsWith('http') ? url : `https://www.costco.co.kr${url}`;
 }
 
+/** Flatten hybris `classifications[].features[]` into [{ name, value }]. */
 function extractSpecifications(classifications) {
-    if (!classifications || !Array.isArray(classifications)) return [];
+    if (!Array.isArray(classifications)) return [];
     const specs = [];
     for (const classification of classifications) {
-        if (classification.features) {
-            for (const feature of classification.features) {
-                if (feature.name && feature.featureValues && feature.featureValues[0]) {
-                    specs.push({
-                        name: feature.name,
-                        value: feature.featureValues[0].value || ''
-                    });
-                }
+        if (!classification.features) continue;
+        for (const feature of classification.features) {
+            if (feature.name && feature.featureValues && feature.featureValues[0]) {
+                specs.push({ name: feature.name, value: feature.featureValues[0].value || '' });
             }
         }
     }
     return specs;
 }
 
+// ---------------------------------------------------------------------------
+// Category metadata
+// ---------------------------------------------------------------------------
+
 const CATEGORY_MAP = {
-    'SpecialPriceOffers': 'Sale',
-    'BuyersPick': 'Featured',
-    'whatsnew': 'New',
-    'ks_all': 'Kirkland Signature'
+    SpecialPriceOffers: 'Sale',
+    BuyersPick: 'Featured',
+    whatsnew: 'New',
+    ks_all: 'Kirkland Signature',
 };
 
 const SUBCATEGORY_MAP = {
-    'SpecialPriceOffers': 'Special Offers',
-    'BuyersPick': 'Buyers Pick',
-    'ks_all': 'Everything',
-    'whatsnew': 'New Arrivals'
+    SpecialPriceOffers: 'Special Offers',
+    BuyersPick: 'Buyers Pick',
+    ks_all: 'Everything',
+    whatsnew: 'New Arrivals',
 };
 
 const CATEGORY_NAMES = {
-    'Sale': 'Хямдралтай',
-    'Featured': 'Онцлох',
+    Sale: 'Хямдралтай',
+    Featured: 'Онцлох',
     'Kirkland Signature': 'Kirkland Signature',
-    'New': 'Шинэ'
+    New: 'Шинэ',
 };
 
-// Helper to get category name
 function getCategoryName(target, catCode) {
     if (CATEGORY_MAP[catCode]) return CATEGORY_MAP[catCode];
-    if (target && target.name) return target.name; // Use provided name from menu
+    if (target && target.name) return target.name; // fall back to the menu-provided name
     return 'General';
 }
 
+// ---------------------------------------------------------------------------
+// Product mapping (raw Costco JSON → our Firestore shape)
+// ---------------------------------------------------------------------------
+
+/**
+ * Map one raw Costco product to our stored shape. Pure data transform — never
+ * sets `status` (admin owns that; new-product status is set in the save logic).
+ */
 function mapAllFields(raw, target, effectiveAdmin = null) {
-    const product = { ...raw };
-    const catCode = target.code; // Extract code from target
     const firebaseAdmin = effectiveAdmin || admin;
+    const catCode = target.code;
+    const product = { ...raw };
 
     product.id = raw.code;
-    // NOTE: Do NOT set product.status here
-    // This preserves admin's decision to mark products as inactive
-    // New products will get 'active' status set in the save logic
 
-    const priceValue = (raw.price && typeof raw.price === 'object') ? raw.price.value : 0;
-    const basePriceValue = (raw.basePrice && typeof raw.basePrice === 'object') ? raw.basePrice.value : priceValue;
+    // Prices. hybris returns price/basePrice as objects { value, ... }.
+    const priceValue = raw.price && typeof raw.price === 'object' ? raw.price.value : 0;
+    const basePriceValue = raw.basePrice && typeof raw.basePrice === 'object' ? raw.basePrice.value : priceValue;
     product.price = priceValue;
     product.originalPrice = basePriceValue;
 
-    // 🏪 Store Price Estimation (Offline Price)
-    // Most items on Costco Online have a hidden shipping markup of ~2,000 KRW.
-    // High value items (>100k) usually have 0 markup.
-    const defaultMarkup = (product.price > 100000) ? 0 : 2000;
+    // 🏪 Estimated warehouse (offline) price. Costco Online hides a ~2,000₩ shipping
+    // markup on most items; high-value items (>100k) usually have none.
+    const defaultMarkup = product.price > 100000 ? 0 : 2000;
     product.estimatedWarehousePrice = Math.max(0, product.price - defaultMarkup);
 
     product.hasDiscount = product.originalPrice > product.price;
 
-    if (raw.images && Array.isArray(raw.images)) {
-        product.images = raw.images.map(img => ({ ...img, url: fixImageUrl(img.url) }));
-        const mainImg = raw.images.find(i => i.format === 'product') || raw.images[0];
+    // Images.
+    if (Array.isArray(raw.images)) {
+        product.images = raw.images.map((img) => ({ ...img, url: fixImageUrl(img.url) }));
+        const mainImg = raw.images.find((i) => i.format === 'product') || raw.images[0];
         product.image = mainImg ? fixImageUrl(mainImg.url) : '';
     }
 
+    // Categories.
     product.category = getCategoryName(target, catCode);
     product.subCategory = SUBCATEGORY_MAP[catCode] || 'General';
     product.categoryName = CATEGORY_NAMES[product.category] || product.category;
     product.subCategoryName = product.subCategory;
     product.targetCode = catCode;
-
     product.additionalCategories = [
         product.category,
         product.subCategory,
         product.categoryName,
-        raw.wcs_ag_id
+        raw.wcs_ag_id,
     ].filter(Boolean);
 
+    // Per-category tagging.
     if (catCode === 'SpecialPriceOffers') {
         product.hasDiscount = true;
+        if (!product.additionalCategories.includes('Sale')) product.additionalCategories.push('Sale');
+        if (!product.additionalCategories.includes('Хямдралтай')) product.additionalCategories.push('Хямдралтай');
     }
-
     if (catCode === 'whatsnew' && !product.additionalCategories.includes('New')) {
         product.additionalCategories.push('New');
     }
-
     if (catCode === 'BuyersPick') {
         product.targetCode = 'BuyersPick';
         if (!product.additionalCategories.includes('Trend')) product.additionalCategories.push('Trend');
         if (!product.additionalCategories.includes('Featured')) product.additionalCategories.push('Featured');
     }
-
     if (catCode === 'ks_all') {
         product.targetCode = 'ks_all';
         if (!product.additionalCategories.includes('Kirkland Signature')) product.additionalCategories.push('Kirkland Signature');
-    }
-
-    // Only add 'Sale' tag to products that come from SpecialPriceOffers category
-    // NOT all products with hasDiscount (which would inflate counts)
-    if (catCode === 'SpecialPriceOffers') {
-        if (!product.additionalCategories.includes('Sale')) product.additionalCategories.push('Sale');
-        if (!product.additionalCategories.includes('Хямдралтай')) product.additionalCategories.push('Хямдралтай');
     }
 
     product.specifications = extractSpecifications(raw.classifications);
@@ -154,91 +180,99 @@ function mapAllFields(raw, target, effectiveAdmin = null) {
     return product;
 }
 
+/** Fetch one product's FULL detail. */
 async function fetchProductDetails(productCode, cookie, userAgent) {
     const url = `https://www.costco.co.kr/rest/v2/korea/products/${productCode}?fields=FULL`;
-    return await fetchJson(url, cookie, userAgent);
+    return fetchJson(url, cookie, userAgent);
 }
 
-// 🚀 OPTIMIZED: Parallel fetch with concurrency limit
+/** Fetch many products in parallel, `concurrency` at a time. Nulls are dropped. */
 async function fetchProductsBatch(ids, cookie, userAgent, concurrency = 10) {
     const results = [];
     for (let i = 0; i < ids.length; i += concurrency) {
         const batch = ids.slice(i, i + concurrency);
-        const promises = batch.map(id => fetchProductDetails(id, cookie, userAgent).catch(() => null));
-        const batchResults = await Promise.all(promises);
-        results.push(...batchResults.filter(r => r && r.code));
-        await sleep(100); // Small delay between batches
+        const settled = await Promise.all(
+            batch.map((id) => fetchProductDetails(id, cookie, userAgent).catch(() => null))
+        );
+        results.push(...settled.filter((r) => r && r.code));
+        await sleep(100);
     }
     return results;
 }
 
-// Main logic
-exports.syncWithTargets = async (targets, adminInstance = null) => {
-    const db = (adminInstance || admin).firestore();
-    const statusRef = db.collection('system').doc('syncStatus');
+// ---------------------------------------------------------------------------
+// Shared utilities for the exported jobs
+// ---------------------------------------------------------------------------
 
-    // 🍪 FETCH COOKIE SETTINGS
-    let cookie = '';
-    let userAgent = '';
+/** Resolve the Firestore instance, honouring FIRESTORE_DATABASE_ID (Asia migration). */
+function getDb(baseAdmin) {
+    const dbId = process.env.FIRESTORE_DATABASE_ID || '(default)';
+    if (dbId === '(default)') return baseAdmin.firestore();
+    return require('firebase-admin/firestore').getFirestore(baseAdmin.app(), dbId);
+}
+
+/** Read the scraper session cookie + user-agent from settings/scraper. */
+async function getScraperAuth(db) {
     try {
-        const settingsSnap = await db.collection('settings').doc('scraper').get();
-        if (settingsSnap.exists) {
-            const data = settingsSnap.data();
-            cookie = data.cookie || '';
-            userAgent = data.userAgent || '';
-            console.log('Got cookie/UA from settings. Cookie len:', cookie.length, 'UA:', userAgent);
-        } else {
-            console.log('No scraper settings found.');
+        const snap = await db.collection('settings').doc('scraper').get();
+        if (snap.exists) {
+            const data = snap.data();
+            return { cookie: data.cookie || '', userAgent: data.userAgent || '' };
         }
     } catch (e) {
-        console.error("Failed to fetch scraper settings:", e);
+        console.error('Failed to fetch scraper settings:', e);
     }
+    return { cookie: '', userAgent: '' };
+}
 
-    // Use passed targets
+// ---------------------------------------------------------------------------
+// Public: full category sync
+// ---------------------------------------------------------------------------
 
-    const steps = targets.map(t => ({
-        label: t.label,
-        status: 'pending',
-        processed: 0,
-        total: 0,
-        percentage: 0,
-        dbCount: 0
+exports.syncWithTargets = async (targets, adminInstance = null) => {
+    const baseAdmin = adminInstance || admin;
+    const db = getDb(baseAdmin);
+    const serverTimestamp = () => baseAdmin.firestore.FieldValue.serverTimestamp();
+    const statusRef = db.collection('system').doc('syncStatus');
+
+    const { cookie, userAgent } = await getScraperAuth(db);
+    console.log('Scraper auth — cookie len:', cookie.length, 'UA set:', !!userAgent);
+
+    const steps = targets.map((t) => ({
+        label: t.label, status: 'pending', processed: 0, total: 0, percentage: 0, dbCount: 0,
     }));
 
     let lastUpdate = 0;
-    const saveStatus = async (isGlobalComplete = false) => {
+    const saveStatus = async (isComplete = false) => {
         const now = Date.now();
-        if (isGlobalComplete || now - lastUpdate > 2000) { // Reduced update frequency
-            try {
-                await statusRef.set({
-                    state: isGlobalComplete ? 'completed' : 'running',
-                    steps: steps,
-                    lastUpdated: (adminInstance || admin).firestore.FieldValue.serverTimestamp()
-                });
-                lastUpdate = now;
-            } catch (e) {
-                console.error("Progress update failed:", e);
-            }
+        if (!isComplete && now - lastUpdate <= 2000) return; // throttle writes
+        try {
+            await statusRef.set({
+                state: isComplete ? 'completed' : 'running',
+                steps,
+                lastUpdated: serverTimestamp(),
+            });
+            lastUpdate = now;
+        } catch (e) {
+            console.error('Progress update failed:', e);
         }
     };
 
     let totalSaved = 0;
     let totalFailed = 0;
     const log = [];
-
     await saveStatus();
 
     for (let i = 0; i < targets.length; i++) {
         const target = targets[i];
         log.push(`Scanning ${target.code}...`);
 
-        // Count existing in DB
+        // Count what we already have for this tag (informational).
         try {
-            const snapshot = await db.collection('products')
+            const snap = await db.collection('products')
                 .where('additionalCategories', 'array-contains', target.tagName)
-                .count()
-                .get();
-            steps[i].dbCount = snapshot.data().count;
+                .count().get();
+            steps[i].dbCount = snap.data().count;
         } catch (e) {
             steps[i].dbCount = 0;
         }
@@ -246,21 +280,18 @@ exports.syncWithTargets = async (targets, adminInstance = null) => {
         steps[i].status = 'running';
         await saveStatus();
 
-        // 1. Get IDs (unchanged)
+        // 1) Collect every product code in this category (paginated; cap 20 pages).
+        const ids = new Set();
         let page = 0;
         let totalPages = 1;
-        const ids = new Set();
-
         while (page < totalPages && page < 20) {
             const queryType = target.type === 'allCategories' ? 'allCategories' : 'category';
             const query = `:relevance:${queryType}:${target.code}`;
             const url = `https://www.costco.co.kr/rest/v2/korea/products/search?fields=products(code),pagination&query=${encodeURIComponent(query)}&pageSize=100&currentPage=${page}`;
-
-            const data = await fetchJson(url, cookie, userAgent); // Pass cookie & UA
+            const data = await fetchJson(url, cookie, userAgent);
             if (!data || !data.products) break;
-
             if (data.pagination) totalPages = data.pagination.totalPages;
-            data.products.forEach(p => ids.add(p.code));
+            data.products.forEach((p) => ids.add(p.code));
             page++;
             await sleep(50);
         }
@@ -270,51 +301,61 @@ exports.syncWithTargets = async (targets, adminInstance = null) => {
         log.push(`Found ${idArray.length} items for ${target.code}. Fetching...`);
         await saveStatus();
 
-        // 🚀 2. OPTIMIZED: Parallel fetch with batching
-        const BATCH_SIZE = 15; // Process 15 items in parallel
-        let processedForTarget = 0;
+        // 2) Fetch details in parallel batches and upsert.
+        const BATCH_SIZE = 15;
+        let processed = 0;
 
-        for (let batchStart = 0; batchStart < idArray.length; batchStart += BATCH_SIZE) {
-            const batchIds = idArray.slice(batchStart, batchStart + BATCH_SIZE);
+        for (let start = 0; start < idArray.length; start += BATCH_SIZE) {
+            const batchIds = idArray.slice(start, start + BATCH_SIZE);
+            const details = await Promise.all(
+                batchIds.map((id) => fetchProductDetails(id, cookie, userAgent).catch(() => null))
+            );
 
-            // Parallel fetch
-            const fetchPromises = batchIds.map(id => fetchProductDetails(id, cookie, userAgent).catch(() => null)); // Pass cookie & UA
-            const details = await Promise.all(fetchPromises);
-
-            // 🚀 Batch write to Firestore
             const batch = db.batch();
             let batchCount = 0;
 
             for (const detail of details) {
-                if (detail && detail.code) {
-                    const product = mapAllFields(detail, target, adminInstance || admin);
-                    const docRef = db.collection('products').doc(product.id);
+                if (!detail || !detail.code) { totalFailed++; continue; }
 
-                    // Check if product exists - only set status for new products
-                    const existingDoc = await docRef.get();
-                    if (!existingDoc.exists) {
-                        // New product - set status to active
-                        product.status = 'active';
-                    } else {
-                        // Existing product
-                        const existingData = existingDoc.data();
+                const mapped = mapAllFields(detail, target, baseAdmin);
+                const docRef = db.collection('products').doc(mapped.id);
+                const existingDoc = await docRef.get();
 
-                        // PRESERVE PRICE: If scraped price is 0 but we have a valid price in DB, keep it
-                        if (product.price === 0 && existingData.price > 0) {
-                            product.price = existingData.price;
-                            // Also try to preserve originalPrice if it seems related
-                            if (product.originalPrice === 0 && existingData.originalPrice > 0) {
-                                product.originalPrice = existingData.originalPrice;
-                            }
-                        }
-                    }
-                    // Existing product - don't include status in update to preserve admin's decision
-
-                    batch.set(docRef, product, { merge: true });
-                    batchCount++;
+                if (!existingDoc.exists) {
+                    // New product: activate it, and seed name_mn = null so the
+                    // translation step (which queries where name_mn == null) finds it.
+                    mapped.status = 'active';
+                    mapped.name_mn = null;
                 } else {
-                    totalFailed++;
+                    const existing = existingDoc.data();
+
+                    // Preserve a good existing price if this scrape returned 0
+                    // (Costco hides the price on some items — hidePriceValue).
+                    if (mapped.price === 0 && existing.price > 0) {
+                        mapped.price = existing.price;
+                        if (mapped.originalPrice === 0 && existing.originalPrice > 0) {
+                            mapped.originalPrice = existing.originalPrice;
+                        }
+                        // Recompute warehouse estimate + discount from the RESTORED price.
+                        // Without this, mapped.estimatedWarehousePrice (computed at 0 earlier)
+                        // would be merged in and wipe the real warehouse value to 0.
+                        const markup = mapped.price > 100000 ? 0 : 2000;
+                        mapped.estimatedWarehousePrice = Math.max(0, mapped.price - markup);
+                        mapped.hasDiscount = mapped.originalPrice > mapped.price;
+                    }
+
+                    // Preserve a self-hosted image instead of reverting to the Costco
+                    // hotlink; remember the latest upstream URL as sourceImage so the
+                    // image backfill can detect real upstream changes.
+                    if (/storage\.googleapis\.com|firebasestorage\.googleapis\.com/.test(existing.image || '')) {
+                        mapped.sourceImage = mapped.image;
+                        mapped.image = existing.image;
+                    }
+                    // Existing products: don't touch status (admin's decision).
                 }
+
+                batch.set(docRef, mapped, { merge: true });
+                batchCount++;
             }
 
             if (batchCount > 0) {
@@ -322,74 +363,63 @@ exports.syncWithTargets = async (targets, adminInstance = null) => {
                 totalSaved += batchCount;
             }
 
-            processedForTarget += batchIds.length;
-            steps[i].processed = processedForTarget;
-            steps[i].percentage = idArray.length > 0 ? Math.round((processedForTarget / idArray.length) * 100) : 0;
+            processed += batchIds.length;
+            steps[i].processed = processed;
+            steps[i].percentage = idArray.length > 0 ? Math.round((processed / idArray.length) * 100) : 0;
             await saveStatus();
-
-            await sleep(100); // Small delay between batches
+            await sleep(100);
         }
 
-        // 🚀 3. CLEANUP: Remove tag from products no longer in the list
-        // This fixes the issue where expired sales remain in the category
+        // 3) Cleanup: drop this tag from products that are no longer in the category
+        //    (e.g. a sale that ended). Batched ≤400 to stay under Firestore's 500 cap.
         log.push(`Cleaning up expired ${target.tagName} items...`);
-        // Note: ids is the Set of ALL codes currently on the site for this category
-
-        const cleanupSnapshot = await db.collection('products')
+        const cleanupSnap = await db.collection('products')
             .where('additionalCategories', 'array-contains', target.tagName)
             .get();
 
         let cleanupBatch = db.batch();
         let cleanupCount = 0;
-        let batchSize = 0;
+        let pending = 0;
 
-        for (const doc of cleanupSnapshot.docs) {
-            if (!ids.has(doc.id)) {
-                // Product is in DB as 'Sale' (or other tag) but NOT in current scrape list -> Expired
-                const p = doc.data();
-                let newCategories = (p.additionalCategories || []).filter(c => c !== target.tagName);
+        for (const doc of cleanupSnap.docs) {
+            if (ids.has(doc.id)) continue; // still in the category — keep
+            const p = doc.data();
+            let newCategories = (p.additionalCategories || []).filter((c) => c !== target.tagName);
+            const updates = { updatedAt: serverTimestamp() };
 
-                const updates = {
-                    updatedAt: (adminInstance || admin).firestore.FieldValue.serverTimestamp()
-                };
-
-                // Specific Tag Cleanup
-                if (target.tagName === 'Sale') {
-                    // Also remove 'Хямдралтай'
-                    newCategories = newCategories.filter(c => c !== 'Хямдралтай');
-                    // Reset discount flag since it's no longer in SpecialPriceOffers
-                    updates.hasDiscount = false;
-                } else if (target.tagName === 'Featured') {
-                    // Remove related tags
-                    newCategories = newCategories.filter(c => c !== 'Trend' && c !== 'BuyersPick');
+            if (target.tagName === 'Sale') {
+                newCategories = newCategories.filter((c) => c !== 'Хямдралтай');
+                updates.hasDiscount = false;
+                updates.discountPercent = 0;
+                updates.discount = 0;
+                // Revert to the non-discounted price.
+                if (p.originalPrice && p.originalPrice > (p.price || 0)) {
+                    updates.price = p.originalPrice;
+                    // Recalculate warehouse price without discount
+                    const markup = typeof p.estimatedMarkupKrw === 'number' ? p.estimatedMarkupKrw : (p.originalPrice > 100000 ? 0 : 2000);
+                    updates.estimatedWarehousePrice = Math.max(0, p.originalPrice - markup);
                 }
+            } else if (target.tagName === 'Featured') {
+                newCategories = newCategories.filter((c) => c !== 'Trend' && c !== 'BuyersPick');
+            }
 
-                updates.additionalCategories = newCategories;
+            updates.additionalCategories = newCategories;
+            cleanupBatch.update(doc.ref, updates);
+            cleanupCount++;
+            pending++;
 
-                cleanupBatch.update(doc.ref, updates);
-                cleanupCount++;
-                batchSize++;
-
-                // Firestore batch limit is 500.
-                if (batchSize >= 400) {
-                    await cleanupBatch.commit();
-                    log.push(`Committed partial cleanup batch (${batchSize})...`);
-                    batchSize = 0;
-                    cleanupBatch = db.batch(); // Re-instantiate
-                }
+            if (pending >= 400) {
+                await cleanupBatch.commit();
+                log.push(`Committed partial cleanup batch (${pending})...`);
+                pending = 0;
+                cleanupBatch = db.batch();
             }
         }
+        if (pending > 0) await cleanupBatch.commit();
 
-        // Commit remaining
-        if (batchSize > 0) {
-            await cleanupBatch.commit();
-        }
-
-        if (cleanupCount > 0) {
-            log.push(`Removed '${target.tagName}' tag from ${cleanupCount} expired items.`);
-        } else {
-            log.push(`No expired '${target.tagName}' items found.`);
-        }
+        log.push(cleanupCount > 0
+            ? `Removed '${target.tagName}' tag from ${cleanupCount} expired items.`
+            : `No expired '${target.tagName}' items found.`);
 
         steps[i].processed = idArray.length;
         steps[i].percentage = 100;
@@ -398,116 +428,96 @@ exports.syncWithTargets = async (targets, adminInstance = null) => {
     }
 
     await saveStatus(true);
-
-    return {
-        success: true,
-        saved: totalSaved,
-        failed: totalFailed,
-        logs: log
-    };
+    return { success: true, saved: totalSaved, failed: totalFailed, logs: log };
 };
+
+// ---------------------------------------------------------------------------
+// Public: special-category convenience wrapper
+// ---------------------------------------------------------------------------
 
 exports.syncSpecialCategories = async (adminInstance = null) => {
     const targets = [
         { code: 'SpecialPriceOffers', name: 'SpecialPriceOffers', label: 'Хямдралтай (Sale)', type: 'allCategories', tagName: 'Sale' },
         { code: 'BuyersPick', name: 'BuyersPick', label: 'Онцлох (Featured)', type: 'allCategories', tagName: 'Featured' },
         { code: 'whatsnew', name: 'New', label: 'Шинэ (New)', type: 'allCategories', tagName: 'New' },
-        { code: 'ks_all', name: 'Kirkland Signature', label: 'Kirkland Signature', type: 'category', tagName: 'Kirkland Signature' }
+        { code: 'ks_all', name: 'Kirkland Signature', label: 'Kirkland Signature', type: 'category', tagName: 'Kirkland Signature' },
     ];
     return exports.syncWithTargets(targets, adminInstance);
 };
 
-exports.fixZeroPriceProducts = async () => {
-    const db = admin.firestore();
+// ---------------------------------------------------------------------------
+// Public: re-fetch prices for items that have none ("Бэлэн бус")
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-scrape prices for zero-/missing-price products and write them back.
+ *
+ * Two ways to choose what to fix:
+ *   • targetIds (array)  — caller supplies ids. Used by scripts/rescrape-zero-price.cjs
+ *     for items whose `price` field is ABSENT (not 0) — Firestore can't query a missing
+ *     field, so the caller pulls ids from the search index instead.
+ *   • otherwise          — query products with an explicit price == 0 (skip deleted),
+ *     capped at 50 (used by the scheduled dailyPriceFix).
+ */
+exports.fixZeroPriceProducts = async (adminInstance = null, targetIds = null) => {
+    const effectiveAdmin = adminInstance || admin;
+    const db = effectiveAdmin.firestore();
+    const serverTimestamp = () => effectiveAdmin.firestore.FieldValue.serverTimestamp();
     const log = [];
-    let updatedCount = 0;
+    log.push('Starting zero-price fix...');
 
-    log.push("Starting zero-price fix...");
+    const { cookie, userAgent } = await getScraperAuth(db);
 
-    // 🍪 FETCH COOKIE SETTINGS
-    let cookie = '';
-    let userAgent = '';
     try {
-        const settingsSnap = await db.collection('settings').doc('scraper').get();
-        if (settingsSnap.exists) {
-            const data = settingsSnap.data();
-            cookie = data.cookie || '';
-            userAgent = data.userAgent || '';
+        // Decide which ids to re-scrape.
+        let ids;
+        if (Array.isArray(targetIds) && targetIds.length > 0) {
+            ids = targetIds.filter(Boolean);
+        } else {
+            const snap = await db.collection('products')
+                .where('price', '==', 0)
+                .limit(50)
+                .get();
+            ids = [];
+            snap.forEach((doc) => {
+                if ((doc.data() || {}).status !== 'deleted') ids.push(doc.id);
+            });
         }
-    } catch (e) {
-        console.error("Failed to fetch scraper settings:", e);
-        return { success: false, error: "Settings fetch failed" };
-    }
 
-    // 1. Find Zero Price Products (Limit 50 to avoid timeouts)
-    try {
-        const snapshot = await db.collection('products')
-            .where('price', '==', 0)
-            .where('status', '==', 'active') // Only fix active products
-            .limit(50)
-            .get();
-
-        if (snapshot.empty) {
-            log.push("No zero-price active products found.");
-            console.log("No zero-price active products found.");
+        if (ids.length === 0) {
+            log.push('No zero-price products to fix.');
             return { success: true, updated: 0, logs: log };
         }
+        log.push(`Fixing ${ids.length} products.`);
 
-        const productsToFix = [];
-        snapshot.forEach(doc => {
-            productsToFix.push({ id: doc.id, ...doc.data() });
-        });
-
-        log.push(`Found ${productsToFix.length} products with 0 price.`);
-
-        // 2. Fetch fresh details
-        const ids = productsToFix.map(p => p.id);
-
-        // Reuse existing batch fetch logic if possible, or simple loop
-        // We'll use the existing fetchProductsBatch helper
-        // We need to make sure fetchProductsBatch is accessible or copy the logic. 
-        // It is defined in this file (scraper.js) but not exported. We can call it directly.
-
-        const freshDetails = await fetchProductsBatch(ids, cookie, userAgent, 5);
-
-        // 3. Update Database
+        // Re-fetch and write only price-related fields (minimise overwrites).
+        const details = await fetchProductsBatch(ids, cookie, userAgent, 5);
         const batch = db.batch();
-        let batchCount = 0;
+        let updated = 0;
 
-        for (const detail of freshDetails) {
+        for (const detail of details) {
             if (detail && detail.code && detail.price && detail.price.value > 0) {
-                const docRef = db.collection('products').doc(detail.code);
-
-                // Only update price-related fields to minimize overwrites
-                const updates = {
+                const base = detail.basePrice ? detail.basePrice.value : detail.price.value;
+                batch.update(db.collection('products').doc(detail.code), {
                     price: detail.price.value,
-                    originalPrice: detail.basePrice ? detail.basePrice.value : detail.price.value,
-                    // Recalculate discount
-                    hasDiscount: (detail.basePrice ? detail.basePrice.value : detail.price.value) > detail.price.value,
+                    originalPrice: base,
+                    hasDiscount: base > detail.price.value,
                     lastScraped: new Date().toISOString(),
-                    lastFixed: (typeof adminInstance !== 'undefined' ? adminInstance : admin).firestore.FieldValue.serverTimestamp()
-                };
-
-                batch.update(docRef, updates);
-                batchCount++;
-                log.push(`Fixed ${detail.code}: ${updates.price} Won`);
+                    lastFixed: serverTimestamp(),
+                });
+                updated++;
+                log.push(`Fixed ${detail.code}: ${detail.price.value} Won`);
             } else {
-                log.push(`Failed to fetch valid price for ${detail ? detail.code : 'unknown'}`);
+                log.push(`No valid price for ${detail ? detail.code : 'unknown'}`);
             }
         }
 
-        if (batchCount > 0) {
-            await batch.commit();
-            updatedCount = batchCount;
-        }
-
-        log.push(`Successfully updated ${updatedCount} products.`);
-
+        if (updated > 0) await batch.commit();
+        log.push(`Successfully updated ${updated} products.`);
+        return { success: true, updated, logs: log };
     } catch (error) {
-        console.error("Zero price fix failed:", error);
+        console.error('Zero price fix failed:', error);
         log.push(`Error: ${error.message}`);
         return { success: false, error: error.message, logs: log };
     }
-
-    return { success: true, updated: updatedCount, logs: log };
 };

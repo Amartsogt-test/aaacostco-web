@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Phone, FileText, Shield, Trash2, MapPin, Package, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Phone, FileText, Shield, Trash2, MapPin, Package, ChevronRight, Mail } from 'lucide-react';
 import { useSettingsStore } from '../store/settingsStore';
 
 export default function InfoPage() {
@@ -49,6 +49,17 @@ export default function InfoPage() {
                                         <p className="text-gray-800 font-medium">{settings?.phone || '77xxxxxx'}</p>
                                     </div>
                                 </div>
+                                <div className="flex items-start gap-3">
+                                    <Mail className="text-blue-500 mt-1 shrink-0" size={20} />
+                                    <div>
+                                        <p className="text-xs text-gray-500 uppercase font-bold">И-мэйл</p>
+                                        <p className="text-gray-800 font-medium">
+                                            <a href={`mailto:${settings?.email || 'admin@costco.mn'}`} className="text-blue-600 hover:underline">
+                                                {settings?.email || 'admin@costco.mn'}
+                                            </a>
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -82,11 +93,11 @@ export default function InfoPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                                     <p className="text-xs text-gray-500 mb-1">Газар (kg)</p>
-                                    <p className="font-bold text-gray-900 text-xl">{settings?.transportationRates?.ground?.toLocaleString() || 0}₩</p>
+                                    <p className="font-bold text-gray-900 text-xl">{(settings?.transportationRates?.ground || 0).toLocaleString()}₮</p>
                                 </div>
                                 <div className="bg-white p-4 rounded-lg border border-gray-200">
                                     <p className="text-xs text-gray-500 mb-1">Агаар (kg)</p>
-                                    <p className="font-bold text-gray-900 text-xl">{settings?.transportationRates?.air?.toLocaleString() || 0}₩</p>
+                                    <p className="font-bold text-gray-900 text-xl">{(settings?.transportationRates?.air || 0).toLocaleString()}₮</p>
                                 </div>
                             </div>
                         </div>

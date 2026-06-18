@@ -82,6 +82,12 @@ export const giftCardService = {
     /**
      * Validate a Gift Card Code
      * @returns {Object} { isValid, balance, card, error }
+     *
+     * ⚠️ NOT WIRED UP / NON-FUNCTIONAL FROM THE CLIENT: gift_cards reads are now
+     * admin-only (Firestore rules), so this direct getDoc is denied for regular
+     * users. To offer customer gift-card validation/redemption, implement a
+     * `validateGiftCard` / `redeemGiftCard` Cloud Function (Admin SDK) and call
+     * that here instead — that keeps card codes/balances private.
      */
     validateGiftCard: async (code) => {
         try {

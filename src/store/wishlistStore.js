@@ -1,5 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useAuthStore } from './authStore';
+import { useUIStore } from './uiStore';
+
+// Centralised login gate: saving requires a signed-in user (guarding here means
+// no future "save" button can bypass the rule).
+const requireAuthForSave = () => {
+    if (useAuthStore.getState().user) return true;
+    useUIStore.getState().showToast('Нэвтэрч орсоны дараа хадгалах боломжтой', 'warning');
+    return false;
+};
 
 export const useWishlistStore = create(
     persist(
@@ -9,6 +19,7 @@ export const useWishlistStore = create(
             savedPrices: {},
 
             addToWishlist: (product) => {
+                if (!requireAuthForSave()) return;
                 const { wishlist, savedPrices } = get();
                 // Check if already exists
                 if (!wishlist.find(p => p.id === product.id)) {

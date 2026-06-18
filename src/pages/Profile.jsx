@@ -5,14 +5,22 @@ import React, { useEffect, Suspense } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { auth } from '../firebase'; // Keep auth for signOut if needed, or move to store
 import { useSettingsStore } from '../store/settingsStore';
+import { useCartStore } from '../store/cartStore';
+import { useChatStore } from '../store/chatStore';
+import { useProductStore } from '../store/productStore';
+import AdminPortal from './AdminPortal';
 
 const LoyaltyCard = React.lazy(() => import('../components/LoyaltyCard'));
+// Lazy: AddressManager pulls in Leaflet (~155kB). It sits below the fold, so we
+// defer its chunk until after the profile's main content paints.
+const AddressManager = React.lazy(() => import('../components/AddressManager'));
 
 
 export default function Profile() {
     const navigate = useNavigate();
     const { logout, user, isAuthenticated, refreshUserSpend, syncUser } = useAuthStore();
     const { settings, fetchSettings } = useSettingsStore();
+    const wonRate = useProductStore(state => state.wonRate);
 
     // Initial Load
     useEffect(() => {
@@ -23,10 +31,12 @@ export default function Profile() {
         if (user?.uid) {
             syncUser(user.uid);
         }
-        if (user?.phone) {
-            refreshUserSpend(user.phone);
+        if (user?.uid || user?.phone) {
+            // Attribute loyalty spend by account uid (works for Facebook users) + phone.
+            // wonRate lets calculateUserSpend normalise MNT orders to won.
+            refreshUserSpend(user?.uid, user?.phone, wonRate);
         }
-    }, [user?.uid, user?.phone, refreshUserSpend, syncUser]);
+    }, [user?.uid, user?.phone, wonRate, refreshUserSpend, syncUser]);
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -34,10 +44,20 @@ export default function Profile() {
         }
     }, [isAuthenticated, navigate]);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        // Clear per-user state so nothing leaks to the next user on a shared device.
+        useCartStore.getState().clearCart();
+        useCartStore.getState().resetCheckoutState();
+        useChatStore.getState().cleanup(); // tear down the chat subscription + messages
         logout();
-        auth.signOut();
-        navigate('/profile');
+        try {
+            await auth.signOut();
+        } catch (err) {
+            // A network hiccup on signOut shouldn't trap the user in the app —
+            // the local session is already cleared above.
+            console.error('signOut failed:', err);
+        }
+        navigate('/login');
     };
 
 
@@ -49,58 +69,76 @@ export default function Profile() {
 
     return (
         <div className="min-h-screen pb-20">
-            <div className="container mx-auto max-w-lg flex flex-col items-center gap-4 mb-6 relative">
-                {/* Profile Icon Removed */}
-
-                <div className="text-center w-full px-8">
-                    {/* Name / Link Edit Section */}
-                    <div className="flex flex-col items-center gap-2">
-                        {/* Facebook Connect Button Removed */}
+            <div className="container mx-auto max-w-lg flex flex-col items-center gap-4 mb-6 relative mt-6">
+                
+                {/* Profile Picture & Name */}
+                <div className="flex flex-col items-center gap-3 w-full px-8">
+                    {user?.photoURL ? (
+                        <img 
+                            src={user.photoURL} 
+                            alt="Profile" 
+                            className="w-24 h-24 rounded-full border-4 border-white shadow-md object-cover"
+                        />
+                    ) : (
+                        <div className="w-24 h-24 rounded-full bg-costco-blue/10 flex items-center justify-center text-costco-blue shadow-md border-4 border-white">
+                            <span className="text-3xl font-bold">
+                                {user?.name ? user.name.charAt(0).toUpperCase() : String(user?.phone || '').replace('+976', '').substring(0,2) || 'Х'}
+                            </span>
+                        </div>
+                    )}
+                    
+                    <div className="text-center">
+                        <h2 className="text-xl font-bold text-gray-900">
+                            {user?.name || user?.phone || 'Хэрэглэгч'}
+                        </h2>
+                        {user?.isFacebookLinked && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-md mt-1">
+                                Facebook-ээр нэвтэрсэн
+                            </span>
+                        )}
+                        {!user?.isFacebookLinked && user?.phone && (
+                            <p className="text-gray-500 text-sm">{user.phone}</p>
+                        )}
                     </div>
                 </div>
 
                 <button
                     onClick={handleLogout}
-                    className="absolute top-4 right-4 w-10 h-10 bg-white/80 hover:bg-white text-gray-700 rounded-full flex items-center justify-center transition shadow-sm backdrop-blur-sm hidden" // Hidden or Removed
+                    className="absolute top-0 right-4 w-10 h-10 bg-white/80 hover:bg-red-50 text-gray-700 hover:text-red-600 rounded-full flex items-center justify-center transition shadow-sm backdrop-blur-sm"
                     title="Гарах"
+                    aria-label="Гарах"
                 >
                     <LogOut size={18} />
                 </button>
-
-
             </div>
 
-            {/* Loyalty Tier Card */}
-            <div className="container mx-auto max-w-lg px-0 md:px-4" >
-                <Suspense fallback={<div className="h-32 bg-gray-50 animate-pulse rounded-2xl" />}>
-                    <LoyaltyCard user={user} onLogout={handleLogout} />
-                </Suspense>
-            </div >
+            {/* Admin Portal Embedded (Restricted to admins) */}
+            {user?.isAdmin && (
+                <div className="container mx-auto max-w-lg mb-6">
+                    <AdminPortal embedded={true} />
+                </div>
+            )}
+
+            {!user?.isAdmin && (
+                <>
+                    {/* Loyalty Tier Card */}
+                    <div className="container mx-auto max-w-lg px-0 md:px-4" >
+                        <Suspense fallback={<div className="h-32 bg-gray-50 animate-pulse rounded-2xl" />}>
+                            <LoyaltyCard user={user} onLogout={handleLogout} />
+                        </Suspense>
+                    </div >
+
+                    {/* Address Manager */}
+                    <div className="container mx-auto max-w-lg px-4 mt-6 mb-6">
+                        <Suspense fallback={<div className="h-40 bg-gray-50 animate-pulse rounded-2xl" />}>
+                            <AddressManager />
+                        </Suspense>
+                    </div>
+                </>
+            )}
 
 
             <div className="container mx-auto max-w-lg px-4 mt-6 relative z-10">
-
-                {/* Admin Portal Link (Restricted to admins) */}
-                {user?.isAdmin === true && (
-                    <div className="container mx-auto max-w-lg px-4 mb-6">
-                        <button
-                            onClick={() => navigate('/admin')}
-                            className="w-full bg-costco-blue rounded-2xl shadow-sm p-5 flex items-center justify-between group hover:bg-blue-700 transition-all text-white"
-                        >
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center text-white group-hover:scale-110 transition-transform">
-                                    <ShieldCheck size={24} />
-                                </div>
-                                <div className="text-left">
-                                    <h3 className="font-bold">Админ Портал</h3>
-                                    <p className="text-blue-100 text-xs text-opacity-70">Системийн удирдлагын хэсэг</p>
-                                </div>
-                            </div>
-                            <ChevronRight size={20} className="text-blue-200 group-hover:text-white transition-colors" />
-                        </button>
-                    </div>
-                )}
-
                 {/* Footer Info Section (Moved outside max-w-lg to allow full width) */}
             </div>
 
@@ -169,8 +207,8 @@ export default function Profile() {
             </div>
 
             {/* Build Info */}
-            <div className="text-center pb-8 opacity-30 text-xs font-mono">
-                ver: {buildInfo.buildTime}
+            <div className="text-center pb-8 text-gray-400 text-sm font-medium">
+                Update хийгдсэн: {buildInfo.buildTime}
             </div>
         </div >
     );

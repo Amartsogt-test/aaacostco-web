@@ -24,7 +24,9 @@ if (!fs.existsSync(serviceAccountPath)) {
 const serviceAccount = JSON.parse(fs.readFileSync(global.validPath, 'utf8'));
 
 initializeApp({ credential: cert(serviceAccount) });
-const db = getFirestore();
+const db = (process.env.FIRESTORE_DATABASE_ID && process.env.FIRESTORE_DATABASE_ID !== '(default)')
+    ? getFirestore(process.env.FIRESTORE_DATABASE_ID)
+    : getFirestore();
 
 async function syncTags(collectionName, tagName) {
     console.log(`\n🔄 Syncing ${tagName} from ${collectionName}...`);

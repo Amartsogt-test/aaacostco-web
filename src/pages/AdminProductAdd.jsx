@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useProductStore } from '../store/productStore';
+import { useUIStore } from '../store/uiStore';
 import { ArrowLeft, Upload, DollarSign, Tag, Image as ImageIcon, ScanBarcode, Percent, Layers, Trash2, Plus, Video, Link as LinkIcon, Star, Flame, Crown, Music, Wine } from 'lucide-react';
 
 // Custom K Icon
@@ -25,6 +26,7 @@ export default function AdminProductAdd() {
     const editId = searchParams.get('id');
 
     const { addProduct, updateProduct, products, categories, addCategory, addSubCategory, filters, fetchFilters } = useProductStore();
+    const { showToast } = useUIStore();
 
     // Fetch filters if missing
     useEffect(() => {
@@ -38,6 +40,7 @@ export default function AdminProductAdd() {
 
     const [formData, setFormData] = useState({
         barcode: '',
+        hsCode: '',
         name: '',
         name_en: '',
         price: '',
@@ -55,7 +58,10 @@ export default function AdminProductAdd() {
         reviewCount: '',
         stock: 'inStock',
         status: 'active',
-        weight: ''
+        weight: '',
+        costPriceKRW: '',     // Costco purchase cost (₩) — optional, for declaring real import value
+        restricted: false,    // prohibited / restricted for air transport or customs
+        restrictedNote: ''
     });
 
     // Populate form if editing - FETCH FRESH DATA
@@ -69,9 +75,10 @@ export default function AdminProductAdd() {
                         setFormData(prev => ({
                             ...prev,
                             barcode: cachedProduct.barcode || '',
+                            hsCode: cachedProduct.hsCode || '',
                             name: cachedProduct.name || '',
                             name_en: cachedProduct.name_en || '',
-                            price: cachedProduct.basePrice || cachedProduct.price,
+                            price: cachedProduct.manualPriceKRW || cachedProduct.basePrice || cachedProduct.price,
                             discountPrice: cachedProduct.discount ? cachedProduct.price : '',
                             discountEndDate: cachedProduct.discountEndDate || '',
                             category: cachedProduct.category || defaultCategory,
@@ -86,7 +93,10 @@ export default function AdminProductAdd() {
                             reviewCount: cachedProduct.reviewCount || '',
                             stock: cachedProduct.stock || 'inStock',
                             status: cachedProduct.status || 'active',
-                            weight: cachedProduct.weight || ''
+                            weight: cachedProduct.weight || '',
+                            costPriceKRW: cachedProduct.costPriceKRW || '',
+                            restricted: cachedProduct.restricted || false,
+                            restrictedNote: cachedProduct.restrictedNote || ''
                         }));
                     }
 
@@ -98,9 +108,10 @@ export default function AdminProductAdd() {
                         setFormData(prev => ({
                             ...prev,
                             barcode: freshProduct.barcode || '',
+                            hsCode: freshProduct.hsCode || '',
                             name: freshProduct.name || '',
                             name_en: freshProduct.name_en || '',
-                            price: freshProduct.basePrice || freshProduct.price?.value || freshProduct.price || 0, // Handle object or number
+                            price: freshProduct.manualPriceKRW || freshProduct.basePrice || freshProduct.price?.value || freshProduct.price || 0, // Handle object or number
                             discountPrice: freshProduct.discount ? (freshProduct.price?.value || freshProduct.price) : '',
                             discountEndDate: freshProduct.discountEndDate || '',
                             category: freshProduct.category || defaultCategory,
@@ -115,7 +126,10 @@ export default function AdminProductAdd() {
                             reviewCount: freshProduct.reviewCount || '',
                             stock: freshProduct.stock || 'inStock',
                             status: freshProduct.status || 'active',
-                            weight: freshProduct.weight || ''
+                            weight: freshProduct.weight || '',
+                            costPriceKRW: freshProduct.costPriceKRW || '',
+                            restricted: freshProduct.restricted || false,
+                            restrictedNote: freshProduct.restrictedNote || ''
                         }));
 
                         if (freshProduct.basePrice) {
@@ -159,6 +173,7 @@ export default function AdminProductAdd() {
 
             const productData = {
                 barcode: formData.barcode,
+                hsCode: formData.hsCode || '',
                 name: formData.name,
                 name_en: formData.name_en,
                 category: formData.category,
@@ -172,6 +187,8 @@ export default function AdminProductAdd() {
                 oldPrice: salePrice ? basePrice : null,
                 basePrice: basePrice,
                 baseOldPrice: salePrice ? basePrice : null,
+                manualPriceKRW: salePrice || basePrice,
+                manualOriginalPriceKRW: salePrice ? basePrice : null,
                 discount: !!salePrice,
                 discountEndDate: formData.discountEndDate,
                 unitPrice: formData.unitPrice,
@@ -179,7 +196,10 @@ export default function AdminProductAdd() {
                 reviewCount: formData.reviewCount ? Number(formData.reviewCount) : 0,
                 stock: formData.stock,
                 status: formData.status,
-                weight: formData.weight ? Number(formData.weight) : null
+                weight: formData.weight ? Number(formData.weight) : null,
+                costPriceKRW: formData.costPriceKRW ? Number(formData.costPriceKRW) : null,
+                restricted: !!formData.restricted,
+                restrictedNote: formData.restricted ? (formData.restrictedNote || '') : ''
             };
 
             // Firebase integration
@@ -216,12 +236,7 @@ export default function AdminProductAdd() {
                 }
 
                 updateProduct(idToUpdate, updated);
-                // alert('Бараа амжилттай шинэчлэгдлээ!'); 
-                // Using non-blocking notification or just navigate. 
-                // Removing alert to prevent blocking automation, or keeping it but browser handles it?
-                // User expects feedback.
-                // Let's keep a simple alert but maybe text indicates status
-                alert('Бараа амжилттай шинэчлэгдлээ!');
+                showToast('Бараа амжилттай шинэчлэгдлээ!', 'success');
             } else {
                 const { productService } = await import('../services/productService');
                 const newProduct = await productService.addProduct(productData, imageFile, videoFile);
@@ -231,7 +246,7 @@ export default function AdminProductAdd() {
             navigate('/admin');
         } catch (error) {
             console.error(error);
-            alert('Алдаа гарлаа: ' + error.message);
+            showToast('Алдаа гарлаа: ' + error.message, 'error');
         } finally {
             setIsLoading(false);
         }
@@ -324,7 +339,9 @@ export default function AdminProductAdd() {
                             </label>
                             <div className="flex gap-2">
                                 <input
-                                    type="text"
+                                    type="tel"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
                                     value={formData.barcode}
                                     onChange={e => setFormData({ ...formData, barcode: e.target.value })}
                                     className="flex-1 px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-costco-blue focus:border-transparent outline-none transition tabular-nums tracking-wider w-full min-w-0"
@@ -554,6 +571,67 @@ export default function AdminProductAdd() {
                                     className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-costco-blue outline-none"
                                     placeholder="0.5"
                                 />
+                            </div>
+
+                            {/* HS Code — customs commodity code, used to auto-fill the
+                                Commercial Invoice when exporting customs documents. */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    HS код <span className="font-normal text-gray-400">(гаалийн барааны код)</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.hsCode}
+                                    onChange={e => setFormData({ ...formData, hsCode: e.target.value })}
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-costco-blue outline-none"
+                                    placeholder="Жишээ: 3304.99.00.00"
+                                />
+                            </div>
+
+                            {/* Customs readiness: HS code + weight are required for the customs
+                                documents — warn the admin if either is missing. */}
+                            {(!formData.hsCode || !formData.weight) && (
+                                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                    <b>Гаальд дутуу:</b> {[!formData.hsCode ? 'HS код' : null, !formData.weight ? 'жин' : null].filter(Boolean).join(', ')} оруулаагүй байна. Дүүргэвэл гаалийн бичигт автоматаар орно.
+                                </div>
+                            )}
+
+                            {/* Costco purchase cost (₩) — optional; lets the customs export
+                                declare the real import value instead of the selling price. */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    Costco өртөг (₩) <span className="font-normal text-gray-400">(заавал биш — гаалийн үнэ)</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={formData.costPriceKRW}
+                                    onChange={e => setFormData({ ...formData, costPriceKRW: e.target.value })}
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-costco-blue outline-none"
+                                    placeholder="Costco-гоос авсан бодит үнэ"
+                                />
+                            </div>
+
+                            {/* Restricted / prohibited for air transport or customs */}
+                            <div>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={!!formData.restricted}
+                                        onChange={e => setFormData({ ...formData, restricted: e.target.checked })}
+                                        className="w-4 h-4 accent-costco-red"
+                                    />
+                                    <span className="text-sm font-bold text-gray-700">Хориглосон / хязгаарласан бараа (агаар/гааль)</span>
+                                </label>
+                                {formData.restricted && (
+                                    <input
+                                        type="text"
+                                        value={formData.restrictedNote}
+                                        onChange={e => setFormData({ ...formData, restrictedNote: e.target.value })}
+                                        className="w-full mt-2 px-4 py-2.5 rounded-xl border border-gray-200 focus:ring-2 focus:ring-costco-blue outline-none text-sm"
+                                        placeholder="Шалтгаан (жишээ: лити батарей, шингэн, аэрозоль)"
+                                    />
+                                )}
                             </div>
 
                             {/* Rating */}

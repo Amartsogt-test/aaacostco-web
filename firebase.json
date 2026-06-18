@@ -9,6 +9,7 @@
         "source": "functions"
     },
     "hosting": {
+        "site": "costco-fe034",
         "public": "dist",
         "ignore": [
             "firebase.json",
@@ -23,11 +24,29 @@
         ],
         "headers": [
             {
-                "source": "/index.html",
+                "source": "**",
                 "headers": [
                     {
                         "key": "Cache-Control",
                         "value": "no-cache, no-store, must-revalidate"
+                    }
+                ]
+            },
+            {
+                "source": "/home-snapshot.json",
+                "headers": [
+                    {
+                        "key": "Cache-Control",
+                        "value": "public, max-age=300, stale-while-revalidate=86400"
+                    }
+                ]
+            },
+            {
+                "source": "/search-index.json",
+                "headers": [
+                    {
+                        "key": "Cache-Control",
+                        "value": "public, max-age=300, stale-while-revalidate=86400"
                     }
                 ]
             },
@@ -46,15 +65,6 @@
                     {
                         "key": "Cache-Control",
                         "value": "public, max-age=31536000, immutable"
-                    }
-                ]
-            },
-            {
-                "source": "sw.js",
-                "headers": [
-                    {
-                        "key": "Cache-Control",
-                        "value": "no-cache, no-store, must-revalidate"
                     }
                 ]
             }

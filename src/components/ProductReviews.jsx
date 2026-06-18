@@ -12,6 +12,7 @@ function StarInput({ rating, setRating, size = 24 }) {
                     key={star}
                     type="button"
                     onClick={() => setRating(star)}
+                    aria-label={`${star} од`}
                     className="transition-transform hover:scale-110 active:scale-95"
                 >
                     <Star
@@ -21,27 +22,6 @@ function StarInput({ rating, setRating, size = 24 }) {
                     />
                 </button>
             ))}
-        </div>
-    );
-}
-
-// Star Display Component (read-only)
-export function StarDisplay({ rating, count, size = 16 }) {
-    return (
-        <div className="flex items-center gap-1.5">
-            <div className="flex gap-0.5">
-                {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                        key={star}
-                        size={size}
-                        fill={star <= Math.round(rating) ? '#f59e0b' : 'none'}
-                        className={star <= Math.round(rating) ? 'text-amber-400' : 'text-gray-300'}
-                    />
-                ))}
-            </div>
-            <span className="text-sm text-gray-500 font-medium">
-                {rating > 0 ? rating.toFixed(1) : '—'} ({count || 0})
-            </span>
         </div>
     );
 }
@@ -105,9 +85,29 @@ export default function ProductReviews({ productId }) {
         await loadReviews();
     };
 
+    // Track which reviews this browser already marked helpful so a single click
+    // can't be spammed to inflate the count. (Server-side dedupe would need a
+    // per-user subdoc; this is a lightweight, good-enough guard.)
+    const getVoted = () => {
+        try { return new Set(JSON.parse(localStorage.getItem('helpful-reviews') || '[]')); }
+        catch { return new Set(); }
+    };
+    const [votedHelpful, setVotedHelpful] = useState(getVoted);
+
     const handleHelpful = async (reviewId) => {
-        await reviewService.markHelpful(reviewId);
-        await loadReviews();
+        if (votedHelpful.has(reviewId)) return; // already voted on this device
+        // Optimistic: bump the local count immediately, no full reload needed.
+        const next = new Set(votedHelpful);
+        next.add(reviewId);
+        setVotedHelpful(next);
+        try { localStorage.setItem('helpful-reviews', JSON.stringify([...next])); } catch { /* ignore */ }
+        setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, helpful: (r.helpful || 0) + 1 } : r));
+        try {
+            await reviewService.markHelpful(reviewId);
+        } catch {
+            // Roll back on failure
+            setReviews(prev => prev.map(r => r.id === reviewId ? { ...r, helpful: Math.max(0, (r.helpful || 1) - 1) } : r));
+        }
     };
 
     const avgRating = reviews.length > 0
@@ -155,6 +155,13 @@ export default function ProductReviews({ productId }) {
                 </form>
             )}
 
+            {/* Guest prompt — invite login to leave a review */}
+            {!isAuthenticated && (
+                <div className="bg-gray-50 rounded-xl p-3 mb-4 border text-center text-sm text-gray-500">
+                    Сэтгэгдэл бичихийн тулд <span className="font-semibold text-costco-blue">нэвтэрнэ</span> үү.
+                </div>
+            )}
+
             {/* Review List */}
             {reviews.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Сэтгэгдэл байхгүй байна.</p>
@@ -181,7 +188,7 @@ export default function ProductReviews({ productId }) {
                                         {new Date(review.createdAt).toLocaleDateString('mn-MN')}
                                     </span>
                                     {(user?.isAdmin || user?.uid === review.userId) && (
-                                        <button onClick={() => handleDelete(review.id)} className="text-gray-300 hover:text-red-500 transition">
+                                        <button onClick={() => handleDelete(review.id)} aria-label="Сэтгэгдэл устгах" className="text-gray-300 hover:text-red-500 transition">
                                             <Trash2 size={14} />
                                         </button>
                                     )}
@@ -192,9 +199,11 @@ export default function ProductReviews({ productId }) {
                             )}
                             <button
                                 onClick={() => handleHelpful(review.id)}
-                                className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition"
+                                disabled={votedHelpful.has(review.id)}
+                                aria-label="Энэ сэтгэгдэл хэрэгтэй"
+                                className={`flex items-center gap-1 text-xs transition ${votedHelpful.has(review.id) ? 'text-blue-500 font-semibold cursor-default' : 'text-gray-400 hover:text-blue-500'}`}
                             >
-                                <ThumbsUp size={12} />
+                                <ThumbsUp size={12} fill={votedHelpful.has(review.id) ? 'currentColor' : 'none'} />
                                 <span>Хэрэгтэй ({review.helpful || 0})</span>
                             </button>
                         </div>

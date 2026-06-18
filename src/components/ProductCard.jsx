@@ -1,4 +1,4 @@
-import { Share2, Heart, Timer, Star, MessageCircle, ShoppingCart } from 'lucide-react';
+import { Share2, Heart, Timer, Star, MessageCircle, ShoppingCart, Check } from 'lucide-react';
 import React, { useState, useEffect, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
@@ -7,90 +7,71 @@ import { useProductStore } from '../store/productStore';
 import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { useChatStore } from '../store/chatStore';
 import { Edit2, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getProductWeight, calculateFinalPrice } from '../utils/productUtils';
+import { getDisplayPricing, resolveDiscount } from '../utils/pricing';
+import { formatMoney } from '../utils/format';
 import LazyImage from './LazyImage';
 
 
 // 🚀 Performance: Memoize to prevent re-renders during scroll
 const ProductCard = memo(function ProductCard({ product, isFeatured }) {
     const { toggleWishlist, isInWishlist } = useWishlistStore();
-    const { addToGround, addToAir } = useCartStore();
+    const { addToGround } = useCartStore();
     const { currency, showToast } = useUIStore();
     const { wonRate, setProductStatus } = useProductStore();
     const { settings } = useSettingsStore(); // Get settings for transport rates
     const { user } = useAuthStore();
-    const { openWithProduct } = useChatStore();
     const navigate = useNavigate();
 
     const isAdmin = user?.isAdmin;
 
     const isLiked = isInWishlist(product.id);
 
-    // Use sanitized fields from scraper (used for reference in calculations below)
-    const _priceInKRW = product.price || product.priceKRW || 0;
+    // 🏪 Centralised, unit-tested pricing — single source of truth (src/utils/pricing.js).
+    // Cards show the warehouse price (estimatedWarehousePrice) as the main price.
+    const { displayPrice, displayOldPrice, mainPriceKRW, currencySymbol, isExpired } =
+        getDisplayPricing(product, { currency, wonRate, useWarehousePrice: true });
 
-    // Calculate Display Price
-    // If MNT, use the new inclusive formula: (Price + Shipping) * Rate
-    // If KRW, just show base KRW (or should we show total KRW? Usually just base for KRW view)
-    // User request: "transport price in won" implies it affects the final MNT cost.
-    // For KRW view, let's keep it simple (base price) unless requested otherwise.
+    // --- Discount display ---------------------------------------------------
+    // A price is shown in RED only when we can also show the original price next
+    // to it, so a "discounted" (red) price ALWAYS comes with a strikethrough
+    // comparison. If the catalog provides a discount % but no stored original
+    // price, we derive the original from the percentage so nothing looks
+    // discounted without a reference price.
+    // Tested, centralised rule (src/utils/pricing.js): a price is only shown in
+    // red ("discounted") when there is an original price to show beside it.
+    const { isDiscounted, comparisonOldPrice, percent: discountPct } = resolveDiscount({
+        displayPrice,
+        displayOldPrice,
+        isExpired,
+        hasDiscount: product.hasDiscount === true,
+        discountValue: product.discountPercent ?? product.discount,
+    });
 
-    // Expiration Check Logic (New)
-    const now = new Date();
-    const discountEnd = product.discountEndDate ? new Date(product.discountEndDate) : null;
-    const isExpired = discountEnd && discountEnd < now;
+    // 🎉 Нээлтийн хямдрал нь үнийг ШУУД ХАСАХГҮЙ — худалдан авсны дараа барааны дүнгийн
+    // энэ хувьтай тэнцэх лояалти бонус оноо данс руу ороно. Тиймээс энд зөвхөн жинхэнэ
+    // дэлгүүрийн хямдралыг (resolveDiscount) л үнэнд тусгаж, launch-ийг бонус тэмдэг болгон харуулна.
+    const launchSale = settings?.launchSale;
+    const launchNotExpired = !launchSale?.endsAt || Date.now() < new Date(launchSale.endsAt).getTime();
+    const launchActive = (launchSale?.active !== false) && launchNotExpired;
+    const launchPercent = launchActive ? Number(launchSale?.percent ?? 0) : 0;
 
-    // Determine Effective Base Price and Display Price
-    // If expired, we ignore the 'discount' and treat originalPrice as the current price if available,
-    // OR we just hide the originalPrice (remove the strikethrough) and show the current price as normal.
-    // However, usually 'price' field IS the discounted price. So if expired, we should revert to 'originalPrice'.
-
-    let effectivePriceInKRW = product.price || product.priceKRW || 0;
-    let effectiveOldPriceInKRW = product.originalPrice || product.originalPriceKRW || product.oldPrice || product.baseOldPrice || 0;
-
-    if (isExpired && effectiveOldPriceInKRW > 0) {
-        // REVERT: Use the old price as the current price
-        effectivePriceInKRW = effectiveOldPriceInKRW;
-        effectiveOldPriceInKRW = 0; // Hide the "old" price since it's now current
-    }
-
-    // 🏪 Use warehouse price as main display price if available
-    // We only use the explicitly stored estimatedWarehousePrice to avoid accidental losses
-    const mainPriceKRW = product.estimatedWarehousePrice || effectivePriceInKRW;
-
-    let displayPrice;
-    if (currency === 'MNT') {
-        displayPrice = Math.round(mainPriceKRW * wonRate);
-    } else {
-        displayPrice = mainPriceKRW;
-    }
-
-    let displayOldPrice = null;
-    if (effectiveOldPriceInKRW && effectiveOldPriceInKRW > mainPriceKRW) {
-        if (currency === 'MNT') {
-            displayOldPrice = Math.round(effectiveOldPriceInKRW * wonRate);
-        } else {
-            displayOldPrice = effectiveOldPriceInKRW;
-        }
-    }
-
-    // Also use discountPercent from scraper if available
-    const discountPercentFromData = product.discountPercent || product.discount;
-    const isDiscounted = !!displayOldPrice || !!discountPercentFromData;
-
-    const currencySymbol = currency === 'MNT' ? '₮' : '₩';
+    const finalDisplayPrice = displayPrice;
+    const finalOldPrice = comparisonOldPrice;
+    const finalIsDiscounted = isDiscounted;
+    const baseDiscountPct = discountPct ?? Math.round(((comparisonOldPrice - displayPrice) / comparisonOldPrice) * 100);
 
     const handleShare = async (e) => {
         e.preventDefault();
         e.stopPropagation();
 
+        const shareName = product.name_mn || product.englishName || product.name;
         const shareUrl = `${window.location.origin}/product/${product.id}`;
         const shareData = {
-            title: product.name,
-            text: `Check out ${product.name} at Costco Mongolia!`,
+            title: shareName,
+            text: `${shareName} — Costco Mongolia дээрээс үзээрэй!`,
             url: shareUrl,
         };
 
@@ -124,27 +105,27 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
 
     // Countdown Logic
     const [timeLeft, setTimeLeft] = useState(null);
-
-    // Quick Add Flash State (moved from inside .map to fix React Hook rules violation)
-    const [addedFlash, setAddedFlash] = useState({ ground: false, air: false });
+    const [cartAdded, setCartAdded] = useState(false);
 
     useEffect(() => {
         if (!product.discountEndsAt) return;
 
-        const interval = setInterval(() => {
-            const now = new Date();
-            const end = new Date(product.discountEndsAt);
-            const diff = end - now;
-
+        // Only the hour count is displayed, so updating once a minute is plenty —
+        // a 1s interval would needlessly re-render every discounted card each second.
+        const compute = () => {
+            const diff = new Date(product.discountEndsAt) - new Date();
             if (diff <= 0) {
                 setTimeLeft(null);
-                clearInterval(interval);
-            } else {
-                const hours = Math.floor(diff / (1000 * 60 * 60));
-
-                setTimeLeft(`${hours}ц`);
+                return false;
             }
-        }, 1000);
+            setTimeLeft(`${Math.floor(diff / (1000 * 60 * 60))}ц`);
+            return true;
+        };
+
+        if (!compute()) return; // already expired — nothing to tick
+        const interval = setInterval(() => {
+            if (!compute()) clearInterval(interval);
+        }, 60000);
 
         return () => clearInterval(interval);
     }, [product.discountEndsAt]);
@@ -161,6 +142,22 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                     className={`w-full h-full ${isInactive ? 'grayscale' : ''}`}
                     style={{ padding: '8px' }}
                 />
+
+                {/* Restock Warning Overlay (Top Left) */}
+                {product.restockStatus === 'no_restock' && (
+                    <div className="absolute top-2 left-2 z-10">
+                        <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-md uppercase tracking-wider animate-pulse">
+                            Дахин ирэхгүй
+                        </span>
+                    </div>
+                )}
+                {product.restockStatus === 'uncertain' && (
+                    <div className="absolute top-2 left-2 z-10">
+                        <span className="bg-amber-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-md uppercase tracking-wider">
+                            Тодорхойгүй
+                        </span>
+                    </div>
+                )}
 
                 {/* Out of Stock / Inactive Overlay */}
                 {isInactive && (
@@ -180,8 +177,8 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                         className="h-3 w-auto object-contain bg-white/90 px-1 rounded shadow-sm border border-red-100"
                     />
 
-                    {/* Timer */}
-                    {product.discount && !isInactive && timeLeft && (
+                    {/* Timer - only show if discount is active */}
+                    {product.hasDiscount === true && product.discount && !isInactive && timeLeft && (
                         <span className="bg-yellow-400 text-black text-[10px] px-2 py-0.5 font-bold rounded flex items-center gap-1 shadow-sm">
                             <Timer size={12} />
                             {timeLeft}
@@ -196,7 +193,7 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                     {product.name_mn || product.englishName || product.name}
                 </Link>
 
-                {/* Weight Display on Card */}
+                {/* Weight, Product Code and Package Display on Card */}
                 {(() => {
                     const weightInfo = getProductWeight(product);
                     const displayValue = (weightInfo && !weightInfo.value.includes('асууна уу'))
@@ -204,9 +201,18 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                         : '?';
 
                     return (
-                        <div className="text-[10px] text-gray-500 font-medium mb-2 flex items-center gap-1">
+                        <div className="text-[10px] text-gray-500 font-medium mb-2 flex flex-wrap items-center gap-1.5">
+                            {product.packageQuantity ? (
+                                <span className="bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 text-costco-blue font-bold flex items-center gap-0.5">
+                                    📦 {product.packageQuantity}{product.packageUnit || '개'}
+                                </span>
+                            ) : (
+                                <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">
+                                    Жин: {displayValue}
+                                </span>
+                            )}
                             <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">
-                                Жин: {displayValue}
+                                Код: {product.id}
                             </span>
                         </div>
                     );
@@ -216,93 +222,63 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
 
 
                 <div className="mt-auto">
-                    <div className="flex flex-col gap-0 items-start mb-3">
-                        <div className="flex items-center gap-2">
-                            <span className={`text-lg font-bold flex items-center gap-1 ${isDiscounted ? 'text-costco-red' : 'text-gray-900'}`}>
-                                {(displayPrice || 0).toLocaleString()}{currencySymbol}
-                                {isFeatured && <Star size={16} fill="currentColor" className="text-costco-blue" />}
-                            </span>
-
-                            {/* New Badge */}
+                    <div className="flex flex-col gap-0 items-start mb-3 w-full">
+                        {/* Badges */}
+                        <div className="flex flex-col items-start gap-1 mb-1">
                             {product.additionalCategories?.includes('New') && !isInactive && (
                                 <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm uppercase tracking-wider">
                                     NEW
                                 </span>
                             )}
-
-                            {/* Discount Percentage Badge - Only show if ACTUALLY on sale (hasDiscount) */}
-                            {(product.discount || (displayOldPrice && product.hasDiscount)) && (
-                                <span className="text-sm font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded">
-                                    {product.discount
-                                        ? (typeof product.discount === 'number' ? `-${product.discount}%` : product.discount)
-                                        : `-${Math.round(((displayOldPrice - displayPrice) / displayOldPrice) * 100)}%`
-                                    }
+                            {launchPercent > 0 && !isInactive && (
+                                <span className="text-[11px] font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                    🎉 +{launchPercent}% бонус оноо (+{formatMoney(Math.round(finalDisplayPrice * launchPercent / 100), currencySymbol)})
+                                </span>
+                            )}
+                            {finalIsDiscounted && isDiscounted && (
+                                <span className="text-sm font-bold text-red-500 bg-red-50 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                    Costco хямдрал -{baseDiscountPct}%
                                 </span>
                             )}
                         </div>
-                        {displayOldPrice && (
-                            <span className="text-sm text-gray-400 line-through">
-                                {displayOldPrice.toLocaleString()}{currencySymbol}
+
+                        {/* Prices: Old first, then New */}
+                        <div className="flex items-center gap-2">
+                            {finalIsDiscounted && (
+                                <span className="text-sm text-gray-400 line-through">
+                                    {formatMoney(finalOldPrice, currencySymbol)}
+                                </span>
+                            )}
+                            <span className={`text-lg font-bold flex items-center gap-1 ${finalIsDiscounted ? 'text-costco-red' : 'text-gray-900'}`}>
+                                {formatMoney(finalDisplayPrice, currencySymbol)}
+                                {isFeatured && <Star size={16} fill="currentColor" className="text-costco-blue" />}
                             </span>
-                        )}
+                        </div>
 
                         {/* Shipping Prices / Quick Add Buttons */}
-                        <div className="flex flex-col gap-1 mt-1">
+                        <div className="flex flex-col gap-1 mt-1 w-full">
                             {['ground', 'air'].map(type => {
-                                // Calculate price - USE STORE PRICE (mainPriceKRW)
+                                // Use the STORE PRICE (mainPriceKRW) directly — launch is a
+                                // post-purchase bonus, not a price cut, so it must NOT reduce this.
                                 const finalPrice = calculateFinalPrice(product, mainPriceKRW, settings?.transportationRates, wonRate, type);
 
-                                // Use component-level flash state
-                                const isAdded = addedFlash[type];
-
-                                const handleQuickAdd = (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-
-                                    // 1. Check Options
-                                    if (product.options && product.options.length > 0) {
-                                        navigate(`/product/${product.id}`);
-                                        return;
-                                    }
-
-                                    // 2. Add to Cart (Always add/increment)
-                                    if (type === 'ground') {
-                                        addToGround(product, null, 1);
-                                    } else {
-                                        addToAir(product, null, 1);
-                                    }
-
-                                    // 3. Flash Feedback
-                                    setAddedFlash(prev => ({ ...prev, [type]: true }));
-                                    setTimeout(() => {
-                                        setAddedFlash(prev => ({ ...prev, [type]: false }));
-                                    }, 1000);
-                                };
-
                                 return (
-                                    <button
+                                    <div
                                         key={type}
-                                        onClick={handleQuickAdd}
-                                        className={`w-full text-[12px] font-medium flex items-center gap-1 px-3 py-[1px] rounded-lg transition-all border group/btn ${isAdded
-                                            ? (type === 'ground' ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200')
-                                            : 'bg-gray-50 border-gray-100 hover:bg-white hover:border-gray-300 hover:shadow-sm'
-                                            }`}
+                                        className="w-full text-[12px] font-medium flex items-center justify-between px-2 py-1 rounded-lg bg-gray-50 border border-gray-100"
                                     >
                                         <div className="flex items-center gap-1.5">
-                                            {type === 'ground' ? (
-                                                <div className={`w-2 h-2 rounded-full ${isAdded ? 'bg-blue-500' : 'bg-blue-400 opacity-50 group-hover/btn:opacity-100'}`}></div>
-                                            ) : (
-                                                <div className={`w-2 h-2 rounded-full ${isAdded ? 'bg-orange-500' : 'bg-orange-400 opacity-50 group-hover/btn:opacity-100'}`}></div>
-                                            )}
-                                            <span className={`text-gray-900 ${isAdded ? 'font-bold' : ''}`}>
-                                                {type === 'ground' ? 'Газраар:' : 'Агаараар:'}
+                                            <span className={`${type === 'ground' ? 'text-blue-600' : 'text-orange-600'} text-[10px]`}>
+                                                {type === 'ground' ? '🚢' : '✈️'}
+                                            </span>
+                                            <span className="text-gray-600">
+                                                {type === 'ground' ? 'Газраар' : 'Агаараар'}
                                             </span>
                                         </div>
-                                        <span className={`text-gray-900 ${isAdded ? 'font-bold' : 'font-semibold'}`}>
+                                        <span className="text-gray-900 font-bold whitespace-nowrap ml-2">
                                             {finalPrice.toLocaleString()}₮
                                         </span>
-                                        {isAdded && <ShoppingCart size={14} strokeWidth={3} className={type === 'ground' ? 'text-blue-600' : 'text-orange-600'} />}
-                                    </button>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -349,6 +325,7 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                         <div className="flex gap-3 w-full justify-center mt-1">
                             <button
                                 onClick={handleShare}
+                                aria-label="Хуваалцах"
                                 className="flex-1 aspect-square max-w-[40px] bg-gray-100 rounded-xl flex flex-col items-center justify-center text-gray-500 hover:bg-gray-200 transition"
                             >
                                 <Share2 size={16} />
@@ -356,11 +333,40 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
 
                             <button
                                 onClick={handleLike}
+                                aria-label={isLiked ? 'Хадгалснаас хасах' : 'Хадгалах'}
+                                aria-pressed={isLiked}
                                 className={`flex-1 aspect-square max-w-[40px] rounded-xl flex flex-col items-center justify-center transition ${isLiked ? 'bg-gray-100 text-costco-blue' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                             >
                                 <Heart size={16} fill={isLiked ? "currentColor" : "none"} />
                             </button>
 
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (isInactive) {
+                                        showToast('Идэвхгүй бараа — захиалах боломжгүй', 'warning');
+                                        return;
+                                    }
+                                    if (displayPrice === null || displayPrice === undefined) {
+                                        showToast('Үнэ тооцоологдоогүй байна', 'error');
+                                        return;
+                                    }
+                                    addToGround(product, null, 1);
+                                    showToast('Сагсанд нэмэгдлээ', 'success');
+                                    setCartAdded(true);
+                                    setTimeout(() => setCartAdded(false), 1500);
+                                }}
+                                className={`flex-1 aspect-square max-w-[40px] rounded-xl flex flex-col items-center justify-center transition-all duration-300 ${
+                                    cartAdded ? 'bg-green-500 text-white scale-110 shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-costco-blue'
+                                }`}
+                                title="Сагсанд нэмэх (Газраар)"
+                                aria-label="Сагсанд нэмэх"
+                            >
+                                {cartAdded ? <Check size={16} className="animate-bounce" /> : <ShoppingCart size={16} />}
+                            </button>
+
+                            {/* HIDDEN PER USER REQUEST
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
@@ -375,6 +381,7 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                             >
                                 <MessageCircle size={16} />
                             </button>
+                            */}
                         </div>
                     </div>
                 </div>

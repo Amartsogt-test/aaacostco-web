@@ -5,7 +5,7 @@ import { useSettingsStore } from '../store/settingsStore';
 
 const DataDeletion = () => {
     const navigate = useNavigate();
-    const { settings, fetchSettings, isLoading } = useSettingsStore();
+    const { fetchSettings } = useSettingsStore();
 
     useEffect(() => {
         fetchSettings();
@@ -32,17 +32,19 @@ const DataDeletion = () => {
             <div className="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
                 <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
                     <div className="space-y-6 text-gray-700 leading-relaxed">
-                        {isLoading ? (
-                            <div className="flex justify-center py-12">
-                                <div className="w-10 h-10 border-4 border-costco-blue border-t-transparent rounded-full animate-spin"></div>
-                            </div>
-                        ) : settings?.dataDeletion ? (
-                            <div className="whitespace-pre-wrap">{settings.dataDeletion}</div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-2">
-                                <p>Одоогоор мэдээлэл оруулаагүй байна.</p>
-                            </div>
-                        )}
+                        <div className="whitespace-pre-wrap">
+                            <h2 className="text-xl font-bold mb-4">Facebook хэрэглэгчийн өгөгдөл устгах заавар (Data Deletion Instructions)</h2>
+                            <p className="mb-4">Хэрэв та манай системээс өөрийн Facebook бүртгэлтэй холбоотой мэдээллээ устгахыг хүсвэл доорх зааврын дагуу хийнэ үү:</p>
+                            <ol className="list-decimal list-inside space-y-2 mb-6 ml-4">
+                                <li>Өөрийн Facebook хаяг руу нэвтэрч орно.</li>
+                                <li>Баруун дээд буланд байрлах цэснээс <strong>Settings & Privacy</strong> &gt; <strong>Settings</strong> руу орно.</li>
+                                <li>Зүүн талын цэснээс <strong>Apps and Websites</strong> хэсгийг сонгоно.</li>
+                                <li>Жагсаалтаас манай <strong>Costco Mongolia</strong> аппликейшнийг олно.</li>
+                                <li><strong>Remove</strong> (Устгах) товчийг дарна.</li>
+                            </ol>
+                            <p className="mb-4">Ингэснээр таны Facebook аккаунт болон манай системийн хоорондох холбоос тасрах бөгөөд бид таны мэдээлэл рүү дахин хандах боломжгүй болно.</p>
+                            <p>Нэмэлт тусламж хэрэгтэй бол манай Facebook хуудсаар холбогдоно уу.</p>
+                        </div>
                     </div>
 
                     <div className="mt-12 pt-8 border-t border-gray-100 text-sm text-gray-500">

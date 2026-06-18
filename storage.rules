@@ -11,11 +11,16 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null && request.auth.token.isAdmin == true;
     }
-    // Chat attachments - authenticated users can upload
+    // Chat attachments - authenticated users can upload.
+    // SECURITY: restrict to images/PDFs only (previously any file type up to 10MB
+    // could be uploaded, e.g. executables/HTML used for malware hosting or stored
+    // XSS). Allow delete only for admins.
     match /chat-attachments/{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null
-                   && request.resource.size < 10 * 1024 * 1024; // 10MB limit
+      allow create, update: if request.auth != null
+                   && request.resource.size < 10 * 1024 * 1024 // 10MB limit
+                   && request.resource.contentType.matches('(image/.*|application/pdf)');
+      allow delete: if request.auth != null && request.auth.token.isAdmin == true;
     }
     // Default - authenticated read, no public write
     match /{allPaths=**} {

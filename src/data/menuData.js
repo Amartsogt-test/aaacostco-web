@@ -1,7 +1,8 @@
 
 import {
     Monitor, Grid, Home, Coffee, Baby, Sun, Umbrella, ShoppingBag,
-    Watch, Scissors, Heart, Wrench, Utensils, Briefcase, Gift
+    Watch, Scissors, Heart, Wrench, Utensils, Briefcase, Gift,
+    Disc3, Shirt, BatteryCharging
 } from 'lucide-react';
 
 export const MENU_DATA = [
@@ -102,5 +103,29 @@ export const MENU_DATA = [
         label: 'Бичиг хэрэг, Оффис',
         icon: Briefcase,
         banner: "https://images.unsplash.com/photo-1497032628192-86f99bcd76bc?auto=format&fit=crop&w=600&q=60"
+    },
+    // Added: Costco category codes the catalog already carries but the menu didn't
+    // list. Run scripts/add-menu-categories.cjs to create their categories docs +
+    // backfill categoryPath so these become browsable.
+    {
+        id: 'Tires',
+        code: 'cos_19',
+        label: 'Дугуй (Авто)',
+        icon: Disc3,
+        banner: "https://images.unsplash.com/photo-1568708303720-12e29f5e6f1c?auto=format&fit=crop&w=600&q=60"
+    },
+    {
+        id: 'Innerwear',
+        code: 'cos_17',
+        label: 'Дотуур хувцас',
+        icon: Shirt,
+        banner: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=600&q=60"
+    },
+    {
+        id: 'CarBattery',
+        code: 'cos_21',
+        label: 'Авто аккумулятор',
+        icon: BatteryCharging,
+        banner: "https://images.unsplash.com/photo-1620714223084-8fcacc6dfd8d?auto=format&fit=crop&w=600&q=60"
     },
 ];

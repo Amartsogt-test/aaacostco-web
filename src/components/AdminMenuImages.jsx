@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { Upload, Save, RotateCcw } from 'lucide-react';
 import { adminService } from '../services/adminService';
 import { MENU_DATA } from '../data/menuData';
+import { useUIStore } from '../store/uiStore';
 
 export default function AdminMenuImages({ isEmbedded = false }) {
+    const { showToast } = useUIStore();
     const [loading, setLoading] = useState(false);
     const [uploading, setUploading] = useState({}); // Map of categoryId -> boolean
     const [categories, setCategories] = useState([]);
@@ -20,14 +22,14 @@ export default function AdminMenuImages({ isEmbedded = false }) {
                 setCategories(MENU_DATA);
             } catch (error) {
                 console.error("Error loading banners:", error);
-                alert("Өгөгдөл уншихад алдаа гарлаа.");
+                showToast('Өгөгдөл уншихад алдаа гарлаа.', 'error');
             } finally {
                 setLoading(false);
             }
         };
 
         loadBanners();
-    }, []);
+    }, [showToast]);
 
     const handleImageUpload = async (e, categoryCode) => {
         const file = e.target.files[0];
@@ -45,7 +47,7 @@ export default function AdminMenuImages({ isEmbedded = false }) {
 
         } catch (error) {
             console.error("Upload failed:", error);
-            alert("Зураг хуулахад алдаа гарлаа.");
+            showToast('Зураг хуулахад алдаа гарлаа.', 'error');
         } finally {
             setUploading(prev => ({ ...prev, [categoryCode]: false }));
         }
@@ -69,11 +71,11 @@ export default function AdminMenuImages({ isEmbedded = false }) {
                 delete next[categoryCode];
                 return next;
             });
-            alert("Амжилттай хадгаллаа!");
+            showToast('Амжилттай хадгаллаа!', 'success');
 
         } catch (error) {
             console.error("Save failed:", error);
-            alert("Хадгалахад алдаа гарлаа.");
+            showToast('Хадгалахад алдаа гарлаа.', 'error');
         } finally {
             setUploading(prev => ({ ...prev, [categoryCode]: false }));
         }
@@ -99,7 +101,7 @@ export default function AdminMenuImages({ isEmbedded = false }) {
 
         } catch (error) {
             console.error("Reset failed:", error);
-            alert("Алдаа гарлаа. Баримт олдохгүй байж магадгүй.");
+            showToast('Алдаа гарлаа. Баримт олдохгүй байж магадгүй.', 'error');
         } finally {
             setUploading(prev => ({ ...prev, [categoryCode]: false }));
         }
