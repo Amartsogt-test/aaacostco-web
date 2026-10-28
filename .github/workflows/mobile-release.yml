@@ -77,7 +77,7 @@ jobs:
 
   ios-app-store:
     name: Build & Publish iOS (.ipa) to Apple App Store
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -91,6 +91,7 @@ jobs:
       - name: Install Dependencies & Prepare Mobile Assets
         run: |
           npm ci
+          npm run mobile:assets
           npx cap sync ios
 
       - name: Build, Sign & Upload iOS (.ipa) to Apple App Store Connect

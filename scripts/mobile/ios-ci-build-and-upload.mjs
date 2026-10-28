@@ -211,6 +211,22 @@ function run(cmd) {
   );
 
   const archivePath = path.join(workDir, 'CostcoMN.xcarchive');
+  // Select the newest Xcode 26+ installed on the runner
+  try {
+    const xcodes = fs
+      .readdirSync('/Applications')
+      .filter((d) => /^Xcode.*\.app$/.test(d))
+      .sort();
+    console.log('Installed Xcodes:', xcodes);
+    const x26 = xcodes.filter((d) => d.includes('26')).pop() || xcodes.pop();
+    if (x26) {
+      run(`sudo xcode-select -s "/Applications/${x26}/Contents/Developer"`);
+    }
+    run('xcodebuild -version');
+  } catch (e) {
+    console.warn('Xcode selection check:', e.message);
+  }
+
   run(
     `xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -sdk iphoneos -destination "generic/platform=iOS" -archivePath "${archivePath}" archive CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="${TEAM_ID}" CODE_SIGN_IDENTITY="Apple Distribution" PROVISIONING_PROFILE_SPECIFIER="${profUuid}"`
   );
