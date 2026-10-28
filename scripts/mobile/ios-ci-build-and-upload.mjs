@@ -131,12 +131,11 @@ function run(cmd) {
   console.log(`Created Apple Distribution Certificate: ${certId}`);
 
   fs.writeFileSync(cerDerPath, Buffer.from(certRes.data.attributes.certificateContent, 'base64'));
-  run(`openssl x509 -inform DER -in "${cerDerPath}" -out "${cerPemPath}"`);
   run(
-    `openssl pkcs12 -export -legacy -inkey "${keyPath}" -in "${cerPemPath}" -out "${p12Path}" -passout pass:${kcPass}`
+    `security import "${keyPath}" -k ${kcName} -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild`
   );
   run(
-    `security import "${p12Path}" -k ${kcName} -P "${kcPass}" -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild`
+    `security import "${cerDerPath}" -k ${kcName} -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild`
   );
   run(`security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "${kcPass}" ${kcName}`);
   run(`security find-identity -v -p codesigning ${kcName}`);
