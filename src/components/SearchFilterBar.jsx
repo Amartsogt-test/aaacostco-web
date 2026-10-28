@@ -1,8 +1,12 @@
 import { Search, Star, Percent, Tag, Flame, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { useProductStore } from '../store/productStore';
+import { useUIStore } from '../store/uiStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { smartSearchFilter } from '../utils/searchUtils';
+import { getDisplayPricing } from '../utils/pricing';
+import { formatMoney } from '../utils/format';
 
 export default function SearchFilterBar() {
     const {
@@ -12,18 +16,32 @@ export default function SearchFilterBar() {
         setTagFilter,
         priceSort,
         setPriceSort,
-        currency,
         isAiSearching,
         resetSearch,
         products,
+        wonRate,
         searchHistory = []
-    } = useProductStore();
+    } = useProductStore(useShallow(state => ({
+        searchTerm: state.searchTerm,
+        setSearchTerm: state.setSearchTerm,
+        currentTag: state.currentTag,
+        setTagFilter: state.setTagFilter,
+        priceSort: state.priceSort,
+        setPriceSort: state.setPriceSort,
+        isAiSearching: state.isAiSearching,
+        resetSearch: state.resetSearch,
+        products: state.products,
+        wonRate: state.wonRate,
+        searchHistory: state.searchHistory,
+    })));
+    const currency = useUIStore(state => state.currency);
 
     const [showDropdown, setShowDropdown] = useState(false);
 
-    const searchResults = searchTerm && showDropdown
-        ? smartSearchFilter(products, searchTerm).slice(0, 5)
-        : [];
+    const searchResults = useMemo(
+        () => (searchTerm && showDropdown ? smartSearchFilter(products, searchTerm).slice(0, 5) : []),
+        [products, searchTerm, showDropdown]
+    );
         
     const displayHistory = !searchTerm && showDropdown && searchHistory.length > 0;
 
@@ -55,22 +73,25 @@ export default function SearchFilterBar() {
                     {/* Autocomplete Dropdown (Pops UP) */}
                     {(showDropdown && searchResults.length > 0) && (
                         <div className="absolute bottom-full mb-2 left-0 right-0 w-full bg-white border border-gray-100 shadow-2xl rounded-xl overflow-hidden z-[100] animate-in slide-in-from-bottom-2 fade-in">
-                            {searchResults.map(p => (
-                                <Link 
-                                    to={`/product/${p.id}`} 
-                                    key={p.id} 
-                                    onClick={() => setShowDropdown(false)}
-                                    className="flex items-center gap-3 p-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 transition"
-                                >
-                                    <div className="w-10 h-10 bg-white rounded border border-gray-100 shrink-0 flex items-center justify-center p-1">
-                                        <img src={p.image} alt="" loading="lazy" decoding="async" onError={(e) => { e.target.style.visibility = 'hidden'; }} className="w-full h-full object-contain" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-xs font-semibold text-gray-800 truncate">{p.name}</div>
-                                        <div className="text-[10px] font-bold text-costco-blue mt-0.5">{(p.price || 0).toLocaleString()} ₮</div>
-                                    </div>
-                                </Link>
-                            ))}
+                            {searchResults.map(p => {
+                                const { displayPrice, currencySymbol } = getDisplayPricing(p, { currency, wonRate, useWarehousePrice: true });
+                                return (
+                                    <Link 
+                                        to={`/product/${p.id}`} 
+                                        key={p.id} 
+                                        onClick={() => setShowDropdown(false)}
+                                        className="flex items-center gap-3 p-2 hover:bg-blue-50 border-b border-gray-50 last:border-b-0 transition"
+                                    >
+                                        <div className="w-10 h-10 bg-white rounded border border-gray-100 shrink-0 flex items-center justify-center p-1">
+                                            <img src={p.image} alt="" loading="lazy" decoding="async" onError={(e) => { e.target.style.visibility = 'hidden'; }} className="w-full h-full object-contain" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-semibold text-gray-800 truncate">{p.name_mn || p.englishName || p.name}</div>
+                                            <div className="text-[10px] font-bold text-costco-blue mt-0.5">{formatMoney(displayPrice, currencySymbol)}</div>
+                                        </div>
+                                    </Link>
+                                );
+                            })}
                         </div>
                     )}
                     

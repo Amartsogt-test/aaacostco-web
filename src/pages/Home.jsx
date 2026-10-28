@@ -112,6 +112,8 @@ export default function Home() {
 
     // Legacy/Priority constants for sorting if needed
 
+    const hasSearch = Boolean(searchTerm);
+
     const filteredProducts = useMemo(() => {
         const parsePrice = (val) => {
             if (typeof val === 'number') return val;
@@ -132,7 +134,7 @@ export default function Home() {
             if (
                 p.status !== 'deleted' &&
                 p.status !== 'inactive' &&
-                (searchTerm ? true : (price > 0 || priceKRW > 0 || finalPrice > 0))
+                (hasSearch ? true : (price > 0 || priceKRW > 0 || finalPrice > 0))
             ) {
                 const actualPrice = p.finalPrice !== undefined ? finalPrice : (price || priceKRW || 0);
                 const krwPrice = priceKRW || price || 0;
@@ -181,7 +183,7 @@ export default function Home() {
         }
 
         return processed.map(item => item._p);
-    }, [products, searchTerm, priceSort]);
+    }, [products, hasSearch, priceSort]);
 
     // Dynamic Pagination: Use filtered count if client filters are active
     // This prevents showing 18 pages (900 items) when only 40 items are "On Sale"
@@ -257,7 +259,7 @@ export default function Home() {
             }, 100);
         };
 
-        window.addEventListener('scroll', handleScroll);
+        window.addEventListener('scroll', handleScroll, { passive: true });
         return () => {
             window.removeEventListener('scroll', handleScroll);
             if (timeout) clearTimeout(timeout);
@@ -365,10 +367,11 @@ export default function Home() {
                                     ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4'
                                     : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
                                     }`}>
-                                    {pageItems.map(product => (
+                                    {pageItems.map((product, index) => (
                                         <ProductCard
                                             key={product.id}
                                             product={product}
+                                            priority={index < 6}
                                             isFeatured={product.additionalCategories?.includes('Онцгой')}
                                         />
                                     ))}

@@ -1,5 +1,5 @@
 import { Share2, Heart, Timer, Star, ShoppingCart, Check, Edit2, EyeOff } from 'lucide-react';
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
@@ -10,11 +10,12 @@ import { useSettingsStore } from '../store/settingsStore';
 import { getProductWeight, calculateFinalPrice } from '../utils/productUtils';
 import { getDisplayPricing, resolveDiscount } from '../utils/pricing';
 import { formatMoney } from '../utils/format';
+import { api } from '../services/apiClient';
 import LazyImage from './LazyImage';
 
 
 // 🚀 Performance: Memoize to prevent re-renders during scroll
-const ProductCard = memo(function ProductCard({ product, isFeatured }) {
+const ProductCard = memo(function ProductCard({ product, isFeatured, priority = false }) {
     const toggleWishlist = useWishlistStore(s => s.toggleWishlist);
     const isLiked = useWishlistStore(s => s.wishlist.some(p => p.id === product.id));
     const addToGround = useCartStore(s => s.addToGround);
@@ -129,14 +130,27 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
     }, [product.discountEndsAt]);
 
     const isInactive = product.status === 'inactive' || product.stock === 'outOfStock';
+    const weightDisplayValue = useMemo(() => {
+        const weightInfo = getProductWeight(product);
+        return (weightInfo && !weightInfo.value.includes('асууна уу'))
+            ? (weightInfo.value.includes('=') ? weightInfo.value.split('=')[1].trim() : weightInfo.value)
+            : '?';
+    }, [product]);
+    const handlePrefetch = () => api.prefetchProduct(product.id);
 
     return (
-        <div className={`bg-white rounded-xl shadow-sm hover:shadow-lg transition flex flex-col h-full group overflow-hidden ${isInactive ? 'opacity-60 grayscale' : ''}`}>
+        <div
+            onMouseEnter={handlePrefetch}
+            onTouchStart={handlePrefetch}
+            style={{ contentVisibility: 'auto', containIntrinsicSize: '0 360px' }}
+            className={`bg-white rounded-xl shadow-sm hover:shadow-lg transition flex flex-col h-full group overflow-hidden ${isInactive ? 'opacity-60 grayscale' : ''}`}
+        >
             {/* Image Area */}
             <Link to={`/product/${product.id}`} className="relative aspect-square bg-white overflow-hidden block">
                 <LazyImage
                     src={product.image}
-                    alt={product.name}
+                    alt={product.name_mn || product.name}
+                    priority={priority}
                     className={`w-full h-full ${isInactive ? 'grayscale' : ''}`}
                     style={{ padding: '8px' }}
                 />
@@ -192,29 +206,20 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
                 </Link>
 
                 {/* Weight, Product Code and Package Display on Card */}
-                {(() => {
-                    const weightInfo = getProductWeight(product);
-                    const displayValue = (weightInfo && !weightInfo.value.includes('асууна уу'))
-                        ? (weightInfo.value.includes('=') ? weightInfo.value.split('=')[1].trim() : weightInfo.value)
-                        : '?';
-
-                    return (
-                        <div className="text-[10px] text-gray-500 font-medium mb-2 flex flex-wrap items-center gap-1.5">
-                            {product.packageQuantity ? (
-                                <span className="bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 text-costco-blue font-bold flex items-center gap-0.5">
-                                    📦 {product.packageQuantity}{product.packageUnit || '개'}
-                                </span>
-                            ) : (
-                                <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">
-                                    Жин: {displayValue}
-                                </span>
-                            )}
-                            <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">
-                                Код: {product.id}
-                            </span>
-                        </div>
-                    );
-                })()}
+                <div className="text-[10px] text-gray-500 font-medium mb-2 flex flex-wrap items-center gap-1.5">
+                    {product.packageQuantity ? (
+                        <span className="bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 text-costco-blue font-bold flex items-center gap-0.5">
+                            📦 {product.packageQuantity}{product.packageUnit || '개'}
+                        </span>
+                    ) : (
+                        <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">
+                            Жин: {weightDisplayValue}
+                        </span>
+                    )}
+                    <span className="bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200 text-gray-700">
+                        Код: {product.id}
+                    </span>
+                </div>
 
 
 

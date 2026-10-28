@@ -10,6 +10,8 @@ import { useWishlistStore } from '../store/wishlistStore';
 import { getProductWeight, getPriceBreakdown } from '../utils/productUtils';
 import { getDisplayPricing, resolveDiscount } from '../utils/pricing';
 import { formatMoney } from '../utils/format';
+import { productService } from '../services/productService';
+import { api } from '../services/apiClient';
 
 // Inline SVG placeholder shown when a product image fails to load (no broken-image icon)
 const IMG_PLACEHOLDER =
@@ -64,8 +66,8 @@ export default function ProductDetail() {
         return text;
     };
 
-    const [fetchedProduct, setFetchedProduct] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [fetchedProduct, setFetchedProduct] = useState(() => api.peekProduct(id));
+    const [loading, setLoading] = useState(() => !storeProduct && !api.peekProduct(id));
     const [, setError] = useState(null); // error state unused but setter needed
     // isAdded state removed - not used
     const [selectedOptions, setSelectedOptions] = useState({}); // Track selected option values
@@ -88,31 +90,37 @@ export default function ProductDetail() {
     }, [id]);
 
     useEffect(() => {
-        // If product is in store, set loading false but CONTINUALLY fetch fresh data
-        if (storeProduct) {
+        const cachedFull = api.peekProduct(id);
+        if (cachedFull) {
+            setFetchedProduct(cachedFull);
             setLoading(false);
+            return;
         }
+        setFetchedProduct(null);
+        setLoading(!storeProduct);
 
-        // Always try to fetch fresh data (revalidation)
         if (id) {
-            if (!storeProduct) setLoading(true);
+            let cancelled = false;
             const loadProduct = async () => {
                 try {
-                    const { productService } = await import('../services/productService');
                     const data = await productService.getProductById(id);
+                    if (cancelled) return;
                     if (data) {
                         setFetchedProduct(data);
                     } else {
                         setError(true);
                     }
                 } catch (err) {
-                    console.error(err);
-                    setError(true);
+                    if (!cancelled) {
+                        console.error(err);
+                        setError(true);
+                    }
                 } finally {
-                    setLoading(false);
+                    if (!cancelled) setLoading(false);
                 }
             };
             loadProduct();
+            return () => { cancelled = true; };
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]); // Only re-fetch when product ID changes, not when store reference changes

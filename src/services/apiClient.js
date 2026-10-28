@@ -10,14 +10,53 @@ const API_BASE = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
 
 export const apiEnabled = () => !!API_BASE;
 
+// In-memory GET cache (60s TTL, max 200 entries) + in-flight request deduplication
+// so hovering/tapping a product card or mounting multiple components resolves in 0ms.
+const memGets = new Map();
+const inFlightGets = new Map();
+const MEM_GET_TTL_MS = 60 * 1000;
+
+export function clearApiCache() {
+    memGets.clear();
+}
+
 async function get(path) {
-    const r = await fetch(API_BASE + path, { cache: 'default' });
-    if (!r.ok) throw new Error(`api ${r.status}`);
-    return r.json();
+    const now = Date.now();
+    const cached = memGets.get(path);
+    if (cached && cached.exp > now) return cached.data;
+
+    let inflight = inFlightGets.get(path);
+    if (!inflight) {
+        inflight = fetch(API_BASE + path, { cache: 'default' })
+            .then(async (r) => {
+                if (!r.ok) throw new Error(`api ${r.status}`);
+                const data = await r.json();
+                if (memGets.size >= 200) {
+                    const oldest = memGets.keys().next().value;
+                    if (oldest) memGets.delete(oldest);
+                }
+                memGets.set(path, { data, exp: Date.now() + MEM_GET_TTL_MS });
+                return data;
+            })
+            .finally(() => {
+                inFlightGets.delete(path);
+            });
+        inFlightGets.set(path, inflight);
+    }
+    return inflight;
 }
 
 export const api = {
     product: (id) => get(`/api/product/${encodeURIComponent(id)}`),
+    prefetchProduct: (id) => {
+        if (!API_BASE || !id) return;
+        get(`/api/product/${encodeURIComponent(id)}`).catch(() => {});
+    },
+    peekProduct: (id) => {
+        if (!id) return null;
+        const hit = memGets.get(`/api/product/${encodeURIComponent(id)}`);
+        return hit && hit.exp > Date.now() ? hit.data : null;
+    },
     search: (q) => get(`/api/search?q=${encodeURIComponent(q)}`),
     products: (params = {}) => get(`/api/products?${new URLSearchParams(params)}`),
     categories: () => get('/api/categories'),

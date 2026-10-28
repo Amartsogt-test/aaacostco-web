@@ -60,6 +60,15 @@ function corsHeaders(acao) {
 }
 const PUBLIC_CACHE = { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=86400' };
 
+// Columns needed for list/search cards (`shapeProduct(r, false)`). Avoiding `SELECT *` on
+// list/search queries skips reading huge `specifications`, `description`, `description_mn`,
+// and `images` columns from D1 SQLite pages (~90% less I/O per row).
+const LIST_COLS =
+  'id, code, name, name_mn, englishName, brand, image, price, originalPrice, ' +
+  'estimatedWarehousePrice, estimatedMarkupKrw, hasDiscount, status, categoryCode, ' +
+  'weight, ratingsAvg, reviewCount, additionalCategories, categoryPath, shortDescription';
+const FTS_LIST_COLS = LIST_COLS.split(', ').map((c) => `p.${c}`).join(', ');
+
 // Expand a D1 product row into the API shape (parse JSON columns).
 // `full` adds the heavy fields needed on the product-detail page (descriptions etc.);
 // list/search responses stay lean.
@@ -137,13 +146,23 @@ function productWhere({ category, subCategory, tag, statusMode = 'active' }) {
   return { clause: where.length ? 'WHERE ' + where.join(' AND ') : '', args };
 }
 
-// Isolate-memory cache for `cacheVer` (30s TTL) so `cached()` only does 1 KV read per request.
+// Isolate-memory cache for `cacheVer` (30s TTL) + hot response payloads (`memDataCache`, 30s TTL)
+// so warm Worker isolates serve repeat public reads in <0.2ms with zero KV/D1 calls.
 let memCacheVer = { v: null, exp: 0 };
+const memDataCache = new Map();
+const MAX_MEM_DATA_KEYS = 250;
+
+function invalidateLocalCache() {
+  memCacheVer.exp = 0;
+  memDataCache.clear();
+}
+
 async function getCacheVersion(env) {
   const now = Date.now();
   if (memCacheVer.v && memCacheVer.exp > now) return memCacheVer.v;
   try {
     const v = (await env.CACHE.get('cacheVer')) || '1';
+    if (memCacheVer.v && memCacheVer.v !== v) memDataCache.clear();
     memCacheVer = { v, exp: now + 30_000 };
     return v;
   } catch {
@@ -154,12 +173,32 @@ async function getCacheVersion(env) {
 async function cached(env, json, key, ttl, producer) {
   const ver = await getCacheVersion(env);
   const vkey = `v${ver}:${key}`;
+  const now = Date.now();
+  const memHit = memDataCache.get(vkey);
+  if (memHit && memHit.exp > now) {
+    return json(memHit.data, 200, { 'X-Cache': 'MEM-HIT', ...PUBLIC_CACHE });
+  }
   try {
     const hit = await env.CACHE.get(vkey);
-    if (hit) return json(JSON.parse(hit), 200, { 'X-Cache': 'HIT', ...PUBLIC_CACHE });
+    if (hit) {
+      const parsed = JSON.parse(hit);
+      if (memDataCache.size >= MAX_MEM_DATA_KEYS) {
+        const oldest = memDataCache.keys().next().value;
+        if (oldest) memDataCache.delete(oldest);
+      }
+      memDataCache.set(vkey, { data: parsed, exp: now + 30_000 });
+      return json(parsed, 200, { 'X-Cache': 'HIT', ...PUBLIC_CACHE });
+    }
   } catch { /* KV read error -> fall through to D1 */ }
   const data = await producer();
-  try { await env.CACHE.put(vkey, JSON.stringify(data), { expirationTtl: ttl }); } catch { /* KV quota non-fatal */ }
+  if (data !== null && data !== undefined) {
+    if (memDataCache.size >= MAX_MEM_DATA_KEYS) {
+      const oldest = memDataCache.keys().next().value;
+      if (oldest) memDataCache.delete(oldest);
+    }
+    memDataCache.set(vkey, { data, exp: now + 30_000 });
+    try { await env.CACHE.put(vkey, JSON.stringify(data), { expirationTtl: ttl }); } catch { /* KV quota non-fatal */ }
+  }
   return json(data, 200, { 'X-Cache': 'MISS', ...PUBLIC_CACHE });
 }
 
@@ -270,25 +309,25 @@ export default {
         if (pathname === '/api/admin/settings') {
           const u = await authenticate(request, env);
           const r = await setSetting(body, env, u);
-          memCacheVer.exp = 0;
+          invalidateLocalCache();
           return json(r.data, r.status);
         }
         if (pathname === '/api/admin/product') {
           const u = await authenticate(request, env);
           const r = await upsertProduct(body, env, u);
-          memCacheVer.exp = 0;
+          invalidateLocalCache();
           return json(r.data, r.status);
         }
         if (pathname === '/api/admin/products/batch') {
           const u = await authenticate(request, env);
           const r = await batchUpsertProducts(body, env, u);
-          memCacheVer.exp = 0;
+          invalidateLocalCache();
           return json(r.data, r.status);
         }
         if (pathname === '/api/admin/product/delete') {
           const u = await authenticate(request, env);
           const r = await deleteProduct(body, env, u);
-          memCacheVer.exp = 0;
+          invalidateLocalCache();
           return json(r.data, r.status);
         }
         if (pathname === '/api/admin/cron/run') {
@@ -375,12 +414,13 @@ export default {
         return json(r.data, r.status);
       }
 
-      // GET /api/health — liveness/readiness: ping D1 + KV (for uptime monitoring).
+      // GET /api/health — liveness/readiness: ping D1 + KV in parallel (for uptime monitoring).
       if (pathname === '/api/health') {
-        const out = { ok: true, time: new Date().toISOString(), d1: false, kv: false };
-        try { await env.DB.prepare('SELECT 1').first(); out.d1 = true; } catch { /* down */ }
-        try { await env.CACHE.get('cacheVer'); out.kv = true; } catch { /* down */ }
-        out.ok = out.d1 && out.kv;
+        const [d1Ok, kvOk] = await Promise.all([
+          env.DB.prepare('SELECT 1').first().then(() => true).catch(() => false),
+          env.CACHE.get('cacheVer').then(() => true).catch(() => false),
+        ]);
+        const out = { ok: d1Ok && kvOk, time: new Date().toISOString(), d1: d1Ok, kv: kvOk };
         return json(out, out.ok ? 200 : 503);
       }
 
@@ -388,8 +428,10 @@ export default {
       if (pathname === '/sitemap.xml') {
         const site = (env.SITE_URL || 'https://costco.mn').replace(/\/$/, '');
         const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const prods = await env.DB.prepare("SELECT id, updatedAt FROM products WHERE status = 'active' ORDER BY updatedAt DESC LIMIT 45000").all();
-        const cats = await env.DB.prepare('SELECT id FROM categories').all();
+        const [prods, cats] = await Promise.all([
+          env.DB.prepare("SELECT id, updatedAt FROM products WHERE status = 'active' ORDER BY updatedAt DESC LIMIT 45000").all(),
+          env.DB.prepare('SELECT id FROM categories').all(),
+        ]);
         const urls = [
           `<url><loc>${site}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
           ...(cats.results || []).map((c) => `<url><loc>${site}/category/${esc(c.id)}</loc><changefreq>daily</changefreq><priority>0.7</priority></url>`),
@@ -412,14 +454,24 @@ export default {
         const pid = decodeURIComponent(m[1]);
         const ver = await getCacheVersion(env);
         const vkey = `v${ver}:product:${pid}`;
+        const now = Date.now();
+        const memHit = memDataCache.get(vkey);
+        if (memHit && memHit.exp > now) {
+          return json(memHit.data, 200, { 'X-Cache': 'MEM-HIT', ...PUBLIC_CACHE });
+        }
         try {
           const hit = await env.CACHE.get(vkey);
-          if (hit) return json(JSON.parse(hit), 200, { 'X-Cache': 'HIT', ...PUBLIC_CACHE });
+          if (hit) {
+            const parsed = JSON.parse(hit);
+            memDataCache.set(vkey, { data: parsed, exp: now + 30_000 });
+            return json(parsed, 200, { 'X-Cache': 'HIT', ...PUBLIC_CACHE });
+          }
         } catch { /* fall through */ }
         const row = await env.DB.prepare('SELECT * FROM products WHERE id = ? AND status = ?')
           .bind(pid, 'active').first();
         if (!row) return json({ error: 'not found' }, 404);
         const shaped = shapeProduct(row, true);
+        memDataCache.set(vkey, { data: shaped, exp: now + 30_000 });
         try { await env.CACHE.put(vkey, JSON.stringify(shaped), { expirationTtl: 300 }); } catch { /* ignore */ }
         return json(shaped, 200, { 'X-Cache': 'MISS', ...PUBLIC_CACHE });
       }
@@ -434,7 +486,7 @@ export default {
         const offset = Math.max(Number(searchParams.get('offset')) || 0, 0);
         const { clause, args } = productWhere({ category, subCategory, tag, statusMode });
         return cached(env, json, `products:${statusMode}:${category}:${subCategory}:${tag}:${limit}:${offset}`, 300, async () => {
-          const { results } = await env.DB.prepare(`SELECT * FROM products ${clause} ORDER BY id LIMIT ? OFFSET ?`)
+          const { results } = await env.DB.prepare(`SELECT ${LIST_COLS} FROM products ${clause} ORDER BY id LIMIT ? OFFSET ?`)
             .bind(...args, limit, offset).all();
           return { products: (results || []).map((r) => shapeProduct(r, false)), limit, offset };
         });
@@ -502,29 +554,31 @@ export default {
       if (pathname === '/api/search') {
         const q = (searchParams.get('q') || '').trim();
         if (q.length < 2) return json({ products: [] });
-        // Exact id/code first, then full-text (FTS5) with a LIKE fallback.
-        const exact = await env.DB.prepare('SELECT * FROM products WHERE (id = ? OR code = ?) AND status = ? LIMIT 5')
-          .bind(q, q, 'active').all();
-        if (exact.results?.length) return json({ products: exact.results.map((r) => shapeProduct(r, false)) });
+        return cached(env, json, `search:${q.toLowerCase()}`, 180, async () => {
+          // Exact id/code first, then full-text (FTS5) with a LIKE fallback.
+          const exact = await env.DB.prepare(`SELECT ${LIST_COLS} FROM products WHERE (id = ? OR code = ?) AND status = ? LIMIT 5`)
+            .bind(q, q, 'active').all();
+          if (exact.results?.length) return { products: exact.results.map((r) => shapeProduct(r, false)) };
 
-        // FTS5: prefix-match each token ("tok"*), joined back to products for the row.
-        const ftsQuery = q.split(/\s+/).filter(Boolean).slice(0, 6)
-          .map((t) => `"${t.replace(/"/g, '""')}"*`).join(' ');
-        if (ftsQuery) {
-          try {
-            const { results } = await env.DB.prepare(
-              `SELECT p.* FROM products_fts f JOIN products p ON p.id = f.id
-                 WHERE products_fts MATCH ? AND p.status = 'active' LIMIT 40`
-            ).bind(ftsQuery).all();
-            return json({ products: (results || []).map((r) => shapeProduct(r, false)) });
-          } catch { /* FTS table missing → LIKE fallback below */ }
-        }
-        const like = `%${q}%`;
-        const { results } = await env.DB.prepare(
-          `SELECT * FROM products WHERE status = 'active'
-             AND (name LIKE ? OR name_mn LIKE ? OR englishName LIKE ?) LIMIT 40`
-        ).bind(like, like, like).all();
-        return json({ products: (results || []).map((r) => shapeProduct(r, false)) });
+          // FTS5: prefix-match each token ("tok"*), joined back to products for the row.
+          const ftsQuery = q.split(/\s+/).filter(Boolean).slice(0, 6)
+            .map((t) => `"${t.replace(/"/g, '""')}"*`).join(' ');
+          if (ftsQuery) {
+            try {
+              const { results } = await env.DB.prepare(
+                `SELECT ${FTS_LIST_COLS} FROM products_fts f JOIN products p ON p.id = f.id
+                   WHERE products_fts MATCH ? AND p.status = 'active' LIMIT 40`
+              ).bind(ftsQuery).all();
+              return { products: (results || []).map((r) => shapeProduct(r, false)) };
+            } catch { /* FTS table missing → LIKE fallback below */ }
+          }
+          const like = `%${q}%`;
+          const { results } = await env.DB.prepare(
+            `SELECT ${LIST_COLS} FROM products WHERE status = 'active'
+               AND (name LIKE ? OR name_mn LIKE ? OR englishName LIKE ?) LIMIT 40`
+          ).bind(like, like, like).all();
+          return { products: (results || []).map((r) => shapeProduct(r, false)) };
+        });
       }
 
       // GET /api/categories

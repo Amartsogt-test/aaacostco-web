@@ -11,9 +11,33 @@ import { useState, useRef, useEffect, memo } from 'react';
  * Device-pixel-ratio is factored in (capped at 2x) so retina screens stay crisp.
  */
 const optimizeImageUrl = (url) => {
-    // Proxy (images.weserv.nl) маш удаан байгаа тул түр хугацаанд зогсоож шууд эх сурвалжийн URL-ийг ашиглана.
     return url;
 };
+
+// Shared singleton IntersectionObserver across all LazyImage instances on the page
+// (avoids creating 40-100 separate observers per product grid).
+let sharedObserver = null;
+const observerCallbacks = new WeakMap();
+
+function getSharedObserver() {
+    if (sharedObserver || typeof IntersectionObserver === 'undefined') return sharedObserver;
+    sharedObserver = new IntersectionObserver(
+        (entries) => {
+            for (const entry of entries) {
+                if (entry.isIntersecting) {
+                    const cb = observerCallbacks.get(entry.target);
+                    if (cb) {
+                        observerCallbacks.delete(entry.target);
+                        sharedObserver.unobserve(entry.target);
+                        cb();
+                    }
+                }
+            }
+        },
+        { rootMargin: '350px' }
+    );
+    return sharedObserver;
+}
 
 /**
  * LazyImage — optimized image component with:
@@ -34,7 +58,7 @@ const LazyImage = memo(function LazyImage({
     ...props
 }) {
     const [isLoaded, setIsLoaded] = useState(false);
-    const [isInView, setIsInView] = useState(priority); // priority images load immediately
+    const [isInView, setIsInView] = useState(() => priority || typeof IntersectionObserver === 'undefined'); // priority images load immediately
     const [hasError, setHasError] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
     const [useFallback, setUseFallback] = useState(false); // fall back to direct origin if proxy fails
@@ -59,24 +83,17 @@ const LazyImage = memo(function LazyImage({
     };
 
     useEffect(() => {
-        if (priority) return; // Skip observer for priority images
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    setIsInView(true);
-                    observer.disconnect();
-                }
-            },
-            { rootMargin: '300px' } // Start loading 300px before visible
-        );
-
-        if (imgRef.current) {
-            observer.observe(imgRef.current);
-        }
-
-        return () => observer.disconnect();
-    }, [priority]);
+        if (priority || isInView) return; // Skip observer for priority images
+        const el = imgRef.current;
+        const obs = getSharedObserver();
+        if (!el || !obs) return;
+        observerCallbacks.set(el, () => setIsInView(true));
+        obs.observe(el);
+        return () => {
+            observerCallbacks.delete(el);
+            obs.unobserve(el);
+        };
+    }, [priority, isInView]);
 
     const handleRetry = () => {
         if (retryCount < 2) {

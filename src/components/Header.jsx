@@ -6,7 +6,6 @@ import { useCartStore } from '../store/cartStore';
 import { useProductStore } from '../store/productStore';
 import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
-import { useOrderStore } from '../store/orderStore';
 import { chatService } from '../services/chatService';
 import { useChatStore } from '../store/chatStore';
 import SearchFilterBar from './SearchFilterBar';
@@ -21,9 +20,10 @@ export default function Header({ layoutStyle }) {
     const _isStandalone = view === 'spreadsheet' || view === 'summary';
     const cartCount = useCartStore(state => state.totalItems());
     const { toggleCurrency, currency, toggleMenu, closeCart, isCartOpen, closeMenu } = useUIStore();
-    const { wonRate } = useProductStore();
-    const { user } = useAuthStore();
-    const { isOpen: isChatOpen, closeChat } = useChatStore();
+    const wonRate = useProductStore(state => state.wonRate);
+    const user = useAuthStore(state => state.user);
+    const isChatOpen = useChatStore(state => state.isOpen);
+    const closeChat = useChatStore(state => state.closeChat);
 
     const [_adminUnreadCount, setAdminUnreadCount] = useState(0);
     const [isStoreMenuOpen, setStoreMenuOpen] = useState(false);
