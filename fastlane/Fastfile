@@ -35,7 +35,8 @@ platform :ios do
 
     cert(
       api_key: api_key,
-      team_id: "LHJMY3S9M5"
+      team_id: "LHJMY3S9M5",
+      keychain_path: lane_context[SharedValues::KEYCHAIN_PATH]
     )
 
     sigh(
