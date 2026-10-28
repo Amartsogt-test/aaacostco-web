@@ -12,6 +12,8 @@
     "allowNavigation": [
       "costco.mn",
       "*.costco.mn",
+      "wire.mn",
+      "*.wire.mn",
       "*.firebaseapp.com",
       "*.googleapis.com",
       "*.facebook.com"
