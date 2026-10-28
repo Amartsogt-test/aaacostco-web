@@ -93,20 +93,15 @@ jobs:
           npm ci
           npx cap sync ios
 
-      - name: Publish to Apple App Store Connect via Fastlane
+      - name: Build, Sign & Upload iOS (.ipa) to Apple App Store Connect
         if: env.ASC_KEY_ID != ''
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
           APPLE_DEVELOPER_TEAM_ID: ${{ secrets.APPLE_DEVELOPER_TEAM_ID }}
-          APP_STORE_CONNECT_TEAM_ID: ${{ secrets.APP_STORE_CONNECT_TEAM_ID }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
-        run: |
-          curl -sO https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
-          sudo security import AppleWWDRCAG3.cer -k /Library/Keychains/System.keychain || true
-          gem install fastlane --no-document
-          fastlane ios release
+        run: node scripts/mobile/ios-ci-build-and-upload.mjs
 
       - name: Upload iOS Release Artifact (.ipa)
         if: always()
