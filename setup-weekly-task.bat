@@ -5,7 +5,7 @@ REM  run-weekly-maintenance.bat -g 7 honog tutam (Nyam garig 09:00)
 REM  Windows Task Scheduler-t burtgene.
 REM ============================================================
 set TASKNAME=Aaacostco Weekly Maintenance
-set SCRIPT=E:\aaacostco\run-weekly-maintenance.bat
+set "SCRIPT=%~dp0run-weekly-maintenance.bat"
 
 echo Task burtgej baina: "%TASKNAME%"
 echo Script: %SCRIPT%

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { chatService } from '../services/chatService';
-import { ensureSignedIn, auth } from '../firebase';
+import { useAuthStore } from './authStore';
 
 export const useChatStore = create((set, get) => ({
     isOpen: false,
@@ -12,9 +12,16 @@ export const useChatStore = create((set, get) => ({
     unsubscribeConv: null,
     isAiLoading: false,
 
-    openChat: () => set({ isOpen: true }),
+    openChat: () => {
+        set({ isOpen: true });
+        get().markAsRead();
+    },
     closeChat: () => set({ isOpen: false }),
-    toggleChat: () => set(state => ({ isOpen: !state.isOpen })),
+    toggleChat: () => {
+        const nextOpen = !get().isOpen;
+        set({ isOpen: nextOpen });
+        if (nextOpen) get().markAsRead();
+    },
 
     // Open chat with pre-filled product inquiry
     openWithProduct: async (product) => {
@@ -120,15 +127,10 @@ export const useChatStore = create((set, get) => ({
 
         set({ isLoading: true, messageLimit: 5 }); // Default to 5 messages
         try {
-            // Firestore rules require an authenticated owner for chats. Make sure we
-            // have a session (anonymous for guests) and tie the conversation to that
-            // uid so the create/write passes. Falls back to the passed id if anon
-            // sign-in isn't available.
-            const fbUser = await ensureSignedIn();
-            const resolvedUserId = (fbUser && fbUser.uid) || auth.currentUser?.uid || userId;
-
-            const conversation = await chatService.getOrCreateConversation(resolvedUserId, userName);
-            set({ conversationId: conversation.id });
+            // The Worker ties the conversation to the JWT uid server-side, so we just
+            // pass the caller's id through (used only as a display fallback).
+            const conversation = await chatService.getOrCreateConversation(userId, userName);
+            set({ conversationId: conversation.id, unreadCount: conversation.unreadByUser || 0 });
 
             // Internal helper to subscribe
             const subscribe = (limit) => {
@@ -146,15 +148,18 @@ export const useChatStore = create((set, get) => ({
                             notifyNewMessage({ title: 'Costco Mongolia', body: latest.text || 'Шинэ мессеж', key: latest.id });
                         });
                     }
-                }, limit);
+                }, limit, {
+                    isOpen: () => get().isOpen,
+                    shouldMarkRead: () => get().isOpen,
+                });
                 set({ unsubscribe: unsub });
 
                 // Subscribe to conversation document for unread count
                 if (get().unsubscribeConv) get().unsubscribeConv();
                 const unsubConv = chatService.subscribeToConversation(conversation.id, (data) => {
                     // Only update unread count for normal users (not admins using this store)
-                    if (!auth.currentUser?.isAdmin) {
-                        set({ unreadCount: data.unreadByUser || 0 });
+                    if (!useAuthStore.getState().user?.isAdmin) {
+                        set({ unreadCount: get().isOpen ? 0 : (data.unreadByUser || 0) });
                     }
                 });
                 set({ unsubscribeConv: unsubConv });
@@ -191,13 +196,14 @@ export const useChatStore = create((set, get) => ({
         set({ messageLimit: newLimit, isLoading: true });
 
         // Re-subscribe with new limit
-        // Note: In a real app we might want to just fetch older ones, but for simplicity/consistency with live sync,
-        // we re-subscribe with a larger limit.
         if (unsubscribe) unsubscribe();
 
         const unsub = chatService.subscribeToMessages(conversationId, (messages) => {
             set({ messages, isLoading: false });
-        }, newLimit);
+        }, newLimit, {
+            isOpen: () => get().isOpen,
+            shouldMarkRead: () => get().isOpen,
+        });
 
         set({ unsubscribe: unsub });
     },
@@ -210,7 +216,7 @@ export const useChatStore = create((set, get) => ({
 
         try {
             // 1. Send user message FIRST (always works even if AI fails)
-            await chatService.sendMessage(conversationId, text.trim(), false, metadata);
+            await chatService.sendMessage(conversationId, (text || '').trim(), false, metadata);
 
         } catch (error) {
             console.error("Failed to send message:", error);
@@ -237,7 +243,7 @@ export const useChatStore = create((set, get) => ({
         if (!conversationId || !text.trim()) return;
 
         try {
-            await chatService.sendMessage(conversationId, text.trim(), true);
+            await chatService.sendMessage(conversationId, text.trim(), true, null, null, { asBot: true });
         } catch (error) {
             console.error("Failed to send admin message:", error);
         }
@@ -247,8 +253,8 @@ export const useChatStore = create((set, get) => ({
         const { conversationId } = get();
         if (!conversationId) return;
 
-        await chatService.markAsRead(conversationId, false);
         set({ unreadCount: 0 });
+        await chatService.markAsRead(conversationId, false);
     },
 
     togglePinMessage: async (messageId, isPinned) => {

@@ -29,7 +29,7 @@ const DEFAULT_UA =
  * GET a Costco REST endpoint and parse the JSON body. Retries on failure.
  * Returns the parsed object, or null if every attempt failed.
  */
-async function fetchJson(url, cookie = '', userAgent = '', retries = 3) {
+async function fetchJson(url, cookie = '', userAgent = '', retries = 3, authorization = '') {
     try {
         const headers = {
             // REQUIRED: without this the API replies with XML → JSON.parse throws →
@@ -39,6 +39,7 @@ async function fetchJson(url, cookie = '', userAgent = '', retries = 3) {
             'User-Agent': userAgent || DEFAULT_UA,
         };
         if (cookie) headers.Cookie = cookie;
+        if (authorization) headers.Authorization = authorization;
 
         const response = await fetch(url, { headers });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -46,7 +47,7 @@ async function fetchJson(url, cookie = '', userAgent = '', retries = 3) {
     } catch (e) {
         if (retries > 0) {
             await sleep(500);
-            return fetchJson(url, cookie, userAgent, retries - 1);
+            return fetchJson(url, cookie, userAgent, retries - 1, authorization);
         }
         return null;
     }
@@ -181,18 +182,18 @@ function mapAllFields(raw, target, effectiveAdmin = null) {
 }
 
 /** Fetch one product's FULL detail. */
-async function fetchProductDetails(productCode, cookie, userAgent) {
-    const url = `https://www.costco.co.kr/rest/v2/korea/products/${productCode}?fields=FULL`;
-    return fetchJson(url, cookie, userAgent);
+async function fetchProductDetails(productCode, cookie, userAgent, authorization = '') {
+    const url = `https://www.costco.co.kr/rest/v2/korea/products/${productCode}?fields=FULL&lang=ko&curr=KRW`;
+    return fetchJson(url, cookie, userAgent, 3, authorization);
 }
 
 /** Fetch many products in parallel, `concurrency` at a time. Nulls are dropped. */
-async function fetchProductsBatch(ids, cookie, userAgent, concurrency = 10) {
+async function fetchProductsBatch(ids, cookie, userAgent, concurrency = 10, authorization = '') {
     const results = [];
     for (let i = 0; i < ids.length; i += concurrency) {
         const batch = ids.slice(i, i + concurrency);
         const settled = await Promise.all(
-            batch.map((id) => fetchProductDetails(id, cookie, userAgent).catch(() => null))
+            batch.map((id) => fetchProductDetails(id, cookie, userAgent, authorization).catch(() => null))
         );
         results.push(...settled.filter((r) => r && r.code));
         await sleep(100);
@@ -211,18 +212,22 @@ function getDb(baseAdmin) {
     return require('firebase-admin/firestore').getFirestore(baseAdmin.app(), dbId);
 }
 
-/** Read the scraper session cookie + user-agent from settings/scraper. */
+/** Read the scraper session cookie + authorization + user-agent from settings/scraper. */
 async function getScraperAuth(db) {
     try {
         const snap = await db.collection('settings').doc('scraper').get();
         if (snap.exists) {
             const data = snap.data();
-            return { cookie: data.cookie || '', userAgent: data.userAgent || '' };
+            return {
+                cookie: data.cookie || '',
+                authorization: data.authorization || '',
+                userAgent: data.userAgent || '',
+            };
         }
     } catch (e) {
         console.error('Failed to fetch scraper settings:', e);
     }
-    return { cookie: '', userAgent: '' };
+    return { cookie: '', authorization: '', userAgent: '' };
 }
 
 // ---------------------------------------------------------------------------
@@ -235,8 +240,8 @@ exports.syncWithTargets = async (targets, adminInstance = null) => {
     const serverTimestamp = () => baseAdmin.firestore.FieldValue.serverTimestamp();
     const statusRef = db.collection('system').doc('syncStatus');
 
-    const { cookie, userAgent } = await getScraperAuth(db);
-    console.log('Scraper auth — cookie len:', cookie.length, 'UA set:', !!userAgent);
+    const { cookie, authorization, userAgent } = await getScraperAuth(db);
+    console.log('Scraper auth — cookie len:', cookie.length, 'auth set:', !!authorization, 'UA set:', !!userAgent);
 
     const steps = targets.map((t) => ({
         label: t.label, status: 'pending', processed: 0, total: 0, percentage: 0, dbCount: 0,
@@ -287,8 +292,8 @@ exports.syncWithTargets = async (targets, adminInstance = null) => {
         while (page < totalPages && page < 20) {
             const queryType = target.type === 'allCategories' ? 'allCategories' : 'category';
             const query = `:relevance:${queryType}:${target.code}`;
-            const url = `https://www.costco.co.kr/rest/v2/korea/products/search?fields=products(code),pagination&query=${encodeURIComponent(query)}&pageSize=100&currentPage=${page}`;
-            const data = await fetchJson(url, cookie, userAgent);
+            const url = `https://www.costco.co.kr/rest/v2/korea/products/search?fields=products(code),pagination&query=${encodeURIComponent(query)}&pageSize=100&currentPage=${page}&lang=ko&curr=KRW`;
+            const data = await fetchJson(url, cookie, userAgent, 3, authorization);
             if (!data || !data.products) break;
             if (data.pagination) totalPages = data.pagination.totalPages;
             data.products.forEach((p) => ids.add(p.code));
@@ -308,7 +313,7 @@ exports.syncWithTargets = async (targets, adminInstance = null) => {
         for (let start = 0; start < idArray.length; start += BATCH_SIZE) {
             const batchIds = idArray.slice(start, start + BATCH_SIZE);
             const details = await Promise.all(
-                batchIds.map((id) => fetchProductDetails(id, cookie, userAgent).catch(() => null))
+                batchIds.map((id) => fetchProductDetails(id, cookie, userAgent, authorization).catch(() => null))
             );
 
             const batch = db.batch();
@@ -466,7 +471,7 @@ exports.fixZeroPriceProducts = async (adminInstance = null, targetIds = null) =>
     const log = [];
     log.push('Starting zero-price fix...');
 
-    const { cookie, userAgent } = await getScraperAuth(db);
+    const { cookie, authorization, userAgent } = await getScraperAuth(db);
 
     try {
         // Decide which ids to re-scrape.
@@ -491,7 +496,7 @@ exports.fixZeroPriceProducts = async (adminInstance = null, targetIds = null) =>
         log.push(`Fixing ${ids.length} products.`);
 
         // Re-fetch and write only price-related fields (minimise overwrites).
-        const details = await fetchProductsBatch(ids, cookie, userAgent, 5);
+        const details = await fetchProductsBatch(ids, cookie, userAgent, 5, authorization);
         const batch = db.batch();
         let updated = 0;
 

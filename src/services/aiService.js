@@ -1,25 +1,15 @@
-import { callFunction, ensureSignedIn } from '../firebase';
-
-// Cloud Function proxy — API key stays server-side. Functions SDK loads lazily.
-// aiProxy now requires an authenticated caller (anti-abuse / denial-of-wallet),
-// so make sure a Firebase session exists first — guests get an anonymous one.
-const callAI = async (data) => {
-    await ensureSignedIn();
-    return callFunction('aiProxy', data);
-};
+// aiService — Cloudflare Worker only (Firebase removed).
+// The Gemini API key stays server-side behind the Worker /api/ai/summary endpoint. If the
+// key isn't configured (or the call fails), we fall back to a static product summary.
+import { aiApi } from './apiClient';
 
 export const aiService = {
-    /**
-     * Generates a concise, helpful summary of the product in Mongolian.
-     */
     async generateProductSummary(product) {
-        // Use persisted short description if available (Instant, No API call)
+        // Persisted short description wins (instant, no API call).
         if (product.shortDescription && product.shortDescription.length > 5) {
             return product.shortDescription;
         }
-
         try {
-            // Send only the fields needed for summary
             const minimalProduct = {
                 name: product.name,
                 name_mn: product.name_mn,
@@ -29,23 +19,20 @@ export const aiService = {
                 shortDescription: product.shortDescription,
                 specifications: product.specifications || product.classifications,
                 description_mn: (product.description_mn || '').substring(0, 1000),
-                description_en: (product.description_en || product.description || '').substring(0, 1000)
+                description_en: (product.description_en || product.description || '').substring(0, 1000),
             };
-            const result = await callAI({
-                action: 'generateSummary',
-                payload: { product: minimalProduct }
-            });
-            return result.data.response;
+            const result = await aiApi.summary(minimalProduct);
+            if (result?.response) return result.response;
+            throw new Error('no-ai');
         } catch {
-            // Fallback to static summary if AI fails
+            // Static fallback.
             const name = product.name_mn || product.name;
             const price = (product.price || 0).toLocaleString();
             const rawDesc = product.description_mn || product.description_en || product.description || '';
             const desc = rawDesc.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 200);
-
             const parts = [`📦 ${name}`, `💰 Үнэ: ${price}₮`];
             if (desc) parts.push(`📌 ${desc}...`);
             return parts.join('\n\n');
         }
-    }
+    },
 };

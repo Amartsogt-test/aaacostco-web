@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+output/
 *.local
 .env
 
@@ -17,10 +18,23 @@ dist-ssr
 # ~8,500 phantom changes). Untrack once with:
 #   git rm -r --cached .venv .browser_data
 .venv/
+scraper/.venv/
 .browser_data/
+browser-data/
+scraper/browser_data/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Archived dead one-off scripts and scratch files (moved out of repo root during cleanup).
+_archive/
+_bat_archive/
+scraper/_archive/
+scripts/_archive/
+scratch/
+
+# Database seed dumps (contain customer PII and session tokens - never commit!)
+cloudflare/seed/
 
 # Editor directories and files
 .vscode/*
@@ -38,6 +52,7 @@ __pycache__/
 functions/service-account.json
 *.json
 !package.json
+!capacitor.config.json
 !jsconfig.json
 !tsconfig.json
 !functions/package.json
@@ -48,19 +63,25 @@ functions/service-account.json
 !public/manifest.json
 !public/home-snapshot.json
 !public/search-index.json
+!public/autonomous-status.json
+!public/.well-known/assetlinks.json
 
 # ── SECURITY: secrets that must never be committed ──────────────────────────
 # (These were previously tracked — untracked via `git rm --cached`. The values
 #  they held are compromised and must be rotated; see SECURITY_FIXES.md.)
 page_access_token.txt
+cookies.txt
 scraper/.env
 scraper/state.json
 state.json
 *.keystore
+releases/**/signing-key-info.txt
 android/app/release-key.keystore
 android/app/keystore.properties
 keystore.properties
 *.bak
 *.pem
 service-account*.json
-.vercel
+사업자등록증.*
+releases/
+

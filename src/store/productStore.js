@@ -2,8 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { MENU_DATA } from '../data/menuData';
 import buildInfo from '../buildInfo.json';
-import { auth, db } from '../firebase';
-import { getDocs, collection } from 'firebase/firestore';
+import { api } from '../services/apiClient';
 import { smartSearchFilter } from '../utils/searchUtils';
 
 // PAGE SIZE
@@ -96,28 +95,15 @@ const setHomeCache = (products, categoryCounts) => {
 
 const getSearchIndexCache = () => {
     try {
-        const cached = localStorage.getItem(SEARCH_INDEX_CACHE_KEY);
-        if (!cached) return null;
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp > SEARCH_INDEX_TTL_MS) {
+        if (localStorage.getItem(SEARCH_INDEX_CACHE_KEY)) {
             localStorage.removeItem(SEARCH_INDEX_CACHE_KEY);
-            return null;
         }
-        return parsed.index;
-    } catch {
-        return null;
-    }
+    } catch { /* ignore */ }
+    return null;
 };
 
-const setSearchIndexCache = (index) => {
-    try {
-        localStorage.setItem(SEARCH_INDEX_CACHE_KEY, JSON.stringify({
-            index,
-            timestamp: Date.now()
-        }));
-    } catch (e) {
-        console.warn('Search index cache save failed:', e.message);
-    }
+const setSearchIndexCache = () => {
+    // Search index is cached in memory (productService._searchIndexData) and Service Worker CacheStorage
 };
 
 
@@ -149,12 +135,9 @@ export const useProductStore = create(
             // Actions
             fetchFilters: async () => {
                 try {
-                    const querySnapshot = await getDocs(collection(db, 'filters'));
-                    const filters = [];
-                    querySnapshot.forEach((doc) => {
-                        filters.push({ id: doc.id, ...doc.data() });
-                    });
-                    // Sort by order
+                    // Filters live in the `filters` settings doc (admin-editable). Empty if unset.
+                    const data = await api.settings('filters');
+                    const filters = Array.isArray(data?.items) ? [...data.items] : [];
                     filters.sort((a, b) => (a.order || 99) - (b.order || 99));
                     set({ filters });
                 } catch (error) {
@@ -176,8 +159,8 @@ export const useProductStore = create(
                     if (snapshot?.categories?.length) {
                         rawCats = snapshot.categories;
                     } else {
-                        const querySnapshot = await getDocs(collection(db, 'categories'));
-                        rawCats = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                        const r = await api.categories();
+                        rawCats = r?.categories || [];
                     }
 
                     // Merge static info (icon/banner) — same logic for both sources.
@@ -302,21 +285,22 @@ export const useProductStore = create(
                                     categoryCounts: cached.categoryCounts || get().categoryCounts
                                 });
 
-                                // STEP 2: Fetch fresh data in BACKGROUND (don't block UI)
-                                productService.getHomeProducts().then(freshProducts => {
+                                // STEP 2: Fetch fresh CDN snapshot in BACKGROUND (don't block UI)
+                                productService.getHomeSnapshot(true).then(snap => {
+                                    const freshProducts = snap?.products;
                                     if (freshProducts && freshProducts.length > 0) {
-                                        // Update cache
-                                        setHomeCache(freshProducts, get().categoryCounts);
-
-                                        // Only update UI if data changed significantly
+                                        const freshCounts = snap.categoryCounts || get().categoryCounts;
+                                        setHomeCache(freshProducts, freshCounts);
+                                        if (snap.wonRate && snap.wonRate > 2.4) {
+                                            set({ wonRate: snap.wonRate });
+                                        }
                                         if (freshProducts.length !== cached.products.length ||
                                             freshProducts[0]?.id !== cached.products[0]?.id) {
-
                                             set({
-                                                products: freshProducts, // Send FULL list
-
-                                                totalCount: freshProducts.length,
-                                                hasMore: PAGE_SIZE < freshProducts.length
+                                                products: freshProducts,
+                                                totalCount: snap.productCount || freshProducts.length,
+                                                hasMore: PAGE_SIZE < freshProducts.length,
+                                                categoryCounts: freshCounts,
                                             });
                                         }
                                     }
@@ -327,16 +311,10 @@ export const useProductStore = create(
                         }
 
                         // STEP 2.5: First visit — try the STATIC CDN snapshot first.
-                        // Firebase Hosting's CDN has edge nodes near Mongolia, so this
-                        // is far faster than querying the US-region Firestore on a cold
-                        // start. Falls through to Firestore if the snapshot isn't ready.
                         const snapshot = await productService.getHomeSnapshot();
                         if (snapshot && snapshot.products.length > 0) {
                             const snapCounts = snapshot.categoryCounts || get().categoryCounts;
-                            // Seed the exchange rate from the snapshot so MNT prices
-                            // render correctly immediately (no "unavailable" flash while
-                            // the live rate loads from Firestore).
-                            if (snapshot.wonRate && !get().wonRate) {
+                            if (snapshot.wonRate) {
                                 set({ wonRate: snapshot.wonRate });
                             }
                             set({
@@ -347,19 +325,6 @@ export const useProductStore = create(
                                 categoryCounts: snapCounts,
                             });
                             setHomeCache(snapshot.products, snapCounts);
-
-                            // Refresh from Firestore in the background to stay current.
-                            productService.getHomeProducts().then(fullProducts => {
-                                if (fullProducts && fullProducts.length > 0) {
-                                    setHomeCache(fullProducts, get().categoryCounts);
-                                    set({
-                                        products: fullProducts,
-                                        totalCount: fullProducts.length,
-                                        hasMore: PAGE_SIZE < fullProducts.length,
-                                    });
-                                }
-                            }).catch(err => console.error('Background refresh failed:', err));
-
                             return;
                         }
 
@@ -593,13 +558,35 @@ export const useProductStore = create(
                 products: [{ ...product, id: Date.now(), isNew: true, rating: 0, reviews: 0 }, ...state.products]
             })),
 
-            updateProduct: (id, updatedProduct) => set((state) => ({
-                products: state.products.map((p) => (p.id === id ? { ...p, ...updatedProduct } : p))
-            })),
+            updateProduct: async (id, updatedProduct) => {
+                set((state) => ({
+                    products: state.products.map((p) => (p.id === id ? { ...p, ...updatedProduct } : p)),
+                    inactiveProducts: (state.inactiveProducts || []).map((p) => (p.id === id ? { ...p, ...updatedProduct } : p)),
+                    deletedProducts: (state.deletedProducts || []).map((p) => (p.id === id ? { ...p, ...updatedProduct } : p)),
+                }));
+                try {
+                    const { productService } = await import('../services/productService');
+                    await productService.updateProduct(id, updatedProduct);
+                } catch (error) {
+                    console.error('Failed to persist product update:', error);
+                    throw error;
+                }
+            },
 
-            deleteProduct: (id) => set((state) => ({
-                products: state.products.filter((p) => p.id !== id)
-            })),
+            deleteProduct: async (id) => {
+                set((state) => ({
+                    products: state.products.filter((p) => p.id !== id),
+                    inactiveProducts: (state.inactiveProducts || []).filter((p) => p.id !== id),
+                    deletedProducts: (state.deletedProducts || []).filter((p) => p.id !== id),
+                }));
+                try {
+                    const { productService } = await import('../services/productService');
+                    await productService.deleteProduct(id);
+                } catch (error) {
+                    console.error('Failed to persist product deletion:', error);
+                    throw error;
+                }
+            },
 
             setProductStatus: async (id, status) => {
                 // For inactive/deleted: REMOVE from products array for instant UI update
@@ -829,16 +816,9 @@ export const useProductStore = create(
             setPriceSort: (sort) => set({ priceSort: sort }),
 
             setSearchHistory: (history) => set({ searchHistory: history }),
-            syncSearchHistory: async (history) => {
-                const { doc, setDoc } = await import('firebase/firestore');
-                const user = auth.currentUser;
-                if (!user) return;
-                try {
-                    await setDoc(doc(db, 'users', user.uid), { searchHistory: history }, { merge: true });
-                } catch (e) {
-                    console.error("Failed to sync search history:", e);
-                }
-            },
+            // Search history now persists client-side only (zustand persist). The Worker
+            // user profile doesn't store it; kept as a no-op for call-site compatibility.
+            syncSearchHistory: async () => { /* no-op */ },
         }),
         {
             name: 'shoppy-product-storage-v36',

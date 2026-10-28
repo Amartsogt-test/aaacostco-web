@@ -7,7 +7,7 @@ import { useUIStore } from '../store/uiStore';
 import { ArrowLeft, Copy, CheckCircle2 } from 'lucide-react';
 import { trackEvent } from '../utils/analytics';
 import { apportionTotal } from '../utils/shipments';
-import { callFunction } from '../firebase';
+import { orderApi } from '../services/apiClient';
 
 export default function PaymentPage() {
     const navigate = useNavigate();
@@ -22,6 +22,7 @@ export default function PaymentPage() {
     // webhook so payment is fully automated. Manual bank transfer was removed.
     const [paymentMethod, setPaymentMethod] = useState(location.state?.paymentMethod || 'wire'); // 'wire' | 'installment'
     const [wireQR, setWireQR] = useState(null);
+    const [pendingOrderId, setPendingOrderId] = useState(null); // QR shown → poll this order for payment
 
     // Get total amount passed from navigation state
     // We expect state: { totalValue: number }
@@ -43,6 +44,16 @@ export default function PaymentPage() {
         navigator.clipboard.writeText(text);
         setCopiedField(field);
         setTimeout(() => setCopiedField(null), 2000);
+    };
+
+    // Leaving the payment screen without paying: cancel the unpaid order (server no-ops
+    // if it was already paid) and return to the cart, which still holds the items. Used
+    // by BOTH the header back-arrow and the "Сагс руу буцах" button so they behave alike.
+    const cancelAndBackToCart = async () => {
+        try {
+            if (pendingOrderId) await orderApi.cancelUnpaid(pendingOrderId);
+        } catch { /* back out regardless */ }
+        navigate('/cart-menu');
     };
 
     const handleConfirmPayment = async () => {
@@ -150,7 +161,7 @@ export default function PaymentPage() {
             // the signed-in customer's email, stamps createdAt and seeds the fulfilment
             // timeline. On failure we keep the cart and surface the error.
             //
-            // CONSOLIDATED EXPRESS: when the cart exceeded the 3M₮ duty-free cap the
+            // CONSOLIDATED EXPRESS: when the cart exceeded the duty-free cap the
             // checkout split it into several parcels (processedShipments). Each parcel
             // becomes its OWN order — its own customs declaration under the recipient's
             // name — linked by a shared shipmentGroup id. The customer still makes ONE
@@ -186,9 +197,12 @@ export default function PaymentPage() {
                         amountPaid: i === 0 ? amountToPay : 0,
                         couponCode: i === 0 ? (couponCode || '') : '',
                         couponDiscount: i === 0 ? (couponDiscount || 0) : 0,
+                        pointsRedeemedKRW: i === 0 ? (newOrder.pointsRedeemedKRW || 0) : 0,
+                        pointsDiscount: i === 0 ? (newOrder.pointsDiscount || 0) : 0,
+                        tierDiscount: i === 0 ? (newOrder.tierDiscount || 0) : 0,
                         deliveryFee: i === 0 ? newOrder.deliveryFee : 0,
                     };
-                    const res = await callFunction('createOrder', { order: shipmentOrder });
+                    const res = { data: await orderApi.create(shipmentOrder) };
                     const id = res?.data?.id;
                     if (!id) {
                         throw new Error(`Илгээмж ${i + 1}/${shipments.length} үүсгэж чадсангүй.`
@@ -198,25 +212,31 @@ export default function PaymentPage() {
                 }
                 created = { id: createdIds[0], ids: createdIds };
             } else {
-                const createRes = await callFunction('createOrder', { order: { ...newOrder, ...consentStamp } });
+                const createRes = { data: await orderApi.create({ ...newOrder, ...consentStamp }) };
                 created = { id: createRes?.data?.id, userId: createRes?.data?.userId };
                 if (!created.id) throw new Error('Захиалга үүсгэж чадсангүй.');
             }
             const shipmentNote = created.ids?.length > 1
-                ? ` Гаалийн 3 сая ₮-ийн босгын дагуу ${created.ids.length} илгээмж болж хуваагдлаа (#${created.ids.join(', #')}).`
+                ? ` Гаалийн татваргүй босгоос хэтэрсэн тул ${created.ids.length} илгээмж болж хуваагдлаа (#${created.ids.join(', #')}).`
                 : '';
 
-            clearCart();
-            trackEvent('purchase', { transaction_id: created?.id, value: amountToPay, currency, payment_type: paymentMethod });
+            // For online (Wire) payment, KEEP the cart until payment actually succeeds —
+            // otherwise backing out of the QR screen would leave an empty cart. The cart is
+            // cleared in the polling success handler instead. Other methods clear now.
+            if (paymentMethod !== 'wire') {
+                clearCart();
+                trackEvent('purchase', { transaction_id: created?.id, value: amountToPay, currency, payment_type: paymentMethod });
+            }
 
             // Wire: create the order, then fetch a Wire invoice (URL) to pay.
             // Falls back gracefully if Wire isn't configured yet.
             if (paymentMethod === 'wire') {
                 try {
-                    const res = await callFunction('createWireInvoice', { orderId: created?.id, amount: amountToPay });
+                    const res = { data: await orderApi.wireCreate(created?.id, amountToPay) };
                     const qrData = res?.data?.qr;
                     if (qrData) {
                         setWireQR(qrData);
+                        setPendingOrderId(created?.id);   // start polling for payment confirmation
                         setIsProcessing(false);
                         return; // Prevent redirecting, show the QR instead
                     } else {
@@ -260,12 +280,49 @@ export default function PaymentPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // 🔄 While the QR is shown, poll the order; once the Wire webhook marks it paid/confirmed
+    // (server-side), show success and jump to the orders page automatically. (Worker path.)
+    useEffect(() => {
+        if (!wireQR || !pendingOrderId) return;
+        let stop = false;
+        const pollPhone = checkoutState?.recipientPhone || user?.phone || '';
+        const check = async () => {
+            try {
+                const r = await orderApi.get(pendingOrderId, pollPhone);
+                const stage = r?.order?.trackingStage;
+                const paid = r?.order?.wire?.paid;
+                // Success ONLY on real payment. 'cancelled' is also !== 'received' but must
+                // NOT be treated as paid — otherwise backing out (which cancels the order)
+                // would wrongly fire the success toast + redirect to /orders.
+                const advanced = stage && stage !== 'received' && stage !== 'cancelled';
+                if (!stop && (paid || advanced)) {
+                    stop = true;
+                    clearCart(); // payment confirmed → now safe to empty the cart
+                    try {
+                        sessionStorage.setItem('costco_last_paid_order', JSON.stringify({
+                            id: pendingOrderId,
+                            phone: pollPhone,
+                            order: r?.order || null,
+                            paidAt: new Date().toISOString(),
+                        }));
+                    } catch { /* ignore */ }
+                    trackEvent('purchase', { transaction_id: pendingOrderId, value: amountToPay, currency, payment_type: 'wire' });
+                    showToast('Төлбөр амжилттай төлөгдлөө! ✅', 'success', 5000);
+                    navigate('/orders', { replace: true });
+                }
+            } catch { /* keep polling */ }
+        };
+        const iv = setInterval(check, 4000);
+        const to = setTimeout(() => { stop = true; clearInterval(iv); }, 5 * 60 * 1000); // give up after 5 min
+        return () => { stop = true; clearInterval(iv); clearTimeout(to); };
+    }, [wireQR, pendingOrderId, checkoutState?.recipientPhone, user?.phone, navigate, showToast, clearCart, amountToPay, currency]);
+
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
             {/* Header */}
             <div className="bg-white px-4 py-4 border-b flex items-center gap-4 sticky top-0 z-10 shadow-sm">
                 <button
-                    onClick={() => navigate(-1)}
+                    onClick={wireQR ? cancelAndBackToCart : () => navigate(-1)}
                     className="p-2 hover:bg-gray-100 rounded-full transition"
                 >
                     <ArrowLeft size={24} className="text-gray-600" />
@@ -300,14 +357,18 @@ export default function PaymentPage() {
                             </>
                         )}
                         
+                        {/* Live "listening for payment" indicator — the page polls the order
+                            every few seconds and auto-redirects when the Wire webhook confirms. */}
+                        <div className="flex items-center justify-center gap-2 mb-4 text-sm text-costco-blue font-medium">
+                            <span className="w-3 h-3 border-2 border-costco-blue border-t-transparent rounded-full animate-spin" />
+                            Төлбөрийг хүлээж байна... (автоматаар шалгаж байна)
+                        </div>
+
                         <button
-                            onClick={() => {
-                                showToast('Захиалга амжилттай үүссэн. Төлбөр хийгдсэний дараа автоматаар баталгаажна.', 'success');
-                                navigate('/orders', { replace: true });
-                            }}
+                            onClick={cancelAndBackToCart}
                             className="w-full py-4 text-lg rounded-xl font-bold shadow-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all"
                         >
-                            Дараа төлөх / Буцах
+                            Сагс руу буцах
                         </button>
                     </div>
                 </div>

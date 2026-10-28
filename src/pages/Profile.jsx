@@ -3,7 +3,7 @@ import buildInfo from '../buildInfo.json';
 import { useNavigate } from 'react-router-dom';
 import React, { useEffect, Suspense } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { auth } from '../firebase'; // Keep auth for signOut if needed, or move to store
+
 import { useSettingsStore } from '../store/settingsStore';
 import { useCartStore } from '../store/cartStore';
 import { useChatStore } from '../store/chatStore';
@@ -50,13 +50,7 @@ export default function Profile() {
         useCartStore.getState().resetCheckoutState();
         useChatStore.getState().cleanup(); // tear down the chat subscription + messages
         logout();
-        try {
-            await auth.signOut();
-        } catch (err) {
-            // A network hiccup on signOut shouldn't trap the user in the app —
-            // the local session is already cleared above.
-            console.error('signOut failed:', err);
-        }
+
         navigate('/login');
     };
 

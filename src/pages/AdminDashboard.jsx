@@ -135,8 +135,8 @@ export default function AdminDashboard() {
 
                 // Special handling for Category Name
                 if (sortConfig.key === 'category') {
-                    const catA = (categories || []).find(c => c.id === a.category)?.name || a.category || '';
-                    const catB = (categories || []).find(c => c.id === b.category)?.name || b.category || '';
+                    const catA = (categories || []).find(c => c.id === (a.category || a.categoryCode))?.label || a.category || a.categoryCode || '';
+                    const catB = (categories || []).find(c => c.id === (b.category || b.categoryCode))?.label || b.category || b.categoryCode || '';
                     aValue = catA;
                     bValue = catB;
                 }
@@ -186,13 +186,21 @@ export default function AdminDashboard() {
         if (!editingCell) return;
 
         const { id, field } = editingCell;
+        let patch = { [field]: editValue };
+        if (field === 'price' || field === 'originalPrice' || field === 'weight') {
+            const numVal = Number(editValue) || 0;
+            patch = { [field]: numVal };
+            if (field === 'price' && numVal > 0) {
+                const markup = numVal > 100000 ? 0 : 2000;
+                patch.estimatedWarehousePrice = Math.max(0, numVal - markup);
+            }
+        }
 
         try {
-            await updateProduct(id, { [field]: editValue });
+            await updateProduct(id, patch);
             setEditingCell(null);
         } catch (error) {
             console.error('Update failed:', error);
-            // Optional: Show toast
         }
     };
 

@@ -11,7 +11,7 @@ import { getPriceBreakdown } from '../utils/productUtils';
 import { splitIntoShipments, SHIPMENT_VALUE_LIMIT_MNT } from '../utils/shipments';
 import { formatAmount } from '../utils/format';
 import { trackEvent } from '../utils/analytics';
-import { callFunction } from '../firebase';
+import { couponApi } from '../services/apiClient';
 import ConfirmationModal from './ConfirmationModal';
 
 // Consolidated-express duty-free cap for one individual's parcel: customs value
@@ -223,7 +223,10 @@ export default function CartContent() {
     const launchSale = settings?.launchSale;
     const launchNotExpired = !launchSale?.endsAt || Date.now() < new Date(launchSale.endsAt).getTime();
     const launchActive = (launchSale?.active !== false) && launchNotExpired;
-    const launchPercent = launchActive ? Number(launchSale?.percent ?? 5) : 0;
+    // Match the server's credit logic EXACTLY (notifyOrderStage): percent (back-compat
+    // pointsPercent), falling back to 0 — so we never DISPLAY a bonus % the server won't
+    // actually credit. To run the promo, set settings.launchSale.percent (e.g. 5).
+    const launchPercent = launchActive ? (Number(launchSale?.percent ?? launchSale?.pointsPercent) || 0) : 0;
     // Зөвхөн МЭДЭЭЛЛИЙН зорилгоор: хэрэглэгчид хэдэн төгрөгийн бонус ороxыг харуулна.
     const launchBonusMNT = Math.round(rawTotalItemsMNT * (launchPercent / 100));
 
@@ -248,9 +251,10 @@ export default function CartContent() {
     const totalItemCount = groundItems.length + airItems.length;
 
     // Customs handling (consolidated express): flag items with 3+ of the same
-    // kind; when the GOODS value (customs value, always MNT) exceeds the 3M₮
-    // duty-free cap, the order is split automatically into several parcels —
-    // each under the cap, declared separately under the recipient's name.
+    // kind; when the GOODS value (customs value, always MNT) exceeds the
+    // duty-free cap (CUSTOMS_FREE_LIMIT_MNT), the order is split automatically
+    // into several parcels — each under the cap, declared separately under the
+    // recipient's name.
     const highQtyItems = [...groundItems, ...airItems].filter(it => (it.quantity || 0) > CUSTOMS_SAME_ITEM_LIMIT);
     // Customs value = goods only (no shipping/discounts), computed inside the memo.
     const shipmentPlan = React.useMemo(() => {
@@ -358,9 +362,7 @@ export default function CartContent() {
         if (!code) return;
         setCouponBusy(true); setCouponError('');
         try {
-            const res = await callFunction('validateCoupon', { code, subtotalMNT: Math.round(grandTotalMNT) });
-            const c = res?.data;
-            if (!c?.valid) throw new Error('Купон буруу байна.');
+            let c = await couponApi.validate(code, Math.round(grandTotalMNT));
             const discount = c.type === 'fixed'
                 ? c.value
                 : Math.round(grandTotalMNT * (c.value / 100));
@@ -576,17 +578,16 @@ export default function CartContent() {
                                 <div className="text-xs text-red-600 leading-relaxed">
                                     <p>{oversizeShipments.length} барааны нэгж үнэ дангаараа 660,000₮-өөс давсан тул хуваах боломжгүй — энэ илгээмжид <b>гаалийн татвар ноогдоно</b> (арилжааны бүрдүүлэлт).</p>
                                     <button 
-                                        onClick={(e) => {
+                                        onClick={async (e) => {
                                             e.preventDefault();
                                             const chatStore = useChatStore.getState();
                                             chatStore.openChat();
-                                            setTimeout(() => {
-                                                chatStore.sendMessage('Оператортой чатлах (Гаалийн татвар хэтэрсэн)');
-                                                setTimeout(() => {
-                                                    chatStore.sendAdminMessage('Сайн байна уу? Таны барааны үнэ гаалийн татваргүй босгоос давсан байна. Танд юугаар туслах вэ?');
-                                                    chatStore.requestAdmin();
-                                                }, 600);
-                                            }, 500);
+                                            const authUser = useAuthStore.getState().user;
+                                            const uid = authUser?.uid || authUser?.phone || localStorage.getItem('guest-chat-id') || `guest-${Date.now()}`;
+                                            const uname = authUser?.name || authUser?.phone || 'Зочин';
+                                            await chatStore.initializeChat(uid, uname);
+                                            await chatStore.sendMessage('Оператортой чатлах (Гаалийн татвар хэтэрсэн)');
+                                            chatStore.requestAdmin();
                                         }} 
                                         className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition font-medium w-fit"
                                     >

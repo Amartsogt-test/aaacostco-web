@@ -594,9 +594,10 @@ export default function ProductDetail() {
                                     const breakdown = getPriceBreakdown(product, warehousePriceKRW, settings?.transportationRates, wonRate, type, quantity);
                                     if (!breakdown) return null;
 
-                                    // Calculate variant-specific cartItemId
-                                    const optionValues = Object.values(selectedOptions).sort();
-                                    const currentOptionKey = optionValues.join('_');
+                                    // Calculate variant-specific cartItemId (must match cartStore.js k:v format)
+                                    const currentOptionKey = selectedOptions && Object.keys(selectedOptions).length > 0
+                                        ? Object.keys(selectedOptions).sort().map(k => `${k}:${selectedOptions[k]}`).join('_')
+                                        : '';
                                     const currentCartItemId = currentOptionKey ? `${product.id}_${currentOptionKey}` : product.id;
 
                                     const cartItems = type === 'ground' ? groundItems : airItems;

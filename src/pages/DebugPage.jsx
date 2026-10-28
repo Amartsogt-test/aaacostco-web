@@ -1,28 +1,24 @@
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { api, apiEnabled } from '../services/apiClient';
 
 export default function DebugPage() {
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [projectId, setProjectId] = useState('Unknown');
+    const [apiBase, setApiBase] = useState('Unknown');
 
     const [showOnlyZero, setShowOnlyZero] = useState(false);
 
     useEffect(() => {
         async function fetchData() {
             try {
-                setProjectId(db?.app?.options?.projectId || 'Start Failed');
+                setApiBase(apiEnabled() ? import.meta.env.VITE_API_BASE : 'Not configured');
 
                 console.log("DEBUG PAGE: Fetching products...");
-                const querySnapshot = await getDocs(collection(db, 'products'));
-                console.log("DEBUG PAGE: Snapshot size:", querySnapshot.size);
-
-                const productsList = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
+                // Fetch all products from Worker API (D1)
+                const res = await api.products({ limit: 9999 });
+                const productsList = res?.products || [];
+                console.log("DEBUG PAGE: Product count:", productsList.length);
 
                 setProducts(productsList);
             } catch (err) {
@@ -41,11 +37,11 @@ export default function DebugPage() {
 
     return (
         <div className="p-8 bg-white min-h-screen">
-            <h1 className="text-2xl font-bold mb-4">Firestore Debug Page</h1>
+            <h1 className="text-2xl font-bold mb-4">D1 Debug Page</h1>
 
             <div className="mb-6 p-4 bg-gray-100 rounded border">
-                <p><strong>Project ID:</strong> {projectId}</p>
-                <p><strong>Collection:</strong> products</p>
+                <p><strong>API Base:</strong> {apiBase}</p>
+                <p><strong>Source:</strong> Cloudflare Worker (D1)</p>
                 <p><strong>Status:</strong> {loading ? 'Loading...' : error ? 'Error' : 'Success'}</p>
                 <p><strong>Total Documents:</strong> {products.length}</p>
                 <div className="mt-4 p-4 bg-yellow-100 border border-yellow-300 rounded text-red-700 font-bold flex items-center justify-between">

@@ -13,7 +13,7 @@ REM  `call` is used so one failing step never aborts the rest.
 REM  (Optional, separate & manual: run-scrape-pdp-prices for hidden-price items
 REM   that have no warehouse value — it is slow and needs a member browser login.)
 REM ============================================================
-cd /d E:\aaacostco
+cd /d "%~dp0"
 if not exist logs mkdir logs
 echo. >> logs\weekly.log
 echo ===== WEEKLY %date% %time% ===== >> logs\weekly.log
@@ -36,9 +36,8 @@ call npm run core:home-snapshot
 echo [6/7] Rebuilding search index...
 call npm run core:search-index
 
-echo [7/7] Building and deploying hosting...
-call npm run build
-call firebase deploy --only hosting
+echo [7/7] Building and deploying to Cloudflare Pages...
+call deploy-cloudflare.bat
 
 echo.
 echo ============================================================

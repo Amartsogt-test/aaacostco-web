@@ -202,16 +202,7 @@ export default function AdminProductAdd() {
                 restrictedNote: formData.restricted ? (formData.restrictedNote || '') : ''
             };
 
-            // Firebase integration
-            // If we have an editId, we might need a different service method (updateProduct), but for now checking add.
-            // CAUTION: This implies we are creating new entries for now.
-            // If editId exists, we should probably update, but the user request was specifically about "Connection" 
-            // and primarily usually implies creating new ones first.
-            // However, the existing code handled updates to local store.
-
-            // For now, let's persist to Firebase ONLY for NEW products or always?
-            // User asked to connect "бараа бүртгэх хэсгийг" (register section).
-
+            // Persist to Firebase: update the existing product when editing, else create a new one.
             if (editId) {
                 // Integrating full CRUD
                 const { productService } = await import('../services/productService');

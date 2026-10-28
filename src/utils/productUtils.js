@@ -14,7 +14,7 @@ export const getProductWeight = (prod) => {
     const calculateTotal = (text) => {
         if (!text) return null;
         // Find patterns like 1.5L, 500g, 190ml
-        const unitRegex = /(\d+(?:\.\d+)?)\s*(kg|g|кг|гр|грамм|г|l|ml|리터|미리리터)\b/i;
+        const unitRegex = /(\d+(?:\.\d+)?)\s*(kg|g|кг|гр|грамм|г|l|ml|리터|미리리터)(?![a-zA-Zа-яА-ЯёЁ가-힣])/i;
         const unitMatch = text.match(unitRegex);
 
         if (unitMatch) {
@@ -187,16 +187,18 @@ export const calculateFinalPrice = (product, basePriceKRW, rates, wonRate, shipp
     // Try to parse weight value from the helper result
     if (weightInfo && weightInfo.value) {
         const valStr = weightInfo.value;
-        const equalsMatch = valStr.match(/=\s*(\d+(?:\.\d+)?)\s*kg/i);
+        const equalsMatch = valStr.match(/=\s*(\d+(?:\.\d+)?)\s*(?:kg|кг)/i);
         if (equalsMatch) {
             weightKg = parseFloat(equalsMatch[1]);
         } else {
-            const match = valStr.match(/(\d+(?:\.\d+)?)\s*kg/i);
+            const match = valStr.match(/(\d+(?:\.\d+)?)\s*(?:kg|кг)/i);
             if (match) {
                 weightKg = parseFloat(match[1]);
-            } else if (valStr.match(/(\d+)\s*g/i)) {
-                const gMatch = valStr.match(/(\d+)\s*g/i);
-                weightKg = parseInt(gMatch[1]) / 1000;
+            } else {
+                const gMatch = valStr.match(/(\d+(?:\.\d+)?)\s*(?:g|г|гр|грамм)/i);
+                if (gMatch) {
+                    weightKg = parseFloat(gMatch[1]) / 1000;
+                }
             }
         }
     }
@@ -227,16 +229,18 @@ export const getPriceBreakdown = (product, basePriceKRW, rates, wonRate, shippin
 
     if (weightInfo && weightInfo.value) {
         const valStr = weightInfo.value;
-        const equalsMatch = valStr.match(/=\s*(\d+(?:\.\d+)?)\s*kg/i);
+        const equalsMatch = valStr.match(/=\s*(\d+(?:\.\d+)?)\s*(?:kg|кг)/i);
         if (equalsMatch) {
             unitWeightKg = parseFloat(equalsMatch[1]);
         } else {
-            const match = valStr.match(/(\d+(?:\.\d+)?)\s*kg/i);
+            const match = valStr.match(/(\d+(?:\.\d+)?)\s*(?:kg|кг)/i);
             if (match) {
                 unitWeightKg = parseFloat(match[1]);
-            } else if (valStr.match(/(\d+)\s*g/i)) {
-                const gMatch = valStr.match(/(\d+)\s*g/i);
-                unitWeightKg = parseInt(gMatch[1]) / 1000;
+            } else {
+                const gMatch = valStr.match(/(\d+(?:\.\d+)?)\s*(?:g|г|гр|грамм)/i);
+                if (gMatch) {
+                    unitWeightKg = parseFloat(gMatch[1]) / 1000;
+                }
             }
         }
     }

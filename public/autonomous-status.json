@@ -1,0 +1,165 @@
+{
+  "updatedAt": "2026-10-28T00:00:27.896Z",
+  "selfHeal": {
+    "timestamp": "2026-10-28T00:00:27.895Z",
+    "healthy": true,
+    "snapshotHeal": {
+      "checked": true,
+      "repairedCount": 0,
+      "removedCorruptCount": 0,
+      "wonRateFixed": false,
+      "totalProducts": 1200
+    },
+    "edgeHeal": {
+      "skipped": true,
+      "reason": "WORKER_URL or INTERNAL_SYNC_SECRET not configured locally"
+    },
+    "steps": [
+      {
+        "name": "ESLint Auto-Fix & Check",
+        "command": "npx eslint . --fix",
+        "ok": true,
+        "durationMs": 21385,
+        "output": ""
+      },
+      {
+        "name": "Unit Test Suite",
+        "command": "npm test",
+        "ok": true,
+        "durationMs": 2563,
+        "output": "ing\n> node src/utils/pricing.test.mjs\n\n✓ online MNT displayPrice\n✓ online MNT no old\n✓ warehouse main\n✓ warehouse display\n✓ discount price\n✓ discount old\n✓ discount flag\n✓ expired reverts price\n✓ expired hides old\n✓ expired flag\n✓ KRW raw\n✓ manual override\n✓ no discount flag hides old\n✓ symbol MNT\n✓ null product safe\n✓ pct number\n✓ pct \"20%\"\n✓ pct \"-20%\"\n✓ pct 0 → null\n✓ pct 100 → null\n✓ pct junk → null\n✓ resolve real old\n✓ resolve derive from %\n✓ resolve no flag\n✓ resolve expired\n✓ resolve no reference\n✓ resolve old not higher\n\n27 passed, 0 failed\n\n> ecommerce_shop@0.1.5 test:format\n> node src/utils/format.test.mjs\n\n✓ money basic\n✓ money rounds\n✓ money KRW symbol\n✓ money zero → fallback\n✓ money NaN → fallback\n✓ money custom fallback\n✓ amount zero shows\n✓ amount basic\n✓ amount NaN → 0\n✓ phone local 8\n✓ phone with country\n✓ phone spaced\n✓ phone empty\n✓ phone non-standard passthrough\n✓ date iso\n✓ date null → fallback\n✓ date timestamp\n✓ toDate iso ok\n✓ toDate junk → null\n\n19 passed, 0 failed\n\n> ecommerce_shop@0.1.5 test:async\n> node src/utils/async.test.mjs\n\n✓ first-try success value\n✓ first-try call count\n✓ retry then success value\n✓ retry then success calls\n✓ permanent not retried (calls)\n✓ permanent rethrows\n✓ exhaust retries calls (1+2)\n✓ exhaust rethrows last\n✓ transient: unavailable\n✓ transient: network msg\n✓ not transient: not-found\n✓ not transient: null\n\n12 passed, 0 failed\n\n> ecommerce_shop@0.1.5 test:shipments\n> node src/utils/shipments.test.mjs\n\n✓ under cap → 1 shipment\n✓ under cap value\n✓ under cap not oversize\n✓ over cap → 2 shipments\n✓ split quantities 1+1\n✓ each under cap\n✓ exact cap → 1 shipment\n✓ small items share a shipment\n✓ same-item qty preserved\n✓ transports separated\n✓ oversize isolated\n✓ oversize flagged\n✓ small not flagged\n✓ FFD packs 4 units into 2 bins\n✓ FFD bins under cap\n✓ empty input\n✓ null input\n✓ apportion sums exactly\n✓ apportion proportional\n✓ apportion single\n✓ apportion empty\n✓ apportion zero weights split evenly\n\n22 passed, 0 failed"
+      }
+    ],
+    "aiDiagnosis": null
+  },
+  "catalogSync": {
+    "syncedAt": "2026-10-19T01:24:42.199Z",
+    "memberAuthenticated": true,
+    "memberEmail": "gege841@naver.com",
+    "totalFetchedFromCostco": 2532,
+    "memberHiddenUnlockedCount": 732,
+    "backfilledZeroPrices": 18,
+    "totalActiveCatalog": 7920,
+    "homeSnapshotProducts": 1200,
+    "searchIndexProducts": 7920,
+    "categoryCounts": {
+      "cos_1": 385,
+      "cos_2": 1199,
+      "cos_3": 261,
+      "cos_4": 209,
+      "cos_5": 366,
+      "cos_6": 624,
+      "cos_7": 266,
+      "cos_8": 538,
+      "cos_9": 320,
+      "cos_10": 1393,
+      "cos_11": 209,
+      "cos_12": 273,
+      "cos_14": 249,
+      "cos_15": 282,
+      "cos_17": 114,
+      "cos_18": 105,
+      "cos_19": 726,
+      "cos_20": 100,
+      "Sale": 1528,
+      "Featured": 18,
+      "Kirkland": 123,
+      "New": 172
+    }
+  },
+  "bankRates": {
+    "lastUpdated": "2026-10-18T15:18:55.292Z",
+    "updatedBy": "AutonomousSuite",
+    "khanRates": {
+      "cashBuy": 2.53,
+      "cashSell": 2.87,
+      "nonCashBuy": 2.62,
+      "nonCashSell": 2.79,
+      "lastUpdated": "2026-10-18T15:18:52.196Z"
+    },
+    "previousKhanRates": null,
+    "golomtRates": {
+      "nonCashBuy": 2.65,
+      "nonCashSell": 2.79,
+      "lastUpdated": "2026-10-18T15:18:53.458Z"
+    },
+    "previousGolomtRates": null,
+    "tdbRates": {
+      "nonCashBuy": 2.67,
+      "nonCashSell": 2.8,
+      "lastUpdated": "2026-10-18T15:18:55.275Z"
+    },
+    "previousTdbRates": null,
+    "effectiveSellRate": 2.79
+  },
+  "purchasePlan": {
+    "generatedAt": "2026-10-27T00:00:27.061Z",
+    "orderCount": 0,
+    "totalUniqueSkus": 0,
+    "totalEstimatedKRW": 0,
+    "onlineCartItems": [],
+    "warehousePickingItems": []
+  },
+  "marketing": {
+    "executedAt": "2026-10-27T00:00:34.149Z",
+    "dryRun": false,
+    "campaigns": [
+      {
+        "productCode": "695923",
+        "titleMn": "Bose Soundlink Home Bluetooth Speaker",
+        "priceMNT": 529800,
+        "discountPercent": 42,
+        "campaignType": "flash_sale",
+        "copyGeneratedBy": "deterministic-template",
+        "posterPath": "d:\\costco\\output\\marketing\\posters\\695923-flash_sale.png",
+        "reelData": {
+          "productCode": "695923",
+          "titleMn": "Bose Soundlink Home Bluetooth Speaker",
+          "generatedAt": "2026-10-27T00:00:30.332Z",
+          "voiceoverScript": "Солонгос Косткогийн хамгийн эрэлттэй бараа болох Bose Soundlink Home Bluetooth Speaker онцгой үнээр захиалга авч байна! Зуун хувь оригинал, гэр бүлийн том савлагаатай тул хамгийн хэмнэлттэй сонголт болно. Яг одоо захиалбал 390,600 төгрөг хэмнээд ердөө 529,800 төгрөгөөр аваарай! Костко цэг эм эн сайтаар орж эсвэл комментоор үнэ гэж бичээд шууд захиалаарай!",
+          "slideFiles": [
+            "d:\\costco\\output\\marketing\\videos\\695923\\slide-1.png",
+            "d:\\costco\\output\\marketing\\videos\\695923\\slide-2.png",
+            "d:\\costco\\output\\marketing\\videos\\695923\\slide-3.png",
+            "d:\\costco\\output\\marketing\\videos\\695923\\slide-4.png"
+          ],
+          "mp4Path": null,
+          "mp4Generated": false
+        },
+        "publishStatus": "queued_pending_meta_token",
+        "captionPreview": "🔥 ОНЦГОЙ ХЯМДРАЛ: -42% (390,600₮ хэмнэнэ!)\n🛍️ **Bose Soundlink Home Bluetooth Speaker**\n🏷️ Брэнд: Costco\n💰 Хямдарсан үнэ: **529,800₮** (₩189,900)\n❌ Үндсэн үнэ: ~920,400₮~\n🎁 Бодит хэмнэлт: **390,600₮**\n📦 Тооцоолсон жин: ~1 кг (Газраар:..."
+      },
+      {
+        "productCode": "329281",
+        "titleMn": "Kirkland Signature ширээний салфетка / Доод тал нь 2 ширхэг авах",
+        "priceMNT": 64100,
+        "discountPercent": 11,
+        "campaignType": "spotlight_reel",
+        "copyGeneratedBy": "deterministic-template",
+        "posterPath": "d:\\costco\\output\\marketing\\posters\\329281-spotlight_reel.png",
+        "reelData": {
+          "productCode": "329281",
+          "titleMn": "Kirkland Signature ширээний салфетка / Доод тал нь 2 ширхэг авах",
+          "generatedAt": "2026-10-27T00:00:34.147Z",
+          "voiceoverScript": "Солонгос Косткогийн хамгийн эрэлттэй бараа болох Kirkland Signature ширээний салфетка / Доод тал нь 2 ширхэг авах онцгой үнээр захиалга авч байна! Зуун хувь оригинал, гэр бүлийн том савлагаатай тул хамгийн хэмнэлттэй сонголт болно. Яг одоо захиалбал 14,000 төгрөг хэмнээд ердөө 64,100 төгрөгөөр аваарай! Костко цэг эм эн сайтаар орж эсвэл комментоор үнэ гэж бичээд шууд захиалаарай!",
+          "slideFiles": [
+            "d:\\costco\\output\\marketing\\videos\\329281\\slide-1.png",
+            "d:\\costco\\output\\marketing\\videos\\329281\\slide-2.png",
+            "d:\\costco\\output\\marketing\\videos\\329281\\slide-3.png",
+            "d:\\costco\\output\\marketing\\videos\\329281\\slide-4.png"
+          ],
+          "mp4Path": null,
+          "mp4Generated": false
+        },
+        "publishStatus": "queued_pending_meta_token",
+        "captionPreview": "🌟 СОЛОНГОС КОСТКО ОНЦЛОХ БАРАА!\n🛍️ **Kirkland Signature ширээний салфетка / Доод тал нь 2 ширхэг авах**\n🏷️ Брэнд: Costco\n💰 Хямдарсан үнэ: **64,100₮** (₩22,990)\n❌ Үндсэн үнэ: ~78,100₮~\n🎁 Бодит хэмнэлт: **14,000₮**\n📦 Тооцоолсон жин: ~3 ..."
+      }
+    ]
+  },
+  "mobileApps": {
+    "androidReady": true,
+    "iosReady": true,
+    "fastlaneReady": true,
+    "ciWorkflowReady": true
+  }
+}

@@ -1,91 +1,59 @@
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase';
+// settingsService — Cloudflare Worker only (Firestore removed).
+// Settings live in D1 `settings` (id='general' | 'currency' | 'scraper'), served by the
+// Worker: public reads via GET /api/settings, admin reads via GET /api/admin/settings,
+// writes via POST /api/admin/settings. There is no realtime push on the edge, so the
+// former onSnapshot subscriptions are emulated with a one-shot fetch + light polling.
+import { api, adminApi } from './apiClient';
+
+// Poll interval for the "subscribe" emulations. Settings change rarely, so 60s is plenty.
+const POLL_MS = 60 * 1000;
+
+// Shared poller: fetch once immediately, then every POLL_MS; returns an unsubscribe fn.
+function poll(fetcher, callback) {
+    let stopped = false;
+    const tick = async () => {
+        try { const data = await fetcher(); if (!stopped) callback(data); }
+        catch (e) { if (!stopped) console.error('settings poll error:', e?.message || e); }
+    };
+    tick();
+    const iv = setInterval(tick, POLL_MS);
+    return () => { stopped = true; clearInterval(iv); };
+}
 
 export const settingsService = {
-    // Get all settings once
+    // One-shot read of the general settings doc.
     getSettings: async () => {
-        try {
-            const docRef = doc(db, 'settings', 'general');
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                return docSnap.data();
-            }
-            return null;
-        } catch (error) {
-            console.error("Error fetching settings:", error);
-            throw error;
-        }
+        try { return await api.settings('general'); }
+        catch (error) { console.error('Error fetching settings:', error); throw error; }
     },
 
-    // Subscribe to settings changes (real-time)
-    subscribeToSettings: (callback) => {
-        const docRef = doc(db, 'settings', 'general');
-        return onSnapshot(docRef, (doc) => {
-            if (doc.exists()) {
-                callback(doc.data());
-            } else {
-                callback(null);
-            }
-        });
-    },
+    // Emulated realtime: initial fetch + 60s poll.
+    subscribeToSettings: (callback) => poll(() => api.settings('general'), (d) => callback(d || null)),
 
-    // Update settings
     updateSettings: async (data) => {
-        try {
-            const docRef = doc(db, 'settings', 'general');
-            await setDoc(docRef, data, { merge: true });
-        } catch (error) {
-            console.error("Error updating settings:", error);
-            throw error;
-        }
+        try { await adminApi.setSetting('general', data); }
+        catch (error) { console.error('Error updating settings:', error); throw error; }
     },
 
-    // Get Scraper Settings
+    // Scraper config is admin-only (not exposed on the public settings endpoint).
     getScraperSettings: async () => {
-        try {
-            const docRef = doc(db, 'settings', 'scraper');
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) {
-                return docSnap.data();
-            }
-            return null;
-        } catch (error) {
-            console.error("Error fetching scraper settings:", error);
-            throw error;
-        }
+        try { return await adminApi.getSetting('scraper'); }
+        catch (error) { console.error('Error fetching scraper settings:', error); return null; }
     },
 
-    // Update Scraper Settings
     updateScraperSettings: async (data) => {
-        try {
-            const docRef = doc(db, 'settings', 'scraper');
-            await setDoc(docRef, data, { merge: true });
-        } catch (error) {
-            console.error("Error updating scraper settings:", error);
-            throw error;
-        }
+        try { await adminApi.setSetting('scraper', data); }
+        catch (error) { console.error('Error updating scraper settings:', error); throw error; }
     },
 
-    // Subscribe to Currency Rates
-    subscribeToCurrency: (callback) => {
-        const docRef = doc(db, 'settings', 'currency');
-        return onSnapshot(docRef, (doc) => {
-            if (doc.exists()) {
-                callback(doc.data());
-            } else {
-                callback(null);
-            }
-        });
-    },
+    // Currency rates doc (public-readable). Emulated realtime via poll.
+    subscribeToCurrency: (callback) => poll(() => api.settings('currency'), (d) => callback(d || null)),
 
-    // Trigger backend function to refresh rates
+    // The old Firestore implementation set a refreshTrigger flag that a Firebase function
+    // watched. On Cloudflare the rates are refreshed by the Worker cron / core:bank-rates
+    // job, so this just flips the same flag (harmless no-op consumer) for compatibility.
     triggerBankRefresh: async () => {
-        try {
-            const docRef = doc(db, 'settings', 'currency');
-            await setDoc(docRef, { refreshTrigger: true }, { merge: true });
-        } catch (error) {
-            console.error("Error triggering bank refresh:", error);
-            throw error;
-        }
-    }
+        try { await adminApi.setSetting('currency', { refreshTrigger: true, refreshRequestedAt: new Date().toISOString() }); }
+        catch (error) { console.error('Error triggering bank refresh:', error); throw error; }
+    },
 };

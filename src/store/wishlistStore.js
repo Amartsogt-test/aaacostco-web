@@ -17,6 +17,9 @@ export const useWishlistStore = create(
             wishlist: [],
             // Price tracking: { [productId]: savedPrice }
             savedPrices: {},
+            // 📷 Labels scanned in-store whose product is NOT in our catalog yet.
+            // Each: { code, name, brand, price, originalPrice, unitSize, scannedAt }
+            scannedLabels: [],
 
             addToWishlist: (product) => {
                 if (!requireAuthForSave()) return;
@@ -75,6 +78,21 @@ export const useWishlistStore = create(
             },
 
             clearWishlist: () => set({ wishlist: [], savedPrices: {} }),
+
+            // --- Scanned in-store labels (product not in catalog) ---
+            addScannedLabel: (label) => {
+                if (!label || !label.code) return;
+                const { scannedLabels } = get();
+                // De-dup by code; newest first.
+                const rest = scannedLabels.filter((l) => l.code !== label.code);
+                set({ scannedLabels: [{ ...label, scannedAt: label.scannedAt || new Date().toISOString() }, ...rest] });
+            },
+
+            removeScannedLabel: (code) => {
+                set({ scannedLabels: get().scannedLabels.filter((l) => l.code !== code) });
+            },
+
+            clearScannedLabels: () => set({ scannedLabels: [] }),
 
             getCount: () => get().wishlist.length
         }),

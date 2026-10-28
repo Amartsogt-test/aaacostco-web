@@ -1,0 +1,31 @@
+# Cloudflare Pages response headers (edge caching + security).
+# Copied verbatim into dist/ at build, read by Pages to set Cache-Control so the
+# Ulaanbaatar PoP serves these from cache instead of hitting origin every request.
+
+# Security headers on every document/response. CSP is moderate: scripts/styles locked to
+# known origins (XSS surface), object/base locked down, framing denied (clickjacking),
+# while img/connect stay permissive so the many image CDNs + the API/Firebase keep working.
+# Tighten connect-src to explicit hosts later if desired.
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(self), microphone=(), payment=()
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; worker-src 'self' blob:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+
+# Content-hashed build assets never change → cache hard.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Catalog data (home-snapshot.json, search-index.json, etc.): short edge cache plus
+# a long stale-while-revalidate window — instant from the nearest PoP, refreshed in
+# the background. This is the main Mongolia latency win.
+/*.json
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+
+# The service worker must always revalidate so PWA updates ship to users immediately.
+/sw.js
+  Cache-Control: no-cache
+/registerSW.js
+  Cache-Control: no-cache

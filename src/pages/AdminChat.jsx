@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { MessageCircle, Send, ArrowLeft, User, Clock, Pin, Heart, Plus, Image as ImageIcon, Mic, StopCircle, X, Facebook, Instagram, AlertCircle, Megaphone } from 'lucide-react';
 import { chatService } from '../services/chatService';
 import { useUIStore } from '../store/uiStore';
-import { db } from '../firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { adminApi } from '../services/apiClient';
 
 export default function AdminChat({ isSidebar = false, onClose }) {
     const { showToast } = useUIStore();
@@ -83,10 +82,10 @@ export default function AdminChat({ isSidebar = false, onClose }) {
                 return;
             }
             try {
-                const userDoc = await getDoc(doc(db, 'users', selectedConversation.userId));
-                if (userDoc.exists()) {
-                    setUserData(userDoc.data());
-                } else {
+                try {
+                    const { user } = await adminApi.user(selectedConversation.userId);
+                    setUserData(user);
+                } catch {
                     setUserData(null);
                 }
             } catch (error) {
@@ -97,7 +96,7 @@ export default function AdminChat({ isSidebar = false, onClose }) {
 
         unsubscribeRef.current = chatService.subscribeToMessages(selectedConversation.id, (msgs) => {
             setMessages(msgs);
-        });
+        }, 50, { admin: true });
 
         // Mark as read by admin
         chatService.markAsRead(selectedConversation.id, true);

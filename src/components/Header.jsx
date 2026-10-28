@@ -21,7 +21,7 @@ export default function Header({ layoutStyle }) {
     const _isStandalone = view === 'spreadsheet' || view === 'summary';
     const cartCount = useCartStore(state => state.totalItems());
     const { toggleCurrency, currency, toggleMenu, closeCart, isCartOpen, closeMenu } = useUIStore();
-    const { wonRate, resetSearch } = useProductStore();
+    const { wonRate } = useProductStore();
     const { user } = useAuthStore();
     const { isOpen: isChatOpen, closeChat } = useChatStore();
 
@@ -29,11 +29,13 @@ export default function Header({ layoutStyle }) {
     const [isStoreMenuOpen, setStoreMenuOpen] = useState(false);
     const [selectedStore, setSelectedStore] = useState('Costco');
     const [isCurrencyActive, setCurrencyActive] = useState(false);
-    
+
     const STORES = [
         { id: 'costco', name: 'Costco', color: 'text-red-600', icon: '🛒' },
         { id: 'emart', name: 'E-Mart', color: 'text-yellow-500', icon: '🏪' },
         { id: 'daiso', name: 'Daiso', color: 'text-rose-500', icon: '🌸' },
+        // 🤫 Brand is a secret — only the letter "D" is shown to users.
+        { id: 'd', name: 'D', color: 'text-indigo-600', icon: '🛍️' },
         { id: 'uniqlo', name: 'Uniqlo', color: 'text-red-600', icon: '👕' },
         { id: 'nike', name: 'Nike', color: 'text-black', icon: '👟' },
     ];
@@ -88,25 +90,6 @@ export default function Header({ layoutStyle }) {
     useEffect(() => {
         setStoreMenuOpen(false);
     }, [location.pathname]);
-
-    const handleHomeClick = () => {
-        closeCart();
-        if (!user?.isAdmin && window.innerWidth < 1024) {
-            closeChat();
-        }
-        closeMenu(); // Ensure menu closes
-        resetSearch();
-        setStoreMenuOpen(false);
-        setCurrencyActive(false);
-    };
-
-    const { fetchOrders } = useOrderStore();
-
-    useEffect(() => {
-        if (user) {
-            fetchOrders();
-        }
-    }, [user, fetchOrders]);
 
     // Fetch admin conversations if user is admin
     const prevAdminUnreadRef = useRef(null);

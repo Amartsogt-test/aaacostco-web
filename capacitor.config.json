@@ -1,0 +1,46 @@
+{
+  "appId": "mn.costco.app",
+  "appName": "Costco.mn",
+  "webDir": "mobile-shell",
+  "server": {
+    "url": "https://costco.mn/?app=1",
+    "errorPath": "offline.html",
+    "cleartext": false,
+    "androidScheme": "https",
+    "iosScheme": "capacitor",
+    "hostname": "costco.mn",
+    "allowNavigation": [
+      "costco.mn",
+      "*.costco.mn",
+      "*.firebaseapp.com",
+      "*.googleapis.com",
+      "*.facebook.com"
+    ]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 1500,
+      "backgroundColor": "#005DA3",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP",
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "StatusBar": {
+      "backgroundColor": "#005DA3",
+      "style": "LIGHT",
+      "overlaysWebView": false
+    }
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  },
+  "ios": {
+    "contentInset": "always",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  }
+}

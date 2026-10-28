@@ -13,6 +13,21 @@ class ErrorBoundary extends React.Component {
     componentDidCatch(error, errorInfo) {
         console.error("Uncaught error:", error, errorInfo);
         this.setState({ errorInfo });
+        try {
+            const apiBase = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '');
+            if (apiBase) {
+                fetch(`${apiBase}/api/telemetry/error`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        source: 'frontend-error-boundary',
+                        message: error?.toString() || 'React ErrorBoundary crash',
+                        stack: `${error?.stack || ''}\n${errorInfo?.componentStack || ''}`.slice(0, 1500),
+                        url: window.location.href,
+                    }),
+                }).catch(() => {});
+            }
+        } catch { /* ignore telemetry errors */ }
     }
 
     render() {

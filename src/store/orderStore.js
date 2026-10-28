@@ -81,7 +81,7 @@ export const useOrderStore = create((set, get) => ({
         }));
 
         try {
-            await orderService.updateOrderTracking(orderId, update);
+            await orderService.updateOrderTracking(orderId, { ...update, note });
         } catch (error) {
             console.error("Failed to set order stage:", error);
             set({ orders: originalOrders, error: error.message });
@@ -112,7 +112,7 @@ export const useOrderStore = create((set, get) => ({
         }));
 
         try {
-            await orderService.bulkUpdateOrderTracking(items);
+            await orderService.bulkUpdateOrderTracking(items.map(it => ({ ...it, note })));
             return items.length;
         } catch (error) {
             console.error("Failed to bulk-set order stages:", error);

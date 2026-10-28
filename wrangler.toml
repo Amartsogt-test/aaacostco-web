@@ -1,3 +1,6 @@
 name = "costco-fe"
 compatibility_date = "2024-05-01"
-pages_build_output_dir = "dist"
+# NOTE: we deploy from inside dist (`cd dist && wrangler pages deploy .`) so wrangler
+# does NOT mistake the Firebase Cloud Functions folder (./functions) for Cloudflare
+# Pages Functions. pages_build_output_dir is intentionally omitted to avoid a conflict
+# with that positional-directory deploy.

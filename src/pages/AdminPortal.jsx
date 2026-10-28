@@ -82,7 +82,25 @@ const AdminPortal = ({ embedded = false }) => {
     return (
         <div className={embedded ? "w-full" : "min-h-screen bg-gray-50 pb-20"}>
             <div className={`container mx-auto max-w-lg px-4 space-y-3 ${embedded ? '' : 'pt-6'}`}>
-                {/* 🤖 Premium AI Price Tag Scanner Banner at the top */}
+                {/* 🤖 Autonomous AI Autopilot & Self-Healing Control Center */}
+                <div
+                    onClick={() => navigate('/admin/autonomous')}
+                    className="bg-gradient-to-r from-emerald-950 via-teal-900 to-slate-900 rounded-3xl p-5 shadow-lg border border-emerald-700/40 cursor-pointer hover:shadow-emerald-950/20 active:scale-98 transition flex items-center justify-between text-white group"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-emerald-500/25 text-emerald-300 rounded-2xl flex items-center justify-center border border-emerald-500/30 group-hover:scale-105 transition">
+                            <Wand2 size={24} />
+                        </div>
+                        <div className="text-left">
+                            <h3 className="font-black text-[10px] uppercase tracking-wider text-emerald-300">24/7 AI AUTOPILOT</h3>
+                            <h2 className="font-extrabold text-base text-slate-50 leading-tight">Автомат Удирдлага & Self-Healing</h2>
+                            <p className="text-[11px] text-slate-300 mt-0.5">Costco.co.kr синк • AI Маркетинг • Play Store & App Store</p>
+                        </div>
+                    </div>
+                    <ChevronRight size={20} className="text-emerald-400 group-hover:text-white transition-colors" />
+                </div>
+
+                {/* 🤖 Premium AI Price Tag Scanner Banner */}
                 <div 
                     onClick={() => navigate('/admin/scanner')}
                     className="bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-900 rounded-3xl p-5 shadow-lg border border-indigo-900/40 cursor-pointer hover:shadow-indigo-950/20 active:scale-98 transition flex items-center justify-between text-white group"

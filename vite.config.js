@@ -113,6 +113,31 @@ export default defineConfig({
               },
               networkTimeoutSeconds: 3
             }
+          },
+          {
+            // 🚀 R2 product images served back through the Worker (/img/…). Public + content-
+            // addressed → CacheFirst for instant repeat loads, like the other image CDNs.
+            urlPattern: /^https:\/\/costco-api\.[a-z0-9-]+\.workers\.dev\/img\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'r2-images',
+              expiration: { maxEntries: 600, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          },
+          {
+            // 🚀 Worker catalog reads (PUBLIC only: products/product/search/categories).
+            // NetworkFirst = fresh when online, instant/offline from cache otherwise.
+            // Personal endpoints (orders/user/cart/chat) are deliberately NOT matched, so
+            // no per-user data is ever stored in the shared SW cache.
+            urlPattern: /^https:\/\/costco-api\.[a-z0-9-]+\.workers\.dev\/api\/(products|product|search|categories)/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'worker-catalog',
+              expiration: { maxEntries: 100, maxAgeSeconds: 5 * 60 },
+              networkTimeoutSeconds: 3,
+              cacheableResponse: { statuses: [0, 200] }
+            }
           }
         ]
       }
@@ -128,21 +153,6 @@ export default defineConfig({
         manualChunks(id) {
           // Only split vendor chunks from node_modules
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'react-vendor';
-            }
-            if (id.includes('firebase')) {
-              // Split rarely-needed Storage & Functions SDKs into their own async
-              // chunks so they stay OUT of the eager firebase-vendor (Firestore +
-              // Auth) bundle. They load on demand via uploadFileToStorage / callFunction.
-              if (id.includes('firebase/storage') || id.includes('@firebase/storage')) {
-                return 'firebase-storage';
-              }
-              if (id.includes('firebase/functions') || id.includes('@firebase/functions')) {
-                return 'firebase-functions';
-              }
-              return 'firebase-vendor';
-            }
             if (id.includes('lucide-react')) {
               return 'ui-vendor';
             }
@@ -150,13 +160,29 @@ export default defineConfig({
             if (id.includes('html5-qrcode')) {
               return 'qr-scanner';
             }
+            // 🚀 Split heavy admin/export utilities so customer bundle stays lean
+            if (id.includes('xlsx')) {
+              return 'xlsx-vendor';
+            }
+            if (id.includes('html2canvas')) {
+              return 'canvas-vendor';
+            }
             // 🚀 Split state management
             if (id.includes('zustand')) {
               return 'state-vendor';
             }
-            // 🚀 Split mapping library
-            if (id.includes('leaflet')) {
+            // 🚀 Split pure leaflet mapping engine without creating a circular chunk with react-vendor
+            if (id.includes('/leaflet/') || id.includes('\\leaflet\\')) {
               return 'map-vendor';
+            }
+            if (
+              id.includes('/react/') ||
+              id.includes('\\react\\') ||
+              id.includes('react-dom') ||
+              id.includes('react-router') ||
+              id.includes('scheduler')
+            ) {
+              return 'react-vendor';
             }
           }
           // Don't manually chunk admin pages - let Vite handle it via lazy loading

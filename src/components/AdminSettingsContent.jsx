@@ -45,6 +45,7 @@ export default function AdminSettingsContent({ isOpen, onClose, isEmbedded = fal
                 phone: settings.phone || '',
                 email: settings.email || 'admin@costco.mn',
                 messengerLink: settings.messengerLink || '',
+                chatReminder: settings.chatReminder || '',
                 // Map legacy 'transportation' or new 'transportationRates'
                 transportationRates: settings.transportationRates || settings.transportation || { ground: 0, air: 0 },
                 membershipBenefits: settings.membershipBenefits || { silver: '', gold: '', platinum: '' },

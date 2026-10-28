@@ -25,7 +25,8 @@
 const path = require('path');
 const fs = require('fs');
 
-const admin = require(path.join(__dirname, '..', 'functions', 'node_modules', 'firebase-admin'));
+const fnAdminPath = path.join(__dirname, '..', 'functions', 'node_modules', 'firebase-admin');
+const admin = fs.existsSync(fnAdminPath) ? require(fnAdminPath) : require('firebase-admin');
 const saPath = path.join(__dirname, '..', 'functions', 'service-account.json');
 if (!fs.existsSync(saPath)) { console.error('❌ functions/service-account.json not found.'); process.exit(1); }
 admin.initializeApp({ credential: admin.credential.cert(require(saPath)) });

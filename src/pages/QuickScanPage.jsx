@@ -2,8 +2,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, RotateCw, Save, Scan, ScanBarcode, Image as ImageIcon, Search, Edit, Sparkles, Copy, Check } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-import { db } from '../firebase';
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { api, adminApi } from '../services/apiClient';
 import { getProductWeight, cleanBarcode } from '../utils/productUtils';
 import { useUIStore } from '../store/uiStore';
 
@@ -235,30 +234,41 @@ export default function QuickScanPage() {
         setScannedCode(code);
         setLoading(true);
 
-        const candidates = [code, code.slice(0, -1), code.startsWith('0') ? code.slice(1, -1) : null].filter(Boolean);
+        const candidates = [code, code.slice(0, -1), code.startsWith('0') ? code.slice(1, -1) : null, `cos_${code}`].filter(Boolean);
 
         try {
-            let foundDocs = [];
-            const collectionRef = collection(db, 'products');
+            let pData = null;
 
+            // Try exact product lookup first, then search fallback
             for (const cand of candidates) {
-                const q1 = query(collectionRef, where('id', '==', cand));
-                const snap1 = await getDocs(q1);
-                if (!snap1.empty) {
-                    foundDocs = [snap1.docs[0]];
-                    break;
-                }
-                const q2 = query(collectionRef, where('id', '==', `cos_${cand}`));
-                const snap2 = await getDocs(q2);
-                if (!snap2.empty) {
-                    foundDocs = [snap2.docs[0]];
-                    break;
-                }
+                try {
+                    const res = await api.product(cand);
+                    const found = res?.product || (res?.id ? res : null);
+                    if (found) { pData = found; break; }
+                } catch { /* not found, try next */ }
             }
 
-            if (foundDocs.length > 0) {
-                const pData = foundDocs[0].data();
-                setProduct({ ...pData, docId: foundDocs[0].id });
+            // Fallback: use search endpoint
+            if (!pData) {
+                try {
+                    const res = await api.search(code);
+                    if (res?.products?.length) pData = res.products[0];
+                } catch { /* ignore */ }
+            }
+
+            if (pData) {
+                // D1 stores JSON fields as strings — parse them
+                if (typeof pData.additionalCategories === 'string') {
+                    try { pData.additionalCategories = JSON.parse(pData.additionalCategories); } catch { pData.additionalCategories = []; }
+                }
+                if (typeof pData.classifications === 'string') {
+                    try { pData.classifications = JSON.parse(pData.classifications); } catch { pData.classifications = []; }
+                }
+                if (typeof pData.specifications === 'string') {
+                    try { pData.specifications = JSON.parse(pData.specifications); } catch { pData.specifications = []; }
+                }
+
+                setProduct({ ...pData, docId: pData.id });
                 setPrice(pData.price || '');
                 setOriginalPrice(pData.originalPrice || '');
                 setNameMn(pData.name_mn || pData.name || '');
@@ -280,23 +290,15 @@ export default function QuickScanPage() {
                 }
 
                 // Initialize tags
-                const currentTags = pData.additionalCategories || [];
-                // Map 'Featured' to 'Онцгой' internally if needed, OR just keep strings as is.
-                // The library uses 'Featured' for isFeatured, but the user UI says 'Онцгой'.
-                // AdminProductAdd uses 'Онцгой' as label but stores it.
-                // Let's assume we store the strings directly: 'Онцгой', 'Trend', 'Дарс', 'New'.
-                // EXCEPT: 'Featured' usually maps to 'Онцгой' in logic, but standardizing on stored string is safer.
-                // If existing data has 'Featured', let's map it to 'Онцгой' for the UI.
-
+                const currentTags = Array.isArray(pData.additionalCategories) ? pData.additionalCategories : [];
                 let loadedTags = [...currentTags];
                 // Legacy support: if 'Featured' exists, treat as 'Онцгой'
                 if (loadedTags.includes('Featured') && !loadedTags.includes('Онцгой')) loadedTags.push('Онцгой');
-
                 setSelectedTags(loadedTags);
 
                 if (pData.discountEndDate) {
                     try {
-                        const date = pData.discountEndDate.toDate ? pData.discountEndDate.toDate() : new Date(pData.discountEndDate);
+                        const date = new Date(pData.discountEndDate);
                         setDiscountEndDate(date.toISOString().slice(0, 16));
                     } catch {
                         setDiscountEndDate('');
@@ -320,17 +322,21 @@ export default function QuickScanPage() {
 
         setLoading(true);
         try {
-            const productRef = doc(db, 'products', product.docId);
-
+            const numPrice = Number(price) || 0;
+            const numOrig = originalPrice ? Number(originalPrice) : numPrice;
+            const markup = numPrice > 100000 ? 0 : 2000;
             const updatePayload = {
-                price: Number(price),
-                originalPrice: originalPrice ? Number(originalPrice) : null,
+                id: product.docId,
+                price: numPrice,
+                estimatedWarehousePrice: Math.max(0, numPrice - markup),
+                hasDiscount: numOrig > numPrice && numPrice > 0,
+                originalPrice: numOrig,
                 weight: Number(weight),
                 name_mn: nameMn,
                 shortDescription: shortDescription,
                 isManualPrice: true,
-                updatedAt: serverTimestamp(),
-                lastAdminUpdate: serverTimestamp()
+                updatedAt: new Date().toISOString(),
+                lastAdminUpdate: new Date().toISOString()
             };
 
             if (discountEndDate) {
@@ -344,7 +350,8 @@ export default function QuickScanPage() {
             // Sync tags
             // Preserve existing tags that are NOT in our controlled set (to avoid deleting other random tags)
             const controlledTags = ['Онцгой', 'Trend', 'Дарс', 'New', 'Featured'];
-            const existingOtherTags = (product.additionalCategories || []).filter(t => !controlledTags.includes(t));
+            const currentCategories = Array.isArray(product.additionalCategories) ? product.additionalCategories : [];
+            const existingOtherTags = currentCategories.filter(t => !controlledTags.includes(t));
 
             // Reconstruct tags
             let finalTags = [...existingOtherTags, ...selectedTags];
@@ -361,7 +368,7 @@ export default function QuickScanPage() {
             // Clean up duplicates
             updatePayload.additionalCategories = [...new Set(finalTags)];
 
-            await updateDoc(productRef, updatePayload);
+            await adminApi.upsertProduct(updatePayload);
             showToast('Амжилттай хадгаллаа!', 'success');
             handleReset();
         } catch (error) {

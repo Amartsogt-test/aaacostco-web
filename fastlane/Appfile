@@ -1,0 +1,7 @@
+json_key_file(ENV["GOOGLE_PLAY_JSON_KEY_FILE"] || "fastlane/play-store-credentials.json")
+package_name("com.aaacostco.app")
+
+app_identifier("com.aaacostco.app")
+apple_id(ENV["APPLE_ID"] || "admin@costco.mn")
+itc_team_id(ENV["APP_STORE_CONNECT_TEAM_ID"] || "")
+team_id(ENV["APPLE_DEVELOPER_TEAM_ID"] || "")

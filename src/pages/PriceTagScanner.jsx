@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { callFunction, ensureSignedIn, db } from '../firebase';
-import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+
+import { aiApi, adminApi } from '../services/apiClient';
 import { productService } from '../services/productService';
 import { useUIStore } from '../store/uiStore';
 import {
@@ -125,13 +125,10 @@ export default function PriceTagScanner() {
     const callAIScanner = async (base64Data) => {
         setLoadingMessage('AI сканнер шошгыг шинжилж байна...');
         try {
-            await ensureSignedIn(); // aiProxy requires an authenticated caller
-            const response = await callFunction('aiProxy', {
-                action: 'extractPriceTag',
-                payload: { imageBase64: base64Data }
-            });
 
-            const data = response.data;
+            const response = await aiApi.scan(base64Data);
+
+            const data = response?.data || response;
             if (!data || !data.code) {
                 throw new Error('Шошгоны мэдээлэл уншихад алдаа гарлаа. Барааны код олдсонгүй.');
             }
@@ -249,38 +246,15 @@ export default function PriceTagScanner() {
                 updatedAt: new Date().toISOString()
             };
 
-            if (dbProduct) {
-                // UPDATE
-                const productRef = doc(db, 'products', dbProduct.id);
-                await updateDoc(productRef, updates);
-                
-                // Update in special collections if it is currently inside them
-                const specialCollections = ['products_sale', 'products_new', 'products_kirkland', 'products_featured'];
-                for (const col of specialCollections) {
-                    const specDocRef = doc(db, col, dbProduct.id);
-                    const specDocSnap = await getDoc(specDocRef);
-                    if (specDocSnap.exists()) {
-                        await updateDoc(specDocRef, {
-                            price: updates.price,
-                            originalPrice: updates.originalPrice,
-                            hasDiscount: updates.hasDiscount,
-                            restockStatus: updates.restockStatus,
-                            packageQuantity: updates.packageQuantity,
-                            estimatedWarehousePrice: updates.estimatedWarehousePrice,
-                            manualPriceKRW: updates.manualPriceKRW,
-                            manualOriginalPriceKRW: updates.manualOriginalPriceKRW
-                        });
-                    }
-                }
-            } else {
-                // CREATE NEW
-                const newDocRef = doc(db, 'products', productCode);
-                await setDoc(newDocRef, {
-                    ...updates,
-                    status: 'active',
-                    createdAt: new Date().toISOString()
-                });
-            }
+            // upsertProduct handles creating/updating in D1 via Cloudflare Worker
+            const productPayload = {
+                id: dbProduct ? dbProduct.id : productCode,
+                ...updates,
+                status: dbProduct ? dbProduct.status : 'active',
+                createdAt: dbProduct ? dbProduct.createdAt : new Date().toISOString()
+            };
+            
+            await adminApi.upsertProduct(productPayload);
 
             setIsLoading(false);
             showToast(dbProduct ? 'Бараа амжилттай шинэчлэгдлээ!' : 'Шинэ бараа амжилттай нэмэгдлээ!', 'success');

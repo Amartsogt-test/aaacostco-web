@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useUIStore } from './uiStore';
-import { auth, db } from '../firebase';
 
 // Hard customs cap: an individual's parcel stays duty-free only with ≤2 of the
 // same item, so the cart never lets a single item exceed 2. The shopper is told
@@ -11,9 +10,7 @@ const SPLIT_MSG = 'Татваргүй авахын тулд ижил бараа�
 const notifyCap = () => useUIStore.getState().showToast(SPLIT_MSG, 'warning', 5000);
 
 // 🛒 Guest checkout (international standard): the cart is open to everyone. No login
-// is required to add items or check out — an anonymous Firebase session is created
-// at order time (see ensureSignedIn in firebase.js) so Firestore rules are still
-// satisfied without forcing the shopper to sign in first.
+// is required to add items or check out.
 
 export const useCartStore = create(
     persist(
@@ -74,24 +71,12 @@ export const useCartStore = create(
             setGroundItems: (items) => set({ groundItems: items }),
             setAirItems: (items) => set({ airItems: items }),
 
-            syncCartToFirestore: async () => {
-                if (window.__cartSyncTimeout) clearTimeout(window.__cartSyncTimeout);
-                window.__cartSyncTimeout = setTimeout(async () => {
-                    const { doc, setDoc } = await import('firebase/firestore');
-                    const user = auth?.currentUser;
-                    if (!user) return;
-                    
-                    try {
-                        const { groundItems, airItems, checkoutState } = get();
-                        await setDoc(doc(db, 'users', user.uid), {
-                            cart: { groundItems, airItems },
-                            checkoutState
-                        }, { merge: true });
-                    } catch (e) {
-                        console.error("Failed to sync cart to Firestore:", e);
-                    }
-                }, 1500); // 1.5 second debounce
-            },
+            // Cross-device cart persistence used to write the full cart to the Firestore
+            // user doc. The Worker user profile doesn't store the full cart, so the cart
+            // now persists locally (zustand persist) and a lightweight item COUNT is
+            // mirrored to D1 by startCartSync (utils/cartSync) for the abandoned-cart
+            // reminder. Kept as a no-op so existing call sites keep working.
+            syncCartToFirestore: async () => { /* no-op: cart persists locally; count mirrored by cartSync */ },
 
             // Add to Ground cart (газраар авах)
             addToGround: (product, selectedOptions = null, quantity = 1) => {
@@ -305,6 +290,14 @@ export const useCartStore = create(
         }),
         {
             name: 'costco-cart-storage',
+            partialize: (state) => ({
+                groundItems: state.groundItems,
+                airItems: state.airItems,
+                checkoutState: {
+                    ...state.checkoutState,
+                    recipientRegister: '', // Never persist national ID number in plain localStorage
+                },
+            }),
         }
     )
 );

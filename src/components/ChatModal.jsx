@@ -4,9 +4,6 @@ import { useChatStore } from '../store/chatStore';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useUIStore } from '../store/uiStore';
-import { auth, db } from '../firebase';
-import { signInWithPopup, OAuthProvider, signInWithRedirect } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 
 export default function ChatModal({ isSidebar = false, isFullScreen = false, onClose }) {
@@ -22,10 +19,6 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
     const [isCompact, _setIsCompact] = useState(false); // Default to Sidebar (false) on Desktop
 
     const [showPinned, setShowPinned] = useState(false);
-    const [showLoginModal, setShowLoginModal] = useState(false);
-    const [showFollowPrompt, setShowFollowPrompt] = useState(false);
-    const [pendingLoginUser, setPendingLoginUser] = useState(null);
-    const [pendingLoginPlatform, setPendingLoginPlatform] = useState(null); // 'facebook' or 'instagram'
     // Filter pinned messages
     const pinnedMessages = messages.filter(m => m.pinned);
 
@@ -80,12 +73,9 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
         let botText = '';
 
         if (type === 'LINK_ORDER') {
-            // Check if user is logged in with social auth
-            const { user, isAuthenticated } = useAuthStore.getState();
-            const hasSocialLogin = isAuthenticated && user?.loginProvider;
-
-            if (!hasSocialLogin) {
-                setShowLoginModal(true);
+            const { isAuthenticated } = useAuthStore.getState();
+            if (!isAuthenticated) {
+                window.location.href = '/profile';
                 return;
             }
 
@@ -97,13 +87,9 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
 
             botText = 'Сайн байна уу? Би таныг оператор руу шилжүүллээ. Та барааныхаа линкийг энд бичээд үлдээнэ үү. Бид шалгаад танд удахгүй хариу өгөх болно. Баярлалаа!';
         } else if (type === 'ADMIN') {
-            // Check if user is logged in with social auth
-            const { user, isAuthenticated } = useAuthStore.getState();
-            const hasSocialLogin = isAuthenticated && user?.loginProvider;
-
-            if (!hasSocialLogin) {
-                // User not logged in with social - show login modal
-                setShowLoginModal(true);
+            const { isAuthenticated } = useAuthStore.getState();
+            if (!isAuthenticated) {
+                window.location.href = '/profile';
                 return;
             }
 
@@ -126,10 +112,9 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
         if (!input.trim()) return;
 
         // Check if user is logged in
-        const { user, isAuthenticated } = useAuthStore.getState();
-        const hasSocialLogin = isAuthenticated && user?.loginProvider;
-        if (!hasSocialLogin) {
-            setShowLoginModal(true);
+        const { isAuthenticated } = useAuthStore.getState();
+        if (!isAuthenticated) {
+            window.location.href = '/profile';
             return;
         }
 
@@ -149,10 +134,9 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
         if (!file) return;
 
         // Check if user is logged in
-        const { user, isAuthenticated } = useAuthStore.getState();
-        const hasSocialLogin = isAuthenticated && user?.loginProvider;
-        if (!hasSocialLogin) {
-            setShowLoginModal(true);
+        const { isAuthenticated } = useAuthStore.getState();
+        if (!isAuthenticated) {
+            window.location.href = '/profile';
             return;
         }
 
@@ -166,10 +150,9 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
 
     const startRecording = async () => {
         // Check if user is logged in
-        const { user, isAuthenticated } = useAuthStore.getState();
-        const hasSocialLogin = isAuthenticated && user?.loginProvider;
-        if (!hasSocialLogin) {
-            setShowLoginModal(true);
+        const { isAuthenticated } = useAuthStore.getState();
+        if (!isAuthenticated) {
+            window.location.href = '/profile';
             return;
         }
 
@@ -415,171 +398,6 @@ export default function ChatModal({ isSidebar = false, isFullScreen = false, onC
                     {isLoading ? (
                         <div className="flex items-center justify-center h-full">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                        </div>
-                    ) : showLoginModal ? (
-                        /* Inline Login UI inside Chat */
-                        <div className="flex flex-col items-center justify-center h-full px-6 py-8">
-                            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                                <MessageCircleIcon className="w-8 h-8 text-blue-600" />
-                            </div>
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">Оператортой чатлахын тулд нэвтэрнэ үү</h3>
-
-                            <div className="w-full max-w-xs space-y-3 mt-4">
-                                <button
-                                    onClick={async () => {
-                                        try {
-                                            const provider = new OAuthProvider('facebook.com');
-                                            provider.addScope('public_profile');
-                                            
-
-                                            const result = await signInWithPopup(auth, provider);
-                                            const user = result.user;
-
-                                            const userRef = doc(db, 'users', user.uid);
-                                            const userDoc = await getDoc(userRef);
-
-                                            const userData = {
-                                                uid: user.uid,
-                                                name: user.displayName,
-                                                email: user.email,
-                                                photoURL: user.photoURL,
-                                                loginProvider: 'facebook',
-                                                lastLogin: serverTimestamp()
-                                            };
-
-                                            if (!userDoc.exists()) {
-                                                userData.followStatus = { facebook: null, instagram: null };
-                                                userData.createdAt = serverTimestamp();
-                                            }
-
-                                            await setDoc(userRef, userData, { merge: true });
-
-                                            const fullUser = {
-                                                ...userData,
-                                                followStatus: userDoc.exists() ? userDoc.data().followStatus : { facebook: null, instagram: null }
-                                            };
-
-                                            // Login immediately so Profile and other components see the user
-                                            const { login } = useAuthStore.getState();
-                                            login(fullUser);
-
-                                            // Store user data for follow confirmation updates
-                                            setPendingLoginUser(fullUser);
-
-                                            setShowLoginModal(false);
-                                            setPendingLoginPlatform('facebook');
-                                            setShowFollowPrompt(true); // Show follow prompt instead of proceeding
-                                        } catch (error) {
-                                            console.error('Facebook login error:', error);
-                                            // Fallback for mobile in-app browsers
-                                            const code = error?.code;
-                                            const shouldFallback = [
-                                                'auth/popup-blocked',
-                                                'auth/popup-closed-by-user',
-                                                'auth/operation-not-supported-in-this-environment',
-                                                'auth/web-storage-unsupported',
-                                                'auth/internal-error',
-                                            ].includes(code);
-                                            
-                                            if (shouldFallback || error.message.includes('popup')) {
-                                                try {
-                                                    const provider = new OAuthProvider('facebook.com');
-                                                    provider.addScope('public_profile');
-                                                    await signInWithRedirect(auth, provider);
-                                                } catch (redirectErr) {
-                                                    console.error('Redirect failed:', redirectErr);
-                                                }
-                                            }
-                                        }
-                                    }}
-                                    className="w-full py-3 px-4 bg-[#1877F2] text-white font-bold rounded-xl flex items-center justify-center gap-3 hover:bg-[#166FE5] transition shadow-lg"
-                                >
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
-                                    Facebook-ээр нэвтрэх
-                                </button>
-                            </div>
-
-                            <p className="text-xs text-gray-400 mt-6 text-center">
-                                Нэвтрэснээр та үйлчилгээний нөхцөлийг зөвшөөрч байна
-                            </p>
-
-                            <button
-                                onClick={() => setShowLoginModal(false)}
-                                className="mt-4 text-sm text-gray-500 hover:text-gray-700"
-                            >
-                                Буцах
-                            </button>
-                        </div>
-                    ) : showFollowPrompt ? (
-                        /* FOLLOW PROMPT - Shows after Facebook login */
-                        <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10">
-                            {/* Platform-specific icon */}
-                            <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mb-5 shadow-lg">
-                                <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                                </svg>
-                            </div>
-
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">
-                                Сайн байна уу, {pendingLoginUser?.name?.split(' ')[0] || 'Хэрэглэгч'}! 👋
-                            </h3>
-                            <p className="text-gray-500 mb-6 text-sm max-w-xs">
-                                Чатлахын тулд манай Facebook хуудсыг дагаарай. Шинэ бараа, урамшуулал, хямдралын мэдээг авах боломжтой!
-                            </p>
-
-                            <div className="w-full max-w-xs space-y-3">
-                                {/* Open social media page button */}
-                                <button
-                                    onClick={() => window.open(
-                                        'https://www.facebook.com/costcomongolia',
-                                        '_blank'
-                                    )}
-                                    className="w-full py-3 px-4 text-white font-bold rounded-xl flex items-center justify-center gap-3 transition shadow-lg bg-[#1877F2] hover:bg-[#166FE5]"
-                                >
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" /></svg>
-                                    Facebook хуудас нээх
-                                </button>
-
-                                {/* Confirm follow button */}
-                                <button
-                                    onClick={async () => {
-                                        // User confirmed they followed - update Firestore and login
-                                        if (pendingLoginUser?.uid) {
-                                            await setDoc(doc(db, 'users', pendingLoginUser.uid), {
-                                                followStatus: { [pendingLoginPlatform]: true }
-                                            }, { merge: true });
-                                        }
-
-                                        const { updateFollowStatus } = useAuthStore.getState();
-                                        updateFollowStatus(pendingLoginPlatform, true);
-
-                                        setShowFollowPrompt(false);
-                                        setPendingLoginUser(null);
-                                        setPendingLoginPlatform(null);
-                                        // Delay to allow chat initialization after login
-                                        setTimeout(() => handleQuickReply('ADMIN'), 500);
-                                    }}
-                                    className="w-full py-3 px-4 bg-green-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-green-600 transition shadow-lg"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                    Дагасан ✓
-                                </button>
-
-                                {/* Skip button */}
-                                <button
-                                    onClick={() => {
-                                        // Skip - already logged in
-                                        setShowFollowPrompt(false);
-                                        setPendingLoginUser(null);
-                                        setPendingLoginPlatform(null);
-                                        // Delay to allow chat initialization after login
-                                        setTimeout(() => handleQuickReply('ADMIN'), 500);
-                                    }}
-                                    className="w-full py-2 text-gray-400 text-sm hover:text-gray-600 transition"
-                                >
-                                    Дараа дагахий
-                                </button>
-                            </div>
                         </div>
                     ) : messages.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">

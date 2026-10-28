@@ -1,7 +1,7 @@
 @echo off
 REM Scrape prices from the product PAGE (PDP) for hidden-price items with no warehouse
 REM price. Opens a browser — log into costco.co.kr as a MEMBER if prompted.
-cd /d E:\aaacostco
+cd /d "%~dp0"
 
 echo ============================================================
 echo  Scrape PDP prices - started %date% %time%

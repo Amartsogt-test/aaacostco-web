@@ -1,37 +1,51 @@
-
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import axios from 'axios';
 import https from 'https';
 import fs from 'fs';
 import path from 'path';
 
 // --- Configuration ---
-let serviceAccount;
+let db = null;
+let FieldValue = null;
 const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.resolve(process.cwd(), 'functions/service-account.json');
 
-try {
-    if (fs.existsSync(serviceAccountPath)) {
-        serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-    } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    } else {
-        console.error('❌ No service account found. Set GOOGLE_APPLICATION_CREDENTIALS or ensure functions/service-account.json exists.');
-        process.exit(1);
+async function initOptionalFirebase() {
+    try {
+        let serviceAccount = null;
+        if (fs.existsSync(serviceAccountPath)) {
+            serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
+        } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+            serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        }
+
+        if (serviceAccount) {
+            const { initializeApp, cert } = await import('firebase-admin/app');
+            const firestoreMod = await import('firebase-admin/firestore');
+            FieldValue = firestoreMod.FieldValue;
+            initializeApp({
+                credential: cert(serviceAccount)
+            });
+            db = (process.env.FIRESTORE_DATABASE_ID && process.env.FIRESTORE_DATABASE_ID !== '(default)')
+                ? firestoreMod.getFirestore(process.env.FIRESTORE_DATABASE_ID)
+                : firestoreMod.getFirestore();
+        } else {
+            console.log('ℹ️ [Bank Rates] No Firebase service account found; running in direct D1 + local snapshot mode.');
+        }
+    } catch (err) {
+        console.warn('⚠️ [Bank Rates] Firebase init skipped:', err.message);
     }
-
-    initializeApp({
-        credential: cert(serviceAccount)
-    });
-} catch (err) {
-    console.error('❌ Failed to initialize Firebase:', err.message);
-    process.exit(1);
 }
+const fallbackTlsAgent = new https.Agent({ rejectUnauthorized: false });
 
-const db = (process.env.FIRESTORE_DATABASE_ID && process.env.FIRESTORE_DATABASE_ID !== '(default)')
-    ? getFirestore(process.env.FIRESTORE_DATABASE_ID)
-    : getFirestore();
-const agent = new https.Agent({ rejectUnauthorized: false });
+async function fetchWithTlsFallback(url, options = {}) {
+    try {
+        return await axios.get(url, { timeout: 15000, ...options });
+    } catch (err) {
+        if (err?.code && String(err.code).includes('CERT') || String(err.code).includes('UNABLE_TO_VERIFY')) {
+            return await axios.get(url, { timeout: 15000, ...options, httpsAgent: fallbackTlsAgent });
+        }
+        throw err;
+    }
+}
 
 // --- Helper: Get Date Strings ---
 function getDates() {
@@ -47,7 +61,7 @@ async function fetchKhanRates(dateStr) {
     console.log(`📊 Fetching Khan Bank: ${url}`);
 
     try {
-        const { data } = await axios.get(url, { httpsAgent: agent });
+        const { data } = await fetchWithTlsFallback(url);
         const rates = Array.isArray(data) ? data : (data.data || []);
         const krw = rates.find(r => r.currency === 'KRW' || r.code === 'KRW');
 
@@ -76,8 +90,7 @@ async function fetchGolomtRates(dateStr) {
     console.log(`📊 Fetching Golomt Bank: ${url}`);
 
     try {
-        const { data } = await axios.get(url, {
-            httpsAgent: agent,
+        const { data } = await fetchWithTlsFallback(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' }
         });
 
@@ -108,8 +121,7 @@ async function fetchTDBRates() {
     console.log(`📊 Fetching TDB: ${url}`);
 
     try {
-        const { data } = await axios.get(url, {
-            httpsAgent: agent,
+        const { data } = await fetchWithTlsFallback(url, {
             headers: { 'User-Agent': 'Mozilla/5.0' }
         });
 
@@ -200,6 +212,7 @@ async function notifyAdmin(changes) {
 
 // --- Main Execution ---
 async function updateRates() {
+    await initOptionalFirebase();
     console.log('==================================================');
     console.log('   BANK RATES UPDATER (MULTI-BANK)');
     console.log(`   ${new Date().toISOString()}`);
@@ -213,9 +226,9 @@ async function updateRates() {
         fetchTDBRates()
     ]);
 
-    const docRef = db.doc('settings/currency');
-    const snap = await docRef.get();
-    const existingData = snap.exists ? snap.data() : {};
+    const docRef = db ? db.doc('settings/currency') : null;
+    const snap = docRef ? await docRef.get() : null;
+    const existingData = snap && snap.exists ? snap.data() : {};
 
     const bankChanges = {};
 
@@ -232,8 +245,8 @@ async function updateRates() {
 
     // Prepare Update Data
     const updateData = {
-        lastUpdated: FieldValue.serverTimestamp(),
-        updatedBy: 'GitHubActions'
+        lastUpdated: db ? FieldValue.serverTimestamp() : new Date().toISOString(),
+        updatedBy: 'AutonomousSuite'
     };
 
     if (khan) {
@@ -245,7 +258,6 @@ async function updateRates() {
             lastUpdated: khan.updatedAt
         };
         updateData.previousKhanRates = existingData.khanRates || null;
-        // Use nonCash for main comparison
         if (existingData.khanRates) {
             checkChange('Хаан', 'Авах', khan.buy, existingData.khanRates.nonCashBuy);
             checkChange('Хаан', 'Зарах', khan.sell, existingData.khanRates.nonCashSell);
@@ -286,17 +298,59 @@ async function updateRates() {
 
     // Determine if we should update & notify
     if (khan || golomt || tdbRates) {
-        await docRef.set(updateData, { merge: true });
-        console.log('✅ Firestore updated with available bank rates.');
+        if (docRef) {
+            const sellForDoc = Number(golomt?.sell || khan?.sell || tdbRates?.sell || 0);
+            if (sellForDoc > 1.5 && sellForDoc < 5.0 && existingData.autoSyncRates !== false) {
+                updateData.wonRate = sellForDoc;
+            }
+            await docRef.set(updateData, { merge: true });
+            console.log('✅ Firestore updated with available bank rates.');
+        }
 
-        if (changes.length > 0) {
+        const effectiveSellRate = Number(golomt?.sell || khan?.sell || tdbRates?.sell || 0);
+        const snapshotPath = path.resolve(process.cwd(), 'public/home-snapshot.json');
+        if (effectiveSellRate > 1.5 && effectiveSellRate < 5.0 && fs.existsSync(snapshotPath)) {
+            try {
+                const snapJson = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+                snapJson.wonRate = effectiveSellRate;
+                fs.writeFileSync(snapshotPath, JSON.stringify(snapJson), 'utf8');
+                console.log(`✅ Updated public/home-snapshot.json wonRate = ${effectiveSellRate}`);
+            } catch {
+                /* ignore */
+            }
+        }
+
+        const logsDir = path.resolve(process.cwd(), 'logs');
+        fs.mkdirSync(logsDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(logsDir, 'bank-rates.json'),
+            JSON.stringify({ ...updateData, effectiveSellRate, lastUpdated: new Date().toISOString() }, null, 2),
+            'utf8'
+        );
+
+        try {
+            const { syncSettingToD1 } = await import('./d1-sync.js');
+            const freshSnap = docRef ? await docRef.get() : null;
+            const merged = freshSnap && freshSnap.exists ? freshSnap.data() : { ...existingData, ...updateData };
+            if (effectiveSellRate > 1.5 && effectiveSellRate < 5.0 && merged.autoSyncRates !== false) {
+                merged.wonRate = effectiveSellRate;
+            }
+            await syncSettingToD1('currency', {
+                ...merged,
+                lastUpdated: new Date().toISOString(),
+            });
+        } catch (e) {
+            console.warn('⚠️ D1 currency sync warning:', e.message);
+        }
+
+        if (changes.length > 0 && db) {
             console.log('⚠️ Rates changed! Sending notification...');
             await notifyAdmin(changes);
         } else {
             console.log('ℹ️ No significant rate changes.');
         }
     } else {
-        console.warn('⚠️ No rates fetched from any bank. Firestore NOT updated.');
+        console.warn('⚠️ No rates fetched from any bank.');
     }
 
     console.log('==================================================');

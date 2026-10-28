@@ -6,7 +6,7 @@ REM  asuuna. Nuuts ug hen ch haragdahgui (hidden input) bolon
 REM  file/tuuhend hadgalagdahgui.
 REM  Shaardlaga: functions\service-account.json baih.
 REM ============================================================
-cd /d E:\aaacostco
+cd /d "%~dp0"
 
 echo.
 echo Admin (00880088@sms.costco.mn) -iin shine nuuts ug oruulna uu.

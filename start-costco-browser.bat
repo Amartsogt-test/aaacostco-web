@@ -1,5 +1,5 @@
 @echo off
-cd /d E:\aaacostco
+cd /d "%~dp0"
 echo Starting Costco Browser...
 npm run refresh-cookie
 pause

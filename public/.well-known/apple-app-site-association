@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["TEAMID.com.aaacostco.app"],
+        "components": [
+          { "/": "/product/*" },
+          { "/": "/category/*" },
+          { "/": "/orders*" },
+          { "/": "/cart*" },
+          { "/": "/*" }
+        ]
+      }
+    ]
+  }
+}

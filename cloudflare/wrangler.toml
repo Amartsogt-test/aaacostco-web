@@ -1,0 +1,52 @@
+# Cloudflare Worker — costco.mn backend (migration off Firebase).
+# This is the API/backend Worker (separate from the Pages frontend deploy).
+#
+# One-time provisioning (run these, then paste the printed ids below):
+#   wrangler d1 create costco                 # → database_id
+#   wrangler kv namespace create CACHE        # → id
+#   wrangler r2 bucket create costco-images
+#   wrangler d1 execute costco --file=cloudflare/d1-schema.sql   # create tables
+#
+# Deploy:  wrangler deploy   (from this folder, or: wrangler deploy -c cloudflare/wrangler.toml)
+
+name = "costco-api"
+main = "worker/index.js"
+compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# --- D1 (relational data; replaces Firestore) ---
+[[d1_databases]]
+binding = "DB"
+database_name = "costco"
+database_id = "20705343-094d-46af-935c-29d66ab244c7"
+
+# --- KV (hot read cache: catalog/search snapshots, sessions later) ---
+[[kv_namespaces]]
+binding = "CACHE"
+id = "09a0deaedd484be89245e40af03bf682"
+
+# --- R2 (product images; replaces Firebase Storage) ---
+# Two one-time steps, THEN uncomment the binding (deploy fails if the binding is
+# declared before the bucket exists):
+#   1. Cloudflare dashboard → R2 → "Enable R2" (free tier)
+#   2. npx wrangler r2 bucket create costco-images
+# Until then the Worker tolerates the missing binding (image upload → 503, the frontend
+# falls back to Firebase Storage), so deploys keep working without R2.
+# [[r2_buckets]]
+# binding = "IMAGES"
+# bucket_name = "costco-images"
+
+# Secrets (set with `wrangler secret put NAME`, NOT here):
+#   GEMINI_API_KEY, WIRE_SECRET_KEY, WIRE_WEBHOOK_SECRET, SMS_WEBHOOK_SECRET, JWT_SECRET
+#   FCM_SERVICE_ACCOUNT  (Firebase service-account JSON; enables push from cron + order
+#                         stage notifications. Omit and push simply no-ops.)
+[vars]
+WIRE_BASE_URL = "https://api.wire.mn/v1"
+# Extra CORS origins (comma-separated) on top of the built-in costco.mn + *.costco-fe.pages.dev
+# + localhost defaults. Usually leave empty.
+# ALLOWED_ORIGINS = ""
+
+# Cron ЗОГСООВ (2026-07-24, эзэмшигч баталсан: E:\aaacostco ашиглагдахгүй, E:\Costco
+# идэвхтэй хөгжиж байгаа) — акаунт даяарх cron квот (dugui-worker-т) чөлөөлөхийн тулд
+# энд байсан 1 slot-г суллав. Хуучин: [triggers] crons = ["0 18 * * *"]
+# (# daily maintenance: expire loyalty lots + purge expired SMS codes, "costco" D1 дээр)

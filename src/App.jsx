@@ -9,6 +9,7 @@ import InstallPrompt from './components/InstallPrompt';
 import { IS_MAINTENANCE_MODE } from './maintenance';
 import { initGA } from './utils/analytics';
 import { startCartSync } from './utils/cartSync';
+import { initNativeMobileApp, isNativeMobileApp } from './utils/nativeBridge';
 import Maintenance from './pages/Maintenance';
 import PwaUpdater from './components/PwaUpdater';
 
@@ -57,6 +58,7 @@ const SalesSummaryPage = lazy(() => import('./pages/SalesSummaryPage'));
 const AdminBanner = lazy(() => import('./pages/AdminBanner'));
 const AdminContent = lazy(() => import('./pages/AdminContent'));
 const AdminMenuImagesPage = lazy(() => import('./pages/AdminMenuImagesPage'));
+const AdminAutonomous = lazy(() => import('./pages/AdminAutonomous'));
 
 // Loading component
 const LoadingSpinner = () => (
@@ -68,11 +70,15 @@ const LoadingSpinner = () => (
 
 function App() {
   const subscribeToWonRate = useProductStore(state => state.subscribeToWonRate);
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const isStoreOrAdminRoute = /^\/(privacy|terms|brokerage|delete-data|admin)(\/|$)/i.test(currentPath);
+  const shouldShowMaintenance = IS_MAINTENANCE_MODE && !isNativeMobileApp() && !isStoreOrAdminRoute;
 
-  // Initialize exchange rate sync on app startup
+  // Initialize exchange rate sync & native mobile bridge on app startup
   useEffect(() => {
-    if (IS_MAINTENANCE_MODE) return;
+    if (shouldShowMaintenance) return;
     initGA();
+    initNativeMobileApp();
     subscribeToWonRate();
 
     // Subscribe to general settings (shipping rates, etc)
@@ -80,10 +86,10 @@ function App() {
     const unsubCart = startCartSync();
 
     return () => { unsubscribeSettings(); unsubCart(); };
-  }, [subscribeToWonRate]);
+  }, [subscribeToWonRate, shouldShowMaintenance]);
 
-  // Maintenance Mode Check
-  if (IS_MAINTENANCE_MODE) {
+  // Maintenance Mode Check (closes public web while keeping Play Store / App Store apps & policy pages active)
+  if (shouldShowMaintenance) {
     return <Maintenance />;
   }
 
@@ -116,12 +122,12 @@ function App() {
             <Route path="payment" element={<PaymentPage />} />
             <Route path="branch" element={<BranchPage />} />
             <Route path="cart-menu" element={<CartMenuPage />} />
-            <Route path="scan" element={<QuickScanPage />} />
-            <Route path="scanner" element={<ScannerPage />} />
             <Route path="location" element={<LocationPage />} />
-            <Route path="sales-summary" element={<SalesSummaryPage />} />
 
             <Route element={<AdminRoute />}>
+              <Route path="scan" element={<QuickScanPage />} />
+              <Route path="scanner" element={<ScannerPage />} />
+              <Route path="sales-summary" element={<SalesSummaryPage />} />
               <Route path="admin" element={<AdminPortal />} />
               <Route path="admin/products" element={<AdminDashboard />} />
               <Route path="admin/orders" element={<AdminOrders />} />
@@ -140,6 +146,7 @@ function App() {
               <Route path="admin/banner" element={<AdminBanner />} />
               <Route path="admin/content" element={<AdminContent />} />
               <Route path="admin/menu-images" element={<AdminMenuImagesPage />} />
+              <Route path="admin/autonomous" element={<AdminAutonomous />} />
             </Route>
 
             {/* 404 catch-all */}

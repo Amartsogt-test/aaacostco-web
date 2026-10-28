@@ -10,7 +10,7 @@ import {
     getCurrentStage, getStageIndex, getStageDef
 } from '../utils/orderTracking';
 import { openCustomsDocs, downloadManifestCSV, openLabels } from '../utils/customsDoc';
-import { uploadFileToStorage } from '../firebase';
+import { adminApi } from '../services/apiClient';
 
 // Persisted customs-export header (exporter / consignee / currency / Incoterm).
 const CUSTOMS_CFG_KEY = 'customsExportConfig';
@@ -133,15 +133,11 @@ export default function AdminOrders() {
     const freqCountOf = (o) => frequentRecipients[freqKeyOf(o)] || 0;
 
     const filteredOrders = useMemo(() => {
-        const validProductNames = new Set(products.map(p => p.name));
         // Date-range bounds (inclusive) on the order date — drives the batch workflow.
         const fromTs = dateFrom ? new Date(`${dateFrom}T00:00:00`).getTime() : null;
         const toTs = dateTo ? new Date(`${dateTo}T23:59:59.999`).getTime() : null;
 
         return orders.filter(order => {
-            const hasValidItems = (order.items || []).some(item => validProductNames.has(item.name));
-            if (!hasValidItems) return false;
-
             const q = searchTerm.toLowerCase().trim();
             const matchesSearch = !q || order.id.toLowerCase().includes(q) ||
                 (order.customer || '').toLowerCase().includes(q) ||
@@ -155,7 +151,7 @@ export default function AdminOrders() {
 
             return matchesSearch && matchesStage && matchesDate;
         });
-    }, [orders, products, searchTerm, filterStage, dateFrom, dateTo]);
+    }, [orders, searchTerm, filterStage, dateFrom, dateTo]);
 
     const stats = {
         totalOrders: orders.length,
@@ -266,7 +262,7 @@ export default function AdminOrders() {
         if (!file) return;
         setPodBusy(true);
         try {
-            const url = await uploadFileToStorage(`pod/${orderId}-${Date.now()}`, file);
+            let url = await adminApi.uploadImage(file);
             await patchOrder(orderId, { deliveredPhoto: url });
         } catch (e) {
             console.error('POD photo upload failed:', e);

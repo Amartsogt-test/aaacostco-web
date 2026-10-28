@@ -1,111 +1,169 @@
 /**
- * 🌐 Scrape prices straight off the product PAGE (PDP) for items whose price Costco
- * hides from the REST API (hidePriceValue=true). The PDP renders the price into a
- * structured <... itemprop="price" content="264900"> tag (Angular), so we need a real
- * browser + a logged-in MEMBER session — a plain HTTP fetch won't see it.
+ * Autonomous Member-Only & Hidden-Price Backfill Script
+ * (scripts/core/scrape-pdp-prices.js)
  *
- * By default it targets products with NO sell price AND NO warehouse price (the ones the
- * warehouse fallback can't help). Use --all-zero to target every price<=0 item.
- *
- * Requirements: functions/service-account.json + Playwright. Opens a headful browser;
- * log into costco.co.kr if prompted (the price only shows to members).
+ * Unlocks prices for Costco Korea products where `hidePriceValue=true` or `price <= 0`.
+ * Uses `ensureCostcoMemberSession()` (`Cookie` + `Authorization: bearer <token>`) to
+ * fetch member prices directly from the authenticated OCC REST API, updating
+ * `public/search-index.json`, `public/home-snapshot.json`, and (if configured) Firestore.
  *
  * Usage:
  *   node scripts/core/scrape-pdp-prices.js
- *   node scripts/core/scrape-pdp-prices.js --limit 50
- *   node scripts/core/scrape-pdp-prices.js --all-zero      # every price<=0 product
+ *   node scripts/core/scrape-pdp-prices.js --limit 100
+ *   node scripts/core/scrape-pdp-prices.js --all-zero
  */
-import { chromium } from 'playwright';
-import admin from 'firebase-admin';
-import { readFileSync } from 'fs';
-import { dirname, join } from 'path';
+
+import fs from 'fs';
+import path from 'path';
 import { fileURLToPath } from 'url';
+import axios from 'axios';
+import { ensureCostcoMemberSession } from './auth-cookie.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.resolve(__dirname, '../..');
+const SEARCH_INDEX_PATH = path.join(ROOT_DIR, 'public', 'search-index.json');
+const SNAPSHOT_PATH = path.join(ROOT_DIR, 'public', 'home-snapshot.json');
 
-const saPath = join(__dirname, '..', '..', 'functions', 'service-account.json');
-admin.initializeApp({ credential: admin.credential.cert(JSON.parse(readFileSync(saPath, 'utf8'))) });
-const db = admin.firestore();
-
-const INDEX_URL = process.env.SEARCH_INDEX_URL || 'https://costco-fe034.web.app/search-index.json';
 const ALL_ZERO = process.argv.includes('--all-zero');
 const limArg = process.argv.indexOf('--limit');
-const LIMIT = limArg > -1 ? Number(process.argv[limArg + 1]) : Infinity;
+const LIMIT = limArg > -1 ? Number(process.argv[limArg + 1]) : 200;
 
-(async () => {
-    // 1) Target ids from the search index.
-    console.log(`Fetching index: ${INDEX_URL}`);
-    const idx = await fetch(INDEX_URL + '?ts=' + Date.now()).then((r) => r.json());
-    const arr = Array.isArray(idx) ? idx : (idx.items || idx.products || []);
-    let ids = arr
-        .filter((p) => p.s !== 'deleted' && !(Number(p.p) > 0) && (ALL_ZERO || !(Number(p.w) > 0)))
-        .map((p) => p.id).filter(Boolean);
-    if (LIMIT < ids.length) ids = ids.slice(0, LIMIT);
-    console.log(`Targets: ${ids.length} (${ALL_ZERO ? 'all price<=0' : 'no price AND no warehouse'})\n`);
-    if (ids.length === 0) { console.log('Nothing to do.'); process.exit(0); }
-
-    // 2) Logged-in browser (persistent so the member session is reused).
-    const userDataDir = join(__dirname, '..', '..', '.browser_data');
-    const context = await chromium.launchPersistentContext(userDataDir, {
-        headless: false,
-        viewport: { width: 1280, height: 800 },
-    });
-    const page = context.pages()[0] || (await context.newPage());
-
-    await page.goto('https://www.costco.co.kr');
-    await page.waitForTimeout(4000);
-    const session = (await context.cookies()).find((c) => c.name === 'JSESSIONID');
-    if (!session) {
-        console.log('✨ Costco-д ГИШҮҮНЭЭРЭЭ нэвтэрнэ үү (2 минут хүлээнэ)...');
-        for (let i = 0; i < 24; i++) {
-            await page.waitForTimeout(5000);
-            if ((await context.cookies()).find((c) => c.name === 'JSESSIONID')) break;
+async function initOptionalFirestore() {
+    const saPath =
+        process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+        path.join(ROOT_DIR, 'functions', 'service-account.json');
+    if (!fs.existsSync(saPath)) return null;
+    try {
+        const adminModule = await import('firebase-admin');
+        const admin = adminModule.default || adminModule;
+        const sa = JSON.parse(fs.readFileSync(saPath, 'utf8'));
+        if (!admin.apps.length) {
+            admin.initializeApp({ credential: admin.credential.cert(sa) });
         }
-    } else {
-        console.log('✅ Session cookie found.');
+        return { db: admin.firestore(), admin };
+    } catch {
+        return null;
+    }
+}
+
+async function run() {
+    const session = await ensureCostcoMemberSession();
+    if (!session.isAuthenticated) {
+        console.error('❌ [PDP Price Sync] Could not establish authenticated Costco member session.');
+        process.exit(1);
     }
 
-    // 3) Visit each PDP and read itemprop="price".
-    let fixed = 0;
-    for (let i = 0; i < ids.length; i++) {
-        const code = ids[i];
-        let price = 0;
+    if (!fs.existsSync(SEARCH_INDEX_PATH)) {
+        console.error('❌ [PDP Price Sync] public/search-index.json not found.');
+        process.exit(1);
+    }
+
+    const indexObj = JSON.parse(fs.readFileSync(SEARCH_INDEX_PATH, 'utf8'));
+    const items = Array.isArray(indexObj.items) ? indexObj.items : [];
+
+    let targets = items.filter(
+        (p) => p.s !== 'deleted' && !(Number(p.p) > 0) && (ALL_ZERO || !(Number(p.w) > 0))
+    );
+    if (LIMIT < targets.length) {
+        targets = targets.slice(0, LIMIT);
+    }
+
+    console.log(`🎯 [PDP Price Sync] Found ${targets.length} zero-price target products to unlock.`);
+    if (targets.length === 0) {
+        console.log('✅ [PDP Price Sync] All catalog products already have valid prices.');
+        return;
+    }
+
+    const fb = await initOptionalFirestore();
+    let fixedCount = 0;
+
+    for (let i = 0; i < targets.length; i += 1) {
+        const target = targets[i];
+        const code = String(target.c || target.id);
         try {
-            const url = await page.evaluate(
-                (c) => fetch('/rest/v2/korea/products/' + c + '?fields=url', { headers: { Accept: 'application/json' } })
-                    .then((r) => r.json()).then((j) => j.url).catch(() => null),
-                code
+            const res = await axios.get(
+                `https://www.costco.co.kr/rest/v2/korea/products/${encodeURIComponent(
+                    code
+                )}?fields=FULL&lang=ko&curr=KRW`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        Cookie: session.cookie,
+                        Authorization: session.authorization,
+                        'User-Agent': session.userAgent,
+                    },
+                    timeout: 12000,
+                }
             );
-            if (!url) { console.log(`[${i + 1}/${ids.length}] ${code}: no url`); continue; }
+            const price = Number(res.data?.price?.value || 0);
+            const basePrice = Number(res.data?.basePrice?.value || price);
+            if (price > 0) {
+                const markup = price > 100000 ? 0 : 2000;
+                const warehouse = Math.max(0, price - markup);
+                target.p = price;
+                target.o = basePrice;
+                target.d = basePrice > price;
+                target.w = warehouse;
+                target.mk = markup;
+                fixedCount += 1;
+                console.log(`[${i + 1}/${targets.length}] ${code}: ${price.toLocaleString()}₩ ✓`);
 
-            await page.goto('https://www.costco.co.kr' + url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await page.waitForSelector('[itemprop=price]', { timeout: 12000 }).catch(() => null);
-            price = await page.evaluate(() => {
-                const el = document.querySelector('[itemprop=price]');
-                return el ? Number(el.getAttribute('content')) || 0 : 0;
-            });
-        } catch (e) {
-            console.log(`[${i + 1}/${ids.length}] ${code}: error ${e.message.slice(0, 40)}`);
+                if (fb?.db) {
+                    await fb.db
+                        .collection('products')
+                        .doc(code)
+                        .set(
+                            {
+                                price,
+                                priceKRW: price,
+                                originalPrice: basePrice,
+                                originalPriceKRW: basePrice,
+                                estimatedWarehousePrice: warehouse,
+                                hasDiscount: basePrice > price,
+                                pdpPrice: true,
+                                updatedAt: new Date().toISOString(),
+                            },
+                            { merge: true }
+                        )
+                        .catch(() => null);
+                }
+            }
+        } catch (err) {
+            console.warn(`[${i + 1}/${targets.length}] ${code}: ${err.message}`);
         }
-
-        if (price > 0) {
-            await db.collection('products').doc(code).update({
-                price,
-                originalPrice: price,
-                hasDiscount: false,
-                pdpPrice: true,
-                lastFixed: admin.firestore.FieldValue.serverTimestamp(),
-            }).catch(() => {});
-            fixed++;
-            console.log(`[${i + 1}/${ids.length}] ${code}: ${price.toLocaleString()}₩ ✓`);
-        } else {
-            console.log(`[${i + 1}/${ids.length}] ${code}: no price on PDP`);
-        }
-        await page.waitForTimeout(800); // be gentle
     }
 
-    await context.close();
-    console.log(`\n✅ Done. Set a price on ${fixed}/${ids.length} via PDP.`);
-    console.log('Next: npm run core:search-index  &&  firebase deploy --only hosting');
-    process.exit(0);
-})();
+    if (fixedCount > 0) {
+        indexObj.version = Date.now();
+        fs.writeFileSync(SEARCH_INDEX_PATH, JSON.stringify(indexObj), 'utf8');
+
+        if (fs.existsSync(SNAPSHOT_PATH)) {
+            try {
+                const snap = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8'));
+                const byCode = new Map(items.map((it) => [String(it.c || it.id), it]));
+                for (const prod of snap.products || []) {
+                    const match = byCode.get(String(prod.code || prod.id));
+                    if (match && match.p > 0) {
+                        prod.price = match.p;
+                        prod.priceKRW = match.p;
+                        prod.originalPrice = match.o;
+                        prod.originalPriceKRW = match.o;
+                        prod.estimatedWarehousePrice = match.w;
+                        prod.hasDiscount = Boolean(match.d);
+                    }
+                }
+                fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(snap), 'utf8');
+            } catch {
+                /* ignore */
+            }
+        }
+    }
+
+    console.log(`✅ [PDP Price Sync] Unlocked member prices for ${fixedCount}/${targets.length} products.`);
+}
+
+run().catch((err) => {
+    console.error('❌ [PDP Price Sync] Fatal error:', err);
+    process.exit(1);
+});

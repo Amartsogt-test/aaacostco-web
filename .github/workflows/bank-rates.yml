@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
 
       - name: Create Service Account File
@@ -32,3 +32,5 @@ jobs:
         run: npm run core:bank-rates
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ./functions/service-account.json
+          VITE_API_BASE: https://costco-api.costcomn.workers.dev
+          ADMIN_SYNC_SECRET: ${{ secrets.ADMIN_SYNC_SECRET }}

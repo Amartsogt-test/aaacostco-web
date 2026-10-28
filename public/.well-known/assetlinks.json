@@ -1,0 +1,30 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds",
+      "delegate_permission/common.use_as_origin"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "mn.costco.app",
+      "sha256_cert_fingerprints": [
+        "AA:B8:B4:BD:30:24:6D:68:B1:2B:B0:0A:FC:42:FE:A9:B4:BA:E2:4F:8A:5D:7C:D4:DF:0A:B8:C9:04:6A:8F:D3"
+      ]
+    }
+  },
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds",
+      "delegate_permission/common.use_as_origin"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.aaacostco.app",
+      "sha256_cert_fingerprints": [
+        "AA:B8:B4:BD:30:24:6D:68:B1:2B:B0:0A:FC:42:FE:A9:B4:BA:E2:4F:8A:5D:7C:D4:DF:0A:B8:C9:04:6A:8F:D3"
+      ]
+    }
+  }
+]

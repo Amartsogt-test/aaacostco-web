@@ -1,7 +1,7 @@
 @echo off
 REM Re-run ONLY the image-hosting step (retries un-hosted / failed images).
 REM Idempotent: already-hosted products are skipped; only failed/new ones retry.
-cd /d E:\aaacostco
+cd /d "%~dp0"
 if not exist logs mkdir logs
 echo.                                                    >> logs\host-images.log
 echo ===== host-images retry: %date% %time% =====        >> logs\host-images.log

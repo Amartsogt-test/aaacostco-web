@@ -1,14 +1,12 @@
-import { Share2, Heart, Timer, Star, MessageCircle, ShoppingCart, Check } from 'lucide-react';
+import { Share2, Heart, Timer, Star, ShoppingCart, Check, Edit2, EyeOff } from 'lucide-react';
 import React, { useState, useEffect, memo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useProductStore } from '../store/productStore';
 import { useUIStore } from '../store/uiStore';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { Edit2, EyeOff } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { getProductWeight, calculateFinalPrice } from '../utils/productUtils';
 import { getDisplayPricing, resolveDiscount } from '../utils/pricing';
 import { formatMoney } from '../utils/format';
@@ -17,17 +15,16 @@ import LazyImage from './LazyImage';
 
 // 🚀 Performance: Memoize to prevent re-renders during scroll
 const ProductCard = memo(function ProductCard({ product, isFeatured }) {
-    const { toggleWishlist, isInWishlist } = useWishlistStore();
-    const { addToGround } = useCartStore();
-    const { currency, showToast } = useUIStore();
-    const { wonRate, setProductStatus } = useProductStore();
-    const { settings } = useSettingsStore(); // Get settings for transport rates
-    const { user } = useAuthStore();
+    const toggleWishlist = useWishlistStore(s => s.toggleWishlist);
+    const isLiked = useWishlistStore(s => s.wishlist.some(p => p.id === product.id));
+    const addToGround = useCartStore(s => s.addToGround);
+    const currency = useUIStore(s => s.currency);
+    const showToast = useUIStore(s => s.showToast);
+    const wonRate = useProductStore(s => s.wonRate);
+    const setProductStatus = useProductStore(s => s.setProductStatus);
+    const settings = useSettingsStore(s => s.settings); // Get settings for transport rates
+    const isAdmin = useAuthStore(s => !!s.user?.isAdmin);
     const navigate = useNavigate();
-
-    const isAdmin = user?.isAdmin;
-
-    const isLiked = isInWishlist(product.id);
 
     // 🏪 Centralised, unit-tested pricing — single source of truth (src/utils/pricing.js).
     // Cards show the warehouse price (estimatedWarehousePrice) as the main price.
@@ -53,8 +50,9 @@ const ProductCard = memo(function ProductCard({ product, isFeatured }) {
     // 🎉 Нээлтийн хямдрал нь үнийг ШУУД ХАСАХГҮЙ — худалдан авсны дараа барааны дүнгийн
     // энэ хувьтай тэнцэх лояалти бонус оноо данс руу ороно. Тиймээс энд зөвхөн жинхэнэ
     // дэлгүүрийн хямдралыг (resolveDiscount) л үнэнд тусгаж, launch-ийг бонус тэмдэг болгон харуулна.
+    const [mountNow] = useState(() => Date.now());
     const launchSale = settings?.launchSale;
-    const launchNotExpired = !launchSale?.endsAt || Date.now() < new Date(launchSale.endsAt).getTime();
+    const launchNotExpired = !launchSale?.endsAt || mountNow < new Date(launchSale.endsAt).getTime();
     const launchActive = (launchSale?.active !== false) && launchNotExpired;
     const launchPercent = launchActive ? Number(launchSale?.percent ?? 0) : 0;
 

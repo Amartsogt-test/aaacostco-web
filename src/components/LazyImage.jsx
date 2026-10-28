@@ -10,10 +10,7 @@ import { useState, useRef, useEffect, memo } from 'react';
  *
  * Device-pixel-ratio is factored in (capped at 2x) so retina screens stay crisp.
  */
-const isProxyableExternalImage = (url) =>
-    /costco\.co\.kr|costcojapan|\/medias\//.test(url);
-
-const optimizeImageUrl = (url, width = 300) => {
+const optimizeImageUrl = (url) => {
     // Proxy (images.weserv.nl) маш удаан байгаа тул түр хугацаанд зогсоож шууд эх сурвалжийн URL-ийг ашиглана.
     return url;
 };

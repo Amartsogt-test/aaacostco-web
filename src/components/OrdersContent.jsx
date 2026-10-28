@@ -6,7 +6,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import OrderTracking from './OrderTracking';
 import { formatMoney, formatDate } from '../utils/format';
 import { STAGE_GROUPS, getStageGroup, getCurrentStage, getStageDef } from '../utils/orderTracking';
-import { callFunction } from '../firebase';
+import { orderApi } from '../services/apiClient';
 
 // Quick-filter groups (Temu-style), shown at the top of the orders view —
 // including inside the Cart hub's "Захиалга" tab. Each maps to a set of pipeline
@@ -25,17 +25,101 @@ export default function OrdersContent() {
     const [searchParams, setSearchParams] = useSearchParams();
     const [expandedId, setExpandedId] = useState(null); // expand a past order to show its timeline
 
+    const [guestOrder, setGuestOrder] = useState(null);
+    const [guestLookupId, setGuestLookupId] = useState('');
+    const [guestLookupPhone, setGuestLookupPhone] = useState('');
+    const [guestLookupLoading, setGuestLookupLoading] = useState(false);
+    const [guestLookupError, setGuestLookupError] = useState('');
+
     useEffect(() => {
         if (isAuthenticated && user?.uid) {
             fetchUserOrders(user.uid, user.phone);
+        } else {
+            try {
+                const raw = sessionStorage.getItem('costco_last_paid_order');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed?.order) setGuestOrder(parsed.order);
+                    if (parsed?.id) {
+                        setGuestLookupId(parsed.id);
+                        setGuestLookupPhone(parsed.phone || '');
+                        orderApi.get(parsed.id, parsed.phone || '').then((r) => {
+                            if (r?.order) setGuestOrder(r.order);
+                        }).catch(() => {});
+                    }
+                }
+            } catch { /* ignore */ }
         }
     }, [isAuthenticated, user?.uid, user?.phone, fetchUserOrders]);
 
+    const handleGuestLookup = async (e) => {
+        e.preventDefault();
+        const cleanId = guestLookupId.replace(/^#/, '').trim();
+        const cleanPhone = guestLookupPhone.trim();
+        if (!cleanId || !cleanPhone) {
+            setGuestLookupError('Захиалгын дугаар болон утасны дугаараа оруулна уу.');
+            return;
+        }
+        setGuestLookupLoading(true);
+        setGuestLookupError('');
+        try {
+            const r = await orderApi.get(cleanId, cleanPhone);
+            if (r?.order) {
+                setGuestOrder(r.order);
+            } else {
+                setGuestLookupError('Захиалга олдсонгүй.');
+            }
+        } catch {
+            setGuestLookupError('Захиалга олдсонгүй эсвэл утасны дугаар таарахгүй байна.');
+        } finally {
+            setGuestLookupLoading(false);
+        }
+    };
+
     if (!isAuthenticated) {
         return (
-            <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-                <p className="text-gray-500 mb-4">Та захиалгын түүхээ харахын тулд нэвтрэх шаардлагатай.</p>
-                <Link to="/login" className="text-costco-blue font-bold hover:underline">Нэвтрэх</Link>
+            <div className="h-full overflow-y-auto p-4 custom-scrollbar bg-gray-50">
+                {guestOrder && (
+                    <div className="mb-6 bg-white rounded-2xl border border-green-200 shadow-sm p-4">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-bold text-green-700">Таны захиалга #{guestOrder.id}</span>
+                            <span className="text-xs text-gray-500">{formatDate(guestOrder.date || guestOrder.createdAt)}</span>
+                        </div>
+                        <OrderTracking order={guestOrder} />
+                    </div>
+                )}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 max-w-md mx-auto mt-2">
+                    <h3 className="text-base font-bold text-gray-900 mb-1 text-center">Захиалга шалгах</h3>
+                    <p className="text-xs text-gray-500 mb-4 text-center">Захиалгын дугаар болон хүлээн авагчийн утасны дугаараар захиалгаа шалгана уу.</p>
+                    <form onSubmit={handleGuestLookup} className="space-y-3">
+                        <input
+                            type="text"
+                            value={guestLookupId}
+                            onChange={(e) => setGuestLookupId(e.target.value)}
+                            placeholder="Захиалгын дугаар (ж: 2811301)"
+                            className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-costco-blue"
+                        />
+                        <input
+                            type="tel"
+                            value={guestLookupPhone}
+                            onChange={(e) => setGuestLookupPhone(e.target.value)}
+                            placeholder="Утасны дугаар (8 орон)"
+                            className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-costco-blue"
+                        />
+                        {guestLookupError && <p className="text-xs text-red-600">{guestLookupError}</p>}
+                        <button
+                            type="submit"
+                            disabled={guestLookupLoading}
+                            className="w-full py-2.5 bg-costco-blue text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            {guestLookupLoading ? 'Хайж байна...' : 'Захиалга харах'}
+                        </button>
+                    </form>
+                    <div className="mt-5 pt-4 border-t border-gray-100 text-center">
+                        <p className="text-xs text-gray-500 mb-2">Бүх захиалгын түүхээ харах бол:</p>
+                        <Link to="/login" className="text-sm text-costco-blue font-bold hover:underline">Утасны дугаараар нэвтрэх →</Link>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -67,7 +151,7 @@ export default function OrdersContent() {
         const reason = window.prompt('Буцаалтын шалтгаанаа бичнэ үү:');
         if (reason === null) return;
         try {
-            await callFunction('requestReturn', { orderId, reason: reason || '' });
+            await orderApi.requestReturn(orderId, reason || '');
             alert('Буцаалтын хүсэлт илгээгдлээ. Бид тантай холбогдоно.');
             if (user?.uid) fetchUserOrders(user.uid, user.phone);
         } catch (e) {

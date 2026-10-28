@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Phone, Plus, X, Edit2, Trash2, CheckCircle2, Check } from 'lucide-react';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { MapPin, Phone, Plus, X, Edit2, Trash2, CheckCircle2, Check, Navigation } from 'lucide-react';
+import { userApi } from '../services/apiClient';
 import { useAuthStore } from '../store/authStore';
 import { useUIStore } from '../store/uiStore';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { requestUserLocation, reverseGeocodeAddress } from '../utils/permissions';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -20,11 +20,17 @@ let DefaultIcon = L.icon({
 L.Marker.prototype.options.icon = DefaultIcon;
 
 function LocationMarker({ position, setPosition }) {
+    const map = useMap();
     useMapEvents({
         click(e) {
             setPosition(e.latlng);
         },
     });
+    useEffect(() => {
+        if (map && position?.lat && position?.lng) {
+            map.flyTo([position.lat, position.lng], 16, { duration: 0.7 });
+        }
+    }, [map, position]);
     return position === null ? null : <Marker position={position}></Marker>;
 }
 
@@ -43,6 +49,7 @@ export default function AddressManager() {
     const [addressDetail, setAddressDetail] = useState('');
     const [position, setPosition] = useState(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [isLocating, setIsLocating] = useState(false);
 
     // Улаанбаатар хотын төв цэг
     const defaultCenter = [47.9189, 106.9177];
@@ -60,8 +67,7 @@ export default function AddressManager() {
         if (!user?.uid) return;
         setIsSaving(true);
         try {
-            const userRef = doc(db, 'users', user.uid);
-            await setDoc(userRef, { phone }, { merge: true });
+            await userApi.update({ phone });
             login({ ...user, phone });
             setIsEditingPhone(false);
         } catch (error) {
@@ -95,6 +101,25 @@ export default function AddressManager() {
         setPosition(null);
     };
 
+    const handleDetectGps = async () => {
+        setIsLocating(true);
+        try {
+            const coords = await requestUserLocation();
+            setPosition({ lat: coords.lat, lng: coords.lng });
+            showToast('Таны одоогийн байршлыг GPS-ээр тогтоолоо.', 'success');
+            if (!addressDetail.trim()) {
+                const text = await reverseGeocodeAddress(coords.lat, coords.lng);
+                if (text) {
+                    setAddressDetail(text);
+                }
+            }
+        } catch (err) {
+            showToast(err.message || 'Байршил тогтооход алдаа гарлаа.', 'error');
+        } finally {
+            setIsLocating(false);
+        }
+    };
+
     const handleSaveAddress = async () => {
         if (!user?.uid) return;
         if (!addressDetail) {
@@ -121,8 +146,7 @@ export default function AddressManager() {
                 newAddresses.push(newAddr);
             }
 
-            const userRef = doc(db, 'users', user.uid);
-            await setDoc(userRef, { addresses: newAddresses }, { merge: true });
+            await userApi.update({ addresses: newAddresses });
             login({ ...user, addresses: newAddresses });
             setAddresses(newAddresses);
             closeModal();
@@ -145,8 +169,7 @@ export default function AddressManager() {
                 newAddresses[0].isDefault = true;
             }
 
-            const userRef = doc(db, 'users', user.uid);
-            await setDoc(userRef, { addresses: newAddresses }, { merge: true });
+            await userApi.update({ addresses: newAddresses });
             login({ ...user, addresses: newAddresses });
             setAddresses(newAddresses);
         } catch (error) {
@@ -162,8 +185,7 @@ export default function AddressManager() {
                 isDefault: a.id === id
             }));
 
-            const userRef = doc(db, 'users', user.uid);
-            await setDoc(userRef, { addresses: newAddresses }, { merge: true });
+            await userApi.update({ addresses: newAddresses });
             login({ ...user, addresses: newAddresses });
             setAddresses(newAddresses);
         } catch (error) {
@@ -314,7 +336,20 @@ export default function AddressManager() {
                             </div>
 
                             <div>
-                                <label className="text-sm font-semibold text-gray-600 block mb-2">Газрын зураг (Монголд бол хатгана уу, Солонгост бол алгасаж болно)</label>
+                                <div className="flex items-center justify-between gap-2 mb-2">
+                                    <label className="text-sm font-semibold text-gray-600">
+                                        Газрын зураг (Монголд бол хатгана уу)
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={handleDetectGps}
+                                        disabled={isLocating}
+                                        className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-costco-blue font-bold text-xs px-3 py-1.5 rounded-lg border border-blue-200 transition shrink-0"
+                                    >
+                                        <Navigation size={13} className={isLocating ? 'animate-spin' : ''} />
+                                        <span>{isLocating ? 'Хайж байна...' : 'Миний байршил (GPS)'}</span>
+                                    </button>
+                                </div>
                                 <div className="h-64 rounded-xl overflow-hidden border border-gray-200 relative z-0">
                                     <MapContainer 
                                         center={position || defaultCenter} 

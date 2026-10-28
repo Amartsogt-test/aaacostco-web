@@ -12,7 +12,6 @@ export default function MenuDrawer() {
     const { isMenuOpen, closeMenu } = useUIStore();
     const { categories, fetchCategories, resetSearch, products } = useProductStore();
     const [activeCategory, setActiveCategory] = useState(null);
-    const [isStoreExpanded, setStoreExpanded] = useState(false);
 
     // 🖼️ Derive a representative image per (sub)category from loaded products. Codes
     // are hierarchical (e.g. cos_6.1.2), so we index every prefix — that way a

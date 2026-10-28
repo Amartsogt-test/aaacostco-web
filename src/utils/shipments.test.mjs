@@ -13,27 +13,27 @@ function eq(name, got, exp) {
 
 const unit = (i) => i.mnt; // test items carry their unit MNT value directly
 
-// ---- single shipment when under the cap ----
+// ---- single shipment when under the cap (660,000₮) ----
 let s = splitIntoShipments(
-    [{ id: 'a', quantity: 2, mnt: 500000 }, { id: 'b', quantity: 1, mnt: 800000 }],
+    [{ id: 'a', quantity: 2, mnt: 200000 }, { id: 'b', quantity: 1, mnt: 200000 }], // 600k < cap
     unit
 );
 eq('under cap → 1 shipment', s.length, 1);
-eq('under cap value', s[0].valueMNT, 1800000);
+eq('under cap value', s[0].valueMNT, 600000);
 eq('under cap not oversize', s[0].oversize, false);
 
 // ---- splits when over the cap ----
 s = splitIntoShipments(
-    [{ id: 'a', quantity: 2, mnt: 1800000 }], // 2 × 1.8M = 3.6M > 3M
+    [{ id: 'a', quantity: 2, mnt: 400000 }], // 2 × 400k = 800k > 660k cap; each unit fits
     unit
 );
 eq('over cap → 2 shipments', s.length, 2);
 eq('split quantities 1+1', s.map(x => x.items[0].quantity), [1, 1]);
 eq('each under cap', s.every(x => x.valueMNT <= SHIPMENT_VALUE_LIMIT_MNT), true);
 
-// ---- exact boundary: 3,000,000 is still duty-free (≤) ----
-s = splitIntoShipments([{ id: 'a', quantity: 2, mnt: 1500000 }], unit);
-eq('3M exactly → 1 shipment', s.length, 1);
+// ---- exact boundary: value == cap is still 1 shipment (≤) ----
+s = splitIntoShipments([{ id: 'a', quantity: 2, mnt: 330000 }], unit); // 2 × 330k = 660k == cap
+eq('exact cap → 1 shipment', s.length, 1);
 
 // ---- ≤2 same item per shipment even with room left ----
 s = splitIntoShipments([{ id: 'a', quantity: 2, mnt: 100 }, { id: 'b', quantity: 2, mnt: 100 }], unit);
@@ -59,11 +59,11 @@ eq('small not flagged', s.find(x => x.valueMNT === 100000).oversize, false);
 // ---- bin packing keeps shipment count low ----
 s = splitIntoShipments(
     [
-        { id: 'a', quantity: 2, mnt: 1600000 }, // 2 units of 1.6M
-        { id: 'b', quantity: 2, mnt: 1300000 }, // 2 units of 1.3M
+        { id: 'a', quantity: 2, mnt: 400000 }, // 2 units of 400k
+        { id: 'b', quantity: 2, mnt: 250000 }, // 2 units of 250k
     ],
     unit
-); // optimal: 2 bins of (1.6+1.3)=2.9M
+); // optimal: 2 bins of (400k+250k)=650k, under the 660k cap
 eq('FFD packs 4 units into 2 bins', s.length, 2);
 eq('FFD bins under cap', s.every(x => x.valueMNT <= SHIPMENT_VALUE_LIMIT_MNT), true);
 

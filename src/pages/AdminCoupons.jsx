@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { db } from '../firebase';
-import { collection, getDocs, setDoc, deleteDoc, doc } from 'firebase/firestore';
+import { adminApi } from '../services/apiClient';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Trash2, RefreshCw, Tag } from 'lucide-react';
 
@@ -16,8 +15,8 @@ export default function AdminCoupons() {
     const load = async () => {
         setLoading(true);
         try {
-            const snap = await getDocs(collection(db, 'coupons'));
-            setCoupons(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            const res = await adminApi.coupons();
+            setCoupons(res.coupons || []);
         } catch (e) { console.error('load coupons failed', e); }
         setLoading(false);
     };
@@ -29,24 +28,39 @@ export default function AdminCoupons() {
         if (!code || !Number(form.value)) { alert('Код болон утгыг оруулна уу.'); return; }
         setSaving(true);
         try {
-            await setDoc(doc(db, 'coupons', code), {
+            const capNum = form.usageLimit !== '' && Number(form.usageLimit) > 0 ? Number(form.usageLimit) : null;
+            const couponData = {
                 code,
                 type: form.type === 'fixed' ? 'fixed' : 'percent',
                 value: Number(form.value),
                 minOrderMNT: Number(form.minOrderMNT) || 0,
-                usageLimit: Number(form.usageLimit) || 0,
+                cap: capNum,
+                usageLimit: capNum || 0,
                 expiresAt: form.expiresAt || null,
                 label: form.label || '',
                 active: true,
                 createdAt: new Date().toISOString(),
-            }, { merge: true });
+            };
+            await adminApi.upsertCoupon(couponData);
             setForm({ code: '', type: 'percent', value: '', minOrderMNT: '', expiresAt: '', label: '', usageLimit: '' });
             load();
         } catch (e) { console.error(e); alert('Хадгалахад алдаа гарлаа.'); }
         setSaving(false);
     };
-    const toggle = async (c) => { try { await setDoc(doc(db, 'coupons', c.id), { active: !c.active }, { merge: true }); load(); } catch (e) { console.error(e); } };
-    const remove = async (c) => { if (confirm(`${c.id} купоныг устгах уу?`)) { try { await deleteDoc(doc(db, 'coupons', c.id)); load(); } catch (e) { console.error(e); } } };
+    const toggle = async (c) => { 
+        try { 
+            await adminApi.upsertCoupon({ ...c, active: !c.active });
+            load(); 
+        } catch (e) { console.error(e); } 
+    };
+    const remove = async (c) => { 
+        if (confirm(`${c.id || c.code} купоныг устгах уу?`)) { 
+            try { 
+                await adminApi.deleteCoupon(c.code);
+                load(); 
+            } catch (e) { console.error(e); } 
+        } 
+    };
 
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4">
@@ -83,15 +97,15 @@ export default function AdminCoupons() {
                 ) : (
                     <div className="space-y-2">
                         {coupons.map((c) => (
-                            <div key={c.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex items-center gap-3">
+                            <div key={c.id || c.code} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-lg bg-blue-50 text-costco-blue flex items-center justify-center shrink-0"><Tag size={18} /></div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-gray-900">{c.id} <span className="text-sm font-normal text-gray-500">— {c.type === 'fixed' ? `${Number(c.value).toLocaleString()}₮` : `${c.value}%`}</span></p>
+                                    <p className="font-bold text-gray-900">{c.id || c.code} <span className="text-sm font-normal text-gray-500">— {c.type === 'fixed' ? `${Number(c.value).toLocaleString()}₮` : `${c.value}%`}</span></p>
                                     <p className="text-xs text-gray-500">
                                         {c.minOrderMNT ? `Доод ${Number(c.minOrderMNT).toLocaleString()}₮ • ` : ''}{c.expiresAt ? `${c.expiresAt} хүртэл • ` : ''}{c.label || ''}
                                     </p>
                                 </div>
-                                <button onClick={() => toggle(c)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${c.active === false ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>{c.active === false ? 'Идэвхгүй' : 'Идэвхтэй'}</button>
+                                <button onClick={() => toggle(c)} className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${!c.active ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>{!c.active ? 'Идэвхгүй' : 'Идэвхтэй'}</button>
                                 <button onClick={() => remove(c)} className="text-gray-400 hover:text-red-500 p-1"><Trash2 size={16} /></button>
                             </div>
                         ))}

@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, Phone, MessageSquare, CheckCircle2, Crown } from 'lucide-react';
-import { auth, callFunction } from '../firebase';
-import { signInWithCustomToken, signInWithEmailAndPassword } from 'firebase/auth';
 import { useAuthStore } from '../store/authStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { persistSmsUser } from '../utils/authUser';
+import { authApi, setToken } from '../services/apiClient';
 import buildInfo from '../buildInfo.json';
 export default function Login() {
     const navigate = useNavigate();
@@ -49,20 +47,18 @@ export default function Login() {
         setError('');
         setSmsLoading(true);
 
-        // SECURE ADMIN LOGIN (replaces the old hardcoded-password backdoor).
-        // Typing the admin phone now prompts for the admin's *real* password — no
-        // secret lives in the client bundle anymore. The admin account is created
-        // once with a strong password via scripts/grant-admin.cjs, which also sets
-        // the `isAdmin` custom claim that the Firestore rules check. No SMS needed.
+        // SECURE ADMIN LOGIN. Typing the admin phone prompts for the admin's real
+        // password, verified by the Worker (PBKDF2 on D1) which returns a JWT. No
+        // secret lives in the client bundle.
         const ADMIN_PHONE = import.meta.env.VITE_ADMIN_PHONE || '00880088';
-        const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || `${ADMIN_PHONE}@sms.costco.mn`;
         if (clean === ADMIN_PHONE) {
             const pass = window.prompt('Админ нууц үгээ оруулна уу:');
             if (!pass) { setSmsLoading(false); return; }
             try {
-                const cred = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, pass);
+                const res = await authApi.adminLogin(clean, pass);
+                setToken(res.token);
                 setSmsStep('success');
-                login(await persistSmsUser(cred.user, ADMIN_PHONE));
+                login(res.user);
                 setTimeout(() => navigate('/'), 1200);
             } catch (err) {
                 console.error('Admin login failed:', err?.code || err?.message);
@@ -74,7 +70,7 @@ export default function Login() {
         }
 
         try {
-            const result = await callFunction('requestSmsCode', { phone: clean });
+            const result = { data: await authApi.smsRequest(clean) };
             const { sessionId, code, businessNumber } = result.data;
             setSmsSessionId(sessionId);
             setSmsCode(code);
@@ -112,25 +108,17 @@ export default function Login() {
         if (pollingRef.current) clearInterval(pollingRef.current);
         pollingRef.current = setInterval(async () => {
             try {
-                const result = await callFunction('verifySmsCode', { sessionId });
-                const data = result.data;
-                if (data.success && data.token) {
-                    // Stop polling
-                    clearInterval(pollingRef.current);
-                    pollingRef.current = null;
+                const data = await authApi.smsVerify(sessionId);   // { pending } | { token, user }
+                if (data.token && data.user) {
+                    clearInterval(pollingRef.current); pollingRef.current = null;
                     if (countdownRef.current) clearInterval(countdownRef.current);
-
                     setSmsStep('success');
-
-                    // Sign in with Custom Token
-                    const cred = await signInWithCustomToken(auth, data.token);
-                    login(await persistSmsUser(cred.user, data.phone));
-                    
-                    // Brief pause to show success animation
+                    setToken(data.token);
+                    login(data.user);
                     setTimeout(() => navigate('/'), 1200);
                 }
             } catch (err) {
-                if (err?.code === 'functions/deadline-exceeded') {
+                if (err?.status === 410 || err?.code === 'functions/deadline-exceeded') {
                     // Code expired
                     clearInterval(pollingRef.current);
                     pollingRef.current = null;

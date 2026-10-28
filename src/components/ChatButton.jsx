@@ -40,39 +40,14 @@ export default function ChatButton() {
         }
     }, [isOpen, isAuthenticated, user, initializeChat]);
 
-    // Auto-open chat on desktop (User Request: "Always open on laptop")
-    // Track screen size to prevent duplicate mounting
+    // Track screen size without auto-opening chat (avoids background /api/chat polling for every visitor)
     const [_isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
 
     useEffect(() => {
-        let hasAutoOpened = false;
-
         const handleResize = () => {
-            const isLg = window.innerWidth >= 1024;
-            setIsDesktop(isLg);
-            // Admins use the dedicated /admin/chat page (separate URL) — never
-            // auto-open the support-chat sidebar over the product views for them.
-            if (useAuthStore.getState().user?.isAdmin) return;
-            if (isLg && !hasAutoOpened) { 
-                hasAutoOpened = true; // lg breakpoint - auto open once
-                if (!useChatStore.getState().isOpen) {
-                    useChatStore.getState().openChat();
-                    
-                    // Auto close after 2 seconds to become a small icon
-                    setTimeout(() => {
-                        if (useChatStore.getState().isOpen) {
-                            useChatStore.getState().closeChat();
-                        }
-                    }, 2000);
-                }
-            }
+            setIsDesktop(window.innerWidth >= 1024);
         };
-
         window.addEventListener('resize', handleResize);
-
-        // Initial check
-        handleResize();
-
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 

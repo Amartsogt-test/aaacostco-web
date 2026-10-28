@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, doc, getDoc, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { adminApi } from '../services/apiClient';
 import { Calendar, ChevronDown, ChevronUp, Package, Tag, Scale, Globe, FileText, AlertCircle } from 'lucide-react';
 
 const AdminDailyReports = () => {
@@ -13,10 +12,10 @@ const AdminDailyReports = () => {
     // Fetch available dates on mount
     useEffect(() => {
         const fetchDates = async () => {
-            const q = query(collection(db, 'daily_reports'), orderBy('date', 'desc'), limit(30));
-            const snap = await getDocs(q);
-            const dates = snap.docs.map(d => d.id);
-            setAvailableDates(dates);
+            try {
+                const res = await adminApi.dailyReports();
+                setAvailableDates(res.dates || []);
+            } catch (e) { console.error(e); }
         };
         fetchDates();
     }, []);
@@ -26,13 +25,8 @@ const AdminDailyReports = () => {
         const fetchReport = async () => {
             setLoading(true);
             try {
-                const docRef = doc(db, 'daily_reports', selectedDate);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    setReport(docSnap.data());
-                } else {
-                    setReport(null);
-                }
+                const res = await adminApi.dailyReports(selectedDate);
+                setReport(res.report || null);
             } catch (error) {
                 console.error("Error fetching report:", error);
             } finally {

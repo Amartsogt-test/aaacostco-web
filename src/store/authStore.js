@@ -1,9 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { auth, db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { FacebookAuthProvider, linkWithPopup } from 'firebase/auth';
 import { orderService } from '../services/orderService';
+import { userApi } from '../services/apiClient';
 import { useCartStore } from './cartStore';
 import { useProductStore } from './productStore';
 
@@ -61,10 +59,10 @@ export const useAuthStore = create(
             syncUser: async (uid) => {
                 if (!uid) return;
                 try {
-                    const userDoc = await getDoc(doc(db, 'users', uid));
-                    if (userDoc.exists()) {
-                        const userData = userDoc.data();
-
+                    // Full profile from the Worker (D1). Replaces the Firestore users/{uid} read.
+                    const r = await userApi.get();
+                    const userData = r?.user || r;
+                    if (userData && (userData.uid || userData.phone)) {
                         // Derive tier from the server-authoritative spend so the cart
                         // discount and profile always reflect the persisted membership.
                         const spendKRW = userData.totalSpendKRW ?? userData.totalSpend;
@@ -104,7 +102,7 @@ export const useAuthStore = create(
             updateUserProfile: async (uid, data) => {
                 if (!uid) return;
                 try {
-                    await setDoc(doc(db, 'users', uid), data, { merge: true });
+                    await userApi.update(data);
                     set(state => ({
                         user: state.user ? { ...state.user, ...data } : null
                     }));
@@ -112,47 +110,11 @@ export const useAuthStore = create(
                     console.error("Failed to update user profile:", error);
                 }
             },
-            linkFacebook: async (currentUser) => {
-                try {
-                    // auth, db, doc, setDoc, FacebookAuthProvider, linkWithPopup are imported at the top
-
-                    const user = currentUser;
-
-                    if (!auth.currentUser) {
-                        return { success: false, message: 'Firebase хэрэглэгч олдсонгүй.' };
-                    }
-
-                    const provider = new FacebookAuthProvider();
-                    const result = await linkWithPopup(auth.currentUser, provider);
-                    const fbUser = result.user;
-                    const newData = {
-                        name: fbUser.displayName,
-                        photoURL: fbUser.photoURL,
-                        fbUid: fbUser.providerData[0]?.uid,
-                        isFacebookLinked: true
-                    };
-
-                    if (user?.uid) {
-                        const userRef = doc(db, 'users', user.uid);
-                        await setDoc(userRef, newData, { merge: true });
-                    }
-
-                    set(state => ({
-                        user: state.user ? { ...state.user, ...newData } : null
-                    }));
-
-                    return { success: true, message: 'Facebook амжилттай холбогдлоо!' };
-
-                } catch (error) {
-                    console.error("Facebook Link Error:", error);
-                    let msg = 'Facebook холбоход алдаа гарлаа: ' + error.message;
-                    if (error.code === 'auth/credential-already-in-use') {
-                        msg = 'Энэ Facebook хаяг өөр хэрэглэгчтэй холбогдсон байна.';
-                    } else if (error.code === 'auth/popup-closed-by-user') {
-                        msg = 'Cancelled';
-                    }
-                    return { success: false, message: msg };
-                }
+            // Facebook account linking used Firebase Auth (linkWithPopup), which was removed
+            // in the Cloudflare migration. Primary login is SMS (Worker JWT). Re-add later
+            // via a Worker-side Facebook OAuth flow if needed.
+            linkFacebook: async () => {
+                return { success: false, message: 'Facebook холболт түр идэвхгүй байна (шилжилтийн дараа).' };
             }
         }),
         {

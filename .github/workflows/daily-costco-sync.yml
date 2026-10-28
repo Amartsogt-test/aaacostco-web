@@ -1,0 +1,66 @@
+name: Daily Autonomous Costco.co.kr Sync & Marketing Suite
+
+on:
+  schedule:
+    # Runs daily at 01:00 UTC (09:00 Ulaanbaatar / 10:00 Seoul)
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+jobs:
+  autonomous-sync-and-heal:
+    name: Costco.co.kr Full Catalog Sync + Self-Heal + AI Marketing
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: 1. Sync Full Product Catalog from Costco.co.kr (Member Authenticated)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          COSTCO_USER: ${{ secrets.COSTCO_USER }}
+          COSTCO_PASS: ${{ secrets.COSTCO_PASS }}
+          COSTCO_COOKIE: ${{ secrets.COSTCO_COOKIE }}
+          COSTCO_AUTH_TOKEN: ${{ secrets.COSTCO_AUTH_TOKEN }}
+        run: node scripts/core/costco-kr-full-sync.js
+
+      - name: 2. Update Exchange Rate & Sync to Cloudflare D1
+        env:
+          VITE_API_BASE: ${{ secrets.VITE_API_BASE }}
+          ADMIN_SYNC_SECRET: ${{ secrets.ADMIN_SYNC_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npm run core:bank-rates
+          npm run core:d1-sync
+
+      - name: 3. Run Autonomous Self-Healing Doctor
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: npm run core:self-heal
+
+      - name: 4. Run Autonomous AI Marketing & Reels Studio
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+        run: npm run marketing:daily
+
+      - name: 5. Commit Updated Snapshot & Search Index
+        run: |
+          git config user.name "costco-autonomous-bot"
+          git config user.email "bot@costco.mn"
+          git add public/home-snapshot.json public/search-index.json
+          git diff --staged --quiet || git commit -m "chore(catalog): autonomous Costco.co.kr catalog & price sync"
+          git push || true

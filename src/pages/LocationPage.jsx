@@ -1,10 +1,12 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin } from 'lucide-react';
+import { ArrowLeft, MapPin, Navigation } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useCartStore } from '../store/cartStore';
+import { useUIStore } from '../store/uiStore';
+import { requestUserLocation } from '../utils/permissions';
 
 // Import leaflet assets
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -41,8 +43,8 @@ const branches = [
     { id: 'branch3', name: '3-р салбар', lat: 47.8916, lng: 106.9050, address: 'Хан-Уул дүүрэг, Зайсан' }
 ];
 
-// Map refresh helper — defined outside component to prevent remount
-const MapRefresh = () => {
+// Map refresh & flyTo helper — defined outside component to prevent remount
+const MapRefresh = ({ targetPosition }) => {
     const map = useMap();
     useEffect(() => {
         if (map) {
@@ -51,6 +53,13 @@ const MapRefresh = () => {
             }, 300);
         }
     }, [map]);
+
+    useEffect(() => {
+        if (map && targetPosition?.lat && targetPosition?.lng) {
+            map.flyTo([targetPosition.lat, targetPosition.lng], 16, { duration: 0.8 });
+        }
+    }, [map, targetPosition]);
+
     return null;
 };
 
@@ -59,8 +68,10 @@ export default function LocationPage() {
     const [searchParams] = useSearchParams();
     const mode = searchParams.get('mode') || 'branch'; // 'branch' or 'delivery'
     const { checkoutState, setCheckoutState } = useCartStore();
+    const { showToast } = useUIStore();
 
     const [pickedLocation, setPickedLocation] = useState(checkoutState.deliveryLocation);
+    const [isLocating, setIsLocating] = useState(false);
 
     // Keep pickedLocation in sync when an external delivery location changes,
     // without calling setState inside an effect (React-recommended pattern).
@@ -73,6 +84,19 @@ export default function LocationPage() {
         setPrevDeliveryLocation(checkoutState.deliveryLocation);
         setPickedLocation(checkoutState.deliveryLocation);
     }
+
+    const handleDetectGps = async () => {
+        setIsLocating(true);
+        try {
+            const coords = await requestUserLocation();
+            setPickedLocation({ lat: coords.lat, lng: coords.lng });
+            showToast('Таны одоогийн байршлыг GPS-ээр тогтоолоо.', 'success');
+        } catch (err) {
+            showToast(err.message || 'Байршил тогтооход алдаа гарлаа.', 'error');
+        } finally {
+            setIsLocating(false);
+        }
+    };
 
     const handleConfirmLocation = () => {
         if (pickedLocation) {
@@ -106,9 +130,18 @@ export default function LocationPage() {
                         <p className="text-sm text-gray-500">
                             {mode === 'branch'
                                 ? 'Газрын зураг дээрээс өөрт ойр салбарыг сонгоно уу'
-                                : 'Газрын зураг дээр дарж хүргүүлэх байршлаа сонгоно уу'}
+                                : 'Газрын зураг дээр дарж эсвэл GPS ашиглан байршлаа сонгоно уу'}
                         </p>
                     </div>
+                    <button
+                        type="button"
+                        onClick={handleDetectGps}
+                        disabled={isLocating}
+                        className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-costco-blue font-bold text-xs px-3 py-2.5 rounded-xl border border-blue-200 transition shrink-0"
+                    >
+                        <Navigation size={15} className={isLocating ? 'animate-spin' : ''} />
+                        <span>{isLocating ? 'Хайж байна...' : 'Миний байршил'}</span>
+                    </button>
                 </div>
             </div>
 
@@ -125,7 +158,7 @@ export default function LocationPage() {
                         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
 
-                    <MapRefresh />
+                    <MapRefresh targetPosition={pickedLocation} />
 
                     {mode === 'branch' ? (
                         branches.map((branch) => (

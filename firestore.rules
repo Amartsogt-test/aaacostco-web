@@ -27,9 +27,9 @@ service cloud.firestore {
 
     // Admins collection: 
     // - No one can write (must be done via Admin SDK / Console)
-    // - Read allowed if you are reading your own doc
+    // - Read allowed only to admins
     match /admins/{phone} {
-      allow read: if isAuth();
+      allow read: if isAdmin();
       allow write: if false; 
     }
 
@@ -40,9 +40,9 @@ service cloud.firestore {
     }
 
     // Settings collection - public read, admin write
-    // admin_auth doc: no client read (server-only via Admin SDK)
+    // admin_auth & scraper docs: no client read (server/admin-only; scraper holds Costco session cookies)
     match /settings/{settingId} {
-      allow read: if settingId != 'admin_auth';
+      allow read: if (settingId != 'admin_auth' && settingId != 'scraper') || isAdmin();
       allow write: if isAdmin();
     }
 
@@ -76,10 +76,14 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Orders collection
+    // Orders collection.
+    // create is server-only: ALL orders are minted by the createOrder Cloud Function
+    // (Admin SDK, which bypasses these rules and runs the price-audit). Clients never
+    // write orders directly, so we forbid direct client creation — this closes the gap
+    // where a guest could write an arbitrary/forged order doc straight to Firestore.
     match /orders/{orderId} {
       allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if !isAuth() || request.resource.data.userId == request.auth.uid;
+      allow create: if false;
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }

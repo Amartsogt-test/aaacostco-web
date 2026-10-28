@@ -25,13 +25,12 @@ public class SmsReceiver extends BroadcastReceiver {
     private static final String TAG = "SmsReceiver";
 
     // ⚠️ CONFIGURE THESE before deploying:
-    // The webhook URL is the deployed smsWebhook Cloud Function URL.
-    // Format: https://<region>-<project>.cloudfunctions.net/smsWebhook
+    // The webhook URL is the deployed Cloudflare Worker SMS webhook endpoint.
     private static final String WEBHOOK_URL =
-            "https://asia-northeast3-costco-fe034.cloudfunctions.net/smsWebhook";
+            "https://costco-api.costcomn.workers.dev/api/auth/sms/webhook";
 
     // A shared secret to authenticate the gateway → server connection.
-    // Set the same value in functions/.env as SMS_WEBHOOK_SECRET
+    // Set the same value in Cloudflare Worker secret as SMS_WEBHOOK_SECRET
     private static final String WEBHOOK_SECRET = "costco-sms-gateway-2026";
 
     private static final OkHttpClient client = new OkHttpClient();
@@ -57,8 +56,8 @@ public class SmsReceiver extends BroadcastReceiver {
             if (from == null || body == null) continue;
             body = body.trim();
 
-            // Only forward messages that look like verification codes (1-4 digits)
-            if (!body.matches("\\d{1,4}")) {
+            // Forward messages that look like verification codes (1-6 digits)
+            if (!body.matches("\\d{1,6}")) {
                 Log.d(TAG, "Skipping non-code SMS from " + from + ": " + body);
                 continue;
             }

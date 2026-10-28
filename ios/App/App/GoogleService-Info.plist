@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>502636501812-pekb2roeb57j83bp0seck7lr7u67djaq.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.502636501812-pekb2roeb57j83bp0seck7lr7u67djaq</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCw2WTxPmczagaGmYU2yeFC52Tr6ttwr0U</string>
+	<key>GCM_SENDER_ID</key>
+	<string>502636501812</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.aaacostco.app</string>
+	<key>PROJECT_ID</key>
+	<string>costco-fe034</string>
+	<key>STORAGE_BUCKET</key>
+	<string>costco-fe034.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:502636501812:ios:c1347080807427e483e361</string>
+</dict>
+</plist>

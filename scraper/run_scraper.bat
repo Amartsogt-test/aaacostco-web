@@ -1,4 +1,4 @@
 @echo off
-cd /d E:\aaacostco\scraper
+cd /d "%~dp0"
 call .venv\Scripts\activate
 python full_sync.py

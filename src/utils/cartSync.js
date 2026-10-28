@@ -7,26 +7,26 @@
  */
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { db } from '../firebase';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { cartApi } from '../services/apiClient';
 
 let timer = null;
+let lastUid = null;
+let lastCount = -1;
 
 export function startCartSync() {
     return useCartStore.subscribe((state) => {
         const uid = useAuthStore.getState().user?.uid;
         if (!uid) return;
-        const itemCount = (state.groundItems?.length || 0) + (state.airItems?.length || 0);
+        const itemCount =
+            (state.groundItems || []).reduce((sum, i) => sum + (Number(i.quantity) || 1), 0) +
+            (state.airItems || []).reduce((sum, i) => sum + (Number(i.quantity) || 1), 0);
+        if (uid === lastUid && itemCount === lastCount) return;
+        lastUid = uid;
+        lastCount = itemCount;
         clearTimeout(timer);
         timer = setTimeout(async () => {
-            try {
-                const ref = doc(db, 'carts', uid);
-                if (itemCount > 0) {
-                    await setDoc(ref, { uid, itemCount, updatedAt: new Date().toISOString(), reminded: false }, { merge: true });
-                } else {
-                    await deleteDoc(ref).catch(() => { });
-                }
-            } catch { /* non-fatal */ }
+            try { await cartApi.save(itemCount); /* Worker (D1); also clears on 0 */ }
+            catch { /* non-fatal */ }
         }, 2500);
     });
 }

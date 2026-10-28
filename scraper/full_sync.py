@@ -127,10 +127,12 @@ def extract_product_data(api_item: dict, category: dict) -> dict:
     stock_data = api_item.get('stock', {})
     stock_status = stock_data.get('stockLevelStatus', 'inStock') if stock_data else 'inStock'
     
-    # Build product data
+    # Build product data (includes both canonical D1/Node fields and legacy aliases)
+    now_iso = datetime.now().isoformat()
     product = {
         # ID/URL
         'id': code,
+        'code': code,
         'url': 'https://www.costco.co.kr' + api_item.get('url', ''),
         'groupId': api_item.get('groupId', ''),
         
@@ -138,10 +140,13 @@ def extract_product_data(api_item: dict, category: dict) -> dict:
         'name': api_item.get('name', ''),
         'englishName': api_item.get('englishName', ''),
         'summary': api_item.get('summary', ''),
+        'shortDescription': api_item.get('summary', ''),
         'description': api_item.get('description', ''),
         
-        # Price (KRW only - calculation done client-side)
+        # Price (KRW — canonical + legacy alias)
+        'price': price_krw,
         'priceKRW': price_krw,
+        'originalPrice': original_price_krw,
         'originalPriceKRW': original_price_krw,
         'hasDiscount': has_discount,
         'discountPercent': discount_percent,
@@ -152,8 +157,10 @@ def extract_product_data(api_item: dict, category: dict) -> dict:
         'image': images[0] if images else '',
         'badges': [d.get('text', '') for d in api_item.get('decalData', []) if d.get('text')],
         
-        # Categories
+        # Categories (canonical + legacy alias)
+        'categoryPath': categories,
         'categories': categories,
+        'categoryCode': main_category,
         'mainCategory': main_category,
         'mainCategoryName': main_category_name,
         
@@ -165,10 +172,12 @@ def extract_product_data(api_item: dict, category: dict) -> dict:
         'brand': api_item.get('manufacturer', ''),
         
         # Rating
+        'ratingsAvg': api_item.get('averageRating', 0),
         'rating': api_item.get('averageRating', 0),
         'reviewCount': api_item.get('numberOfReviews', 0),
         
         # Stock
+        'stock': stock_status,
         'stockStatus': stock_status,
         'purchasable': api_item.get('purchasable', True),
         
@@ -176,9 +185,10 @@ def extract_product_data(api_item: dict, category: dict) -> dict:
         'warranty': api_item.get('warranty', ''),
         'returns': api_item.get('returns', ''),
         
-        # Status
+        # Status & timestamps
         'status': 'active',
         'needsTranslation': True,  # Will be translated later
+        'lastScraped': now_iso,
         
         # Source
         'source': 'costco_kr_api',
@@ -348,13 +358,18 @@ def sync_to_firebase(db, products: list) -> dict:
             stock_changed = old['stockStatus'] != product['stockStatus']
             
             if price_changed or stock_changed:
+                now_iso = datetime.now().isoformat()
                 update_data = {
+                    'price': product['priceKRW'],
                     'priceKRW': product['priceKRW'],
+                    'originalPrice': product['originalPriceKRW'],
                     'originalPriceKRW': product['originalPriceKRW'],
                     'hasDiscount': product['hasDiscount'],
                     'discountPercent': product['discountPercent'],
                     'discountMessage': product['discountMessage'],
+                    'stock': product['stockStatus'],
                     'stockStatus': product['stockStatus'],
+                    'lastScraped': now_iso,
                     'lastSeenAt': firestore.SERVER_TIMESTAMP,
                     'updatedAt': firestore.SERVER_TIMESTAMP,
                 }
