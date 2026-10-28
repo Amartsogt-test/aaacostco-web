@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appIDs": ["TEAMID.com.aaacostco.app"],
+        "appIDs": ["LHJMY3S9M5.mn.costco.app"],
         "components": [
           { "/": "/product/*" },
           { "/": "/category/*" },

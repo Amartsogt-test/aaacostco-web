@@ -90,7 +90,7 @@ jobs:
       - name: Install Dependencies & Prepare Mobile Assets
         run: |
           npm ci
-          npm run mobile:prepare
+          npx cap sync ios
 
       - name: Publish to Apple App Store Connect via Fastlane
         if: env.ASC_KEY_ID != ''
@@ -102,5 +102,12 @@ jobs:
           APP_STORE_CONNECT_TEAM_ID: ${{ secrets.APP_STORE_CONNECT_TEAM_ID }}
           GITHUB_RUN_NUMBER: ${{ github.run_number }}
         run: |
-          gem install fastlane
+          gem install fastlane --no-document
           fastlane ios release
+
+      - name: Upload iOS Release Artifact (.ipa)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: costco-mn-ios-release
+          path: output/ios/*.ipa
