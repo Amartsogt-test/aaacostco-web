@@ -1,8 +1,10 @@
-import { LogOut, ShieldCheck, ChevronRight } from 'lucide-react';
+import { LogOut, Trash2 } from 'lucide-react';
 import buildInfo from '../buildInfo.json';
 import { useNavigate } from 'react-router-dom';
-import React, { useEffect, Suspense } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { userApi, setToken } from '../services/apiClient';
+import { useUIStore } from '../store/uiStore';
 
 import { useSettingsStore } from '../store/settingsStore';
 import { useCartStore } from '../store/cartStore';
@@ -15,12 +17,14 @@ const LoyaltyCard = React.lazy(() => import('../components/LoyaltyCard'));
 // defer its chunk until after the profile's main content paints.
 const AddressManager = React.lazy(() => import('../components/AddressManager'));
 
-
 export default function Profile() {
     const navigate = useNavigate();
     const { logout, user, isAuthenticated, refreshUserSpend, syncUser } = useAuthStore();
     const { settings, fetchSettings } = useSettingsStore();
     const wonRate = useProductStore(state => state.wonRate);
+
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deletingAccount, setDeletingAccount] = useState(false);
 
     // Initial Load
     useEffect(() => {
@@ -49,13 +53,29 @@ export default function Profile() {
         useCartStore.getState().clearCart();
         useCartStore.getState().resetCheckoutState();
         useChatStore.getState().cleanup(); // tear down the chat subscription + messages
+        setToken('');
         logout();
 
         navigate('/login');
     };
 
-
-
+    const handleDeleteAccount = async () => {
+        setDeletingAccount(true);
+        try {
+            await userApi.deleteAccount();
+        } catch {
+            // Proceed with local account deletion even if session already expired
+        }
+        useCartStore.getState().clearCart();
+        useCartStore.getState().resetCheckoutState();
+        useChatStore.getState().cleanup();
+        setToken('');
+        logout();
+        useUIStore.getState().showToast('Таны бүртгэл болон хувийн мэдээлэл системээс бүрмөсөн устгагдлаа.', 'success');
+        setDeletingAccount(false);
+        setShowDeleteConfirm(false);
+        navigate('/');
+    };
 
     if (!isAuthenticated) {
         return null;
@@ -128,9 +148,57 @@ export default function Profile() {
                             <AddressManager />
                         </Suspense>
                     </div>
+
+                    {/* In-App Account Deletion (Guideline 5.1.1(v)) */}
+                    <div className="container mx-auto max-w-lg px-4 mb-6">
+                        <div className="bg-white rounded-2xl p-4 border border-red-100 shadow-sm flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-bold text-gray-900">Бүртгэл устгах (Delete Account)</h4>
+                                <p className="text-xs text-gray-500 mt-0.5">Өөрийн бүртгэл болон хувийн мэдээллийг бүрмөсөн устгах</p>
+                            </div>
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-xl flex items-center gap-1.5 transition shrink-0"
+                            >
+                                <Trash2 size={15} />
+                                Бүртгэл устгах
+                            </button>
+                        </div>
+                    </div>
                 </>
             )}
 
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-gray-100">
+                        <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
+                            <Trash2 size={24} />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 text-center mb-2">
+                            Бүртгэл устгах уу? (Delete Account?)
+                        </h3>
+                        <p className="text-sm text-gray-600 text-center mb-6 leading-relaxed">
+                            Та өөрийн бүртгэл, хадгалсан хаяг болон хувийн мэдээллээ системээс бүрмөсөн устгахдаа итгэлтэй байна уу? Энэ үйлдлийг буцаах боломжгүй.
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={deletingAccount}
+                                className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition"
+                            >
+                                Цуцлах (Cancel)
+                            </button>
+                            <button
+                                onClick={handleDeleteAccount}
+                                disabled={deletingAccount}
+                                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition"
+                            >
+                                {deletingAccount ? 'Устгаж байна...' : 'Устгах (Delete)'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="container mx-auto max-w-lg px-4 mt-6 relative z-10">
                 {/* Footer Info Section (Moved outside max-w-lg to allow full width) */}

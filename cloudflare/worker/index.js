@@ -16,7 +16,7 @@ import { wireCallback, createWireInvoice } from './payments.js';
 import { saveCart, getCart } from './cart.js';
 import { getChat, sendMessage, listAdminChats, getAdminChat, adminSendMessage, pinMessage, likeMessage, broadcastMessage } from './chat.js';
 import { aiSummary, aiScan } from './ai.js';
-import { getUser, updateUser } from './user.js';
+import { getUser, updateUser, deleteUser } from './user.js';
 import { listAllOrders, setOrderStage, setSetting, upsertProduct, batchUpsertProducts, deleteProduct, patchOrder, getPublicSettings, getAdminSetting, listCoupons, upsertCoupon, deleteCoupon, listAdminProducts, getAIReviewItems, setCategoryBanner, getDailyReports, getAdminUser } from './admin.js';
 import { validateCoupon } from './coupon.js';
 import { runScheduled } from './cron.js';
@@ -274,6 +274,11 @@ export default {
         if (pathname === '/api/user') {
           const u = await authenticate(request, env);
           const r = await updateUser(body, env, u);
+          return json(r.data, r.status);
+        }
+        if (pathname === '/api/user/delete') {
+          const u = await authenticate(request, env);
+          const r = await deleteUser(env, u);
           return json(r.data, r.status);
         }
         if (pathname === '/api/order/return') {

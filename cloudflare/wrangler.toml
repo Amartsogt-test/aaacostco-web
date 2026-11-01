@@ -42,6 +42,7 @@ id = "09a0deaedd484be89245e40af03bf682"
 #                         stage notifications. Omit and push simply no-ops.)
 [vars]
 WIRE_BASE_URL = "https://api.wire.mn/v1"
+ALLOW_TEST_PHONE = "true"
 # Extra CORS origins (comma-separated) on top of the built-in costco.mn + *.costco-fe.pages.dev
 # + localhost defaults. Usually leave empty.
 # ALLOWED_ORIGINS = ""

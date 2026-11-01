@@ -7,6 +7,8 @@
  *   POST /api/user  { name?, phone?, addresses?, followStatus?, fcmToken? }  (authed)
  */
 
+import { invalidateAuthMemCache } from './auth.js';
+
 export async function getUser(env, user) {
   if (!user?.uid) return { status: 401, data: { error: 'unauthenticated' } };
   const r = await env.DB.prepare('SELECT uid, phone, name, email, isAdmin, tier, totalSpendKRW, loyaltyPointsKRW, loyaltyLots, addresses, followStatus FROM users WHERE uid = ?')
@@ -44,4 +46,12 @@ export async function updateUser(body, env, user) {
   args.push(user.uid);
   await env.DB.prepare(`UPDATE users SET ${sets.join(', ')} WHERE uid = ?`).bind(...args).run();
   return { status: 200, data: { ok: true } };
+}
+
+export async function deleteUser(env, user) {
+  if (!user?.uid) return { status: 401, data: { error: 'unauthenticated' } };
+  await env.DB.prepare('DELETE FROM carts WHERE uid = ?').bind(user.uid).run().catch(() => {});
+  await env.DB.prepare('DELETE FROM users WHERE uid = ?').bind(user.uid).run();
+  invalidateAuthMemCache(user.uid);
+  return { status: 200, data: { ok: true, deleted: true } };
 }

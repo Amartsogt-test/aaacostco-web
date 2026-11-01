@@ -129,6 +129,7 @@ export const cartApi = {
 export const userApi = {
     get: () => call('/api/user', { auth: true }),
     update: (patch) => call('/api/user', { method: 'POST', body: patch, auth: true }),
+    deleteAccount: () => call('/api/user/delete', { method: 'POST', body: {}, auth: true }),
 };
 
 export const adminApi = {
