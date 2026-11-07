@@ -119,7 +119,7 @@ export async function syncSettingToD1(settingId, data) {
         const wranglerConfig = path.join(ROOT_DIR, 'cloudflare', 'wrangler.toml');
         execFileSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', [
             'wrangler', 'd1', 'execute', 'costco', '-c', wranglerConfig, `--file=${sqlFile}`, '--remote'
-        ], { cwd: ROOT_DIR, stdio: 'pipe' });
+        ], { cwd: ROOT_DIR, stdio: 'pipe', shell: true });
         console.log(`☁️  Synced settings/${settingId} to Cloudflare D1 via Wrangler.`);
         return true;
     } catch {
@@ -205,7 +205,7 @@ export async function syncProductsToD1(products) {
         const wranglerConfig = path.join(ROOT_DIR, 'cloudflare', 'wrangler.toml');
         execFileSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', [
             'wrangler', 'd1', 'execute', 'costco', '-c', wranglerConfig, `--file=${sqlFile}`, '--remote'
-        ], { cwd: ROOT_DIR, stdio: 'inherit' });
+        ], { cwd: ROOT_DIR, stdio: 'inherit', shell: true });
         console.log(`☁️  Synced ${normalized.length} products to Cloudflare D1 via Wrangler.`);
         return { synced: normalized.length };
     } catch (err) {
@@ -214,70 +214,45 @@ export async function syncProductsToD1(products) {
     }
 }
 
-// Standalone CLI execution: sync catalog & settings from Firestore (or local Costco.co.kr snapshot) to Cloudflare D1
+// Standalone CLI execution: sync catalog & settings from local Costco.co.kr snapshot to Cloudflare D1
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 if (isMain) {
     (async () => {
         console.log('🔄 Starting Catalog → Cloudflare D1 sync...');
-        const saPath = process.env.GOOGLE_APPLICATION_CREDENTIALS || path.join(ROOT_DIR, 'functions', 'service-account.json');
-        if (!fs.existsSync(saPath) && !process.env.FIREBASE_SERVICE_ACCOUNT) {
-            const snapshotFile = path.join(ROOT_DIR, 'public', 'home-snapshot.json');
-            const searchIndexFile = path.join(ROOT_DIR, 'public', 'search-index.json');
-            const byId = new Map();
-            if (fs.existsSync(searchIndexFile)) {
-                try {
-                    const idxData = JSON.parse(fs.readFileSync(searchIndexFile, 'utf8'));
-                    for (const item of idxData.items || []) {
-                        const id = String(item.id || item.c || '');
-                        if (id) byId.set(id, item);
-                    }
-                } catch { /* ignore */ }
-            }
-            let wonRate = 0;
-            if (fs.existsSync(snapshotFile)) {
-                try {
-                    const snapData = JSON.parse(fs.readFileSync(snapshotFile, 'utf8'));
-                    wonRate = Number(snapData.wonRate) || 0;
-                    for (const p of snapData.products || []) {
-                        const id = String(p.id || p.code || '');
-                        if (id) byId.set(id, { ...(byId.get(id) || {}), ...p });
-                    }
-                } catch { /* ignore */ }
-            }
-            const products = Array.from(byId.values());
-            if (products.length > 0) {
-                console.log(`📦 Loaded ${products.length} products from local Costco.co.kr catalog.`);
-                await syncProductsToD1(products);
-                if (wonRate > 0) {
-                    await syncSettingToD1('currency', { wonRate, updatedAt: new Date().toISOString() });
+        const snapshotFile = path.join(ROOT_DIR, 'public', 'home-snapshot.json');
+        const searchIndexFile = path.join(ROOT_DIR, 'public', 'search-index.json');
+        const byId = new Map();
+        if (fs.existsSync(searchIndexFile)) {
+            try {
+                const idxData = JSON.parse(fs.readFileSync(searchIndexFile, 'utf8'));
+                for (const item of idxData.items || []) {
+                    const id = String(item.id || item.c || '');
+                    if (id) byId.set(id, item);
                 }
-                console.log('✅ Local Costco.co.kr Catalog → D1 sync complete.');
-                process.exit(0);
+            } catch { /* ignore */ }
+        }
+        let wonRate = 0;
+        if (fs.existsSync(snapshotFile)) {
+            try {
+                const snapData = JSON.parse(fs.readFileSync(snapshotFile, 'utf8'));
+                wonRate = Number(snapData.wonRate) || 0;
+                for (const p of snapData.products || []) {
+                    const id = String(p.id || p.code || '');
+                    if (id) byId.set(id, { ...(byId.get(id) || {}), ...p });
+                }
+            } catch { /* ignore */ }
+        }
+        const products = Array.from(byId.values());
+        if (products.length > 0) {
+            console.log(`📦 Loaded ${products.length} products from local Costco.co.kr catalog.`);
+            await syncProductsToD1(products);
+            if (wonRate > 0) {
+                await syncSettingToD1('currency', { wonRate, updatedAt: new Date().toISOString() });
             }
-            console.log('ℹ️ No Firebase service account or local snapshot found; skipping D1 catalog sync.');
+            console.log('✅ Local Costco.co.kr Catalog → D1 sync complete.');
             process.exit(0);
         }
-        const { initializeApp, cert } = await import('firebase-admin/app');
-        const { getFirestore } = await import('firebase-admin/firestore');
-        const sa = fs.existsSync(saPath)
-            ? JSON.parse(fs.readFileSync(saPath, 'utf8'))
-            : JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-        initializeApp({ credential: cert(sa) });
-        const dbId = process.env.FIRESTORE_DATABASE_ID;
-        const db = dbId && dbId !== '(default)' ? getFirestore(dbId) : getFirestore();
-
-        const snap = await db.collection('products').get();
-        const products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        console.log(`📦 Loaded ${products.length} products from Firestore.`);
-        await syncProductsToD1(products);
-
-        for (const settingId of ['currency', 'general']) {
-            const sDoc = await db.collection('settings').doc(settingId).get();
-            if (sDoc.exists) {
-                await syncSettingToD1(settingId, sDoc.data());
-            }
-        }
-        console.log('✅ Catalog & settings D1 sync complete.');
+        console.log('ℹ️ No local snapshot found; skipping D1 catalog sync.');
         process.exit(0);
     })().catch((err) => {
         console.error('❌ D1 sync failed:', err);

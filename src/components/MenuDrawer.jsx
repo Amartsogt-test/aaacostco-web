@@ -18,6 +18,7 @@ export default function MenuDrawer() {
     // level-2 tile (cos_6.1) picks up an image from any product deeper in its tree.
     // Falls back to the category icon when nothing matches.
     const subCategoryImage = useMemo(() => {
+        if (!isMenuOpen) return {};
         const map = {};
         for (const p of (products || [])) {
             if (!p?.image) continue;
@@ -32,7 +33,7 @@ export default function MenuDrawer() {
             if (p.category && !map[p.category]) map[p.category] = p.image;
         }
         return map;
-    }, [products]);
+    }, [isMenuOpen, products]);
 
     // Construct fallback categories from static data
     const fallbackCategories = MENU_DATA.map(m => ({
