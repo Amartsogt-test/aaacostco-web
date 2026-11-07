@@ -55,6 +55,7 @@ function corsHeaders(acao) {
     'Vary': 'Origin',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Filename, X-Admin-Sync-Secret',
+    'Access-Control-Max-Age': '86400',
     'Cache-Control': 'private, no-store',
   };
 }
@@ -72,17 +73,26 @@ const FTS_LIST_COLS = LIST_COLS.split(', ').map((c) => `p.${c}`).join(', ');
 // Expand a D1 product row into the API shape (parse JSON columns).
 // `full` adds the heavy fields needed on the product-detail page (descriptions etc.);
 // list/search responses stay lean.
+function cleanProductImageUrl(imgUrl, code) {
+  if (!imgUrl) return imgUrl;
+  if (/firebasestorage\.googleapis\.com|storage\.googleapis\.com/.test(imgUrl)) {
+    return `https://costco-api.costcomn.workers.dev/api/img/code/${encodeURIComponent(code)}`;
+  }
+  return imgUrl;
+}
+
 function shapeProduct(r, full = false) {
   if (!r) return null;
   const parse = (v, fb) => { try { return v ? JSON.parse(v) : fb; } catch { return fb; } };
+  const code = r.code || r.id;
   const p = {
     id: r.id,
-    code: r.code || r.id,
+    code,
     name: r.name,
     name_mn: r.name_mn,
     englishName: r.englishName,
     brand: r.brand,
-    image: r.image,
+    image: cleanProductImageUrl(r.image, code),
     price: r.price,
     originalPrice: r.originalPrice,
     estimatedWarehousePrice: r.estimatedWarehousePrice,
@@ -157,27 +167,68 @@ function invalidateLocalCache() {
   memDataCache.clear();
 }
 
-async function getCacheVersion(env) {
+async function getCacheVersion(env, ctx) {
   const now = Date.now();
   if (memCacheVer.v && memCacheVer.exp > now) return memCacheVer.v;
-  try {
-    const v = (await env.CACHE.get('cacheVer')) || '1';
-    if (memCacheVer.v && memCacheVer.v !== v) memDataCache.clear();
-    memCacheVer = { v, exp: now + 30_000 };
-    return v;
-  } catch {
-    return memCacheVer.v || '1';
+  const refresh = async () => {
+    try {
+      const v = (await env.CACHE.get('cacheVer')) || '1';
+      if (memCacheVer.v && memCacheVer.v !== v) memDataCache.clear();
+      memCacheVer = { v, exp: Date.now() + 120_000 };
+      return v;
+    } catch {
+      return memCacheVer.v || '1';
+    }
+  };
+  if (memCacheVer.v) {
+    memCacheVer.exp = now + 30_000;
+    if (ctx?.waitUntil) ctx.waitUntil(refresh());
+    else refresh();
+    return memCacheVer.v;
   }
+  return refresh();
 }
 
-async function cached(env, json, key, ttl, producer) {
-  const ver = await getCacheVersion(env);
+async function cached(env, json, key, ttl, producer, ctx) {
+  const ver = await getCacheVersion(env, ctx);
   const vkey = `v${ver}:${key}`;
   const now = Date.now();
   const memHit = memDataCache.get(vkey);
   if (memHit && memHit.exp > now) {
     return json(memHit.data, 200, { 'X-Cache': 'MEM-HIT', ...PUBLIC_CACHE });
   }
+
+  // Check Cloudflare datacenter Edge Cache (ULN PoP in Ulaanbaatar) ? 0 KV / 0 D1 calls
+  const edgeCache = typeof caches !== 'undefined' ? caches.default : null;
+  const edgeReq = edgeCache ? new Request(`https://edge-cache.costco.mn/${encodeURIComponent(vkey)}`, { method: 'GET' }) : null;
+  if (edgeCache && edgeReq) {
+    try {
+      const edgeHit = await edgeCache.match(edgeReq);
+      if (edgeHit) {
+        const parsed = await edgeHit.json();
+        if (memDataCache.size >= MAX_MEM_DATA_KEYS) {
+          const oldest = memDataCache.keys().next().value;
+          if (oldest) memDataCache.delete(oldest);
+        }
+        memDataCache.set(vkey, { data: parsed, exp: now + 60_000 });
+        return json(parsed, 200, { 'X-Cache': 'EDGE-HIT', ...PUBLIC_CACHE });
+      }
+    } catch { /* fall through */ }
+  }
+
+  const saveToEdgeCache = (payload) => {
+    if (!edgeCache || !edgeReq) return;
+    const edgeRes = new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': `public, s-maxage=${ttl}, max-age=${ttl}`,
+      },
+    });
+    const p = edgeCache.put(edgeReq, edgeRes).catch(() => {});
+    if (ctx?.waitUntil) ctx.waitUntil(p);
+  };
+
   try {
     const hit = await env.CACHE.get(vkey);
     if (hit) {
@@ -186,18 +237,23 @@ async function cached(env, json, key, ttl, producer) {
         const oldest = memDataCache.keys().next().value;
         if (oldest) memDataCache.delete(oldest);
       }
-      memDataCache.set(vkey, { data: parsed, exp: now + 30_000 });
+      memDataCache.set(vkey, { data: parsed, exp: now + 60_000 });
+      saveToEdgeCache(parsed);
       return json(parsed, 200, { 'X-Cache': 'HIT', ...PUBLIC_CACHE });
     }
   } catch { /* KV read error -> fall through to D1 */ }
+
   const data = await producer();
   if (data !== null && data !== undefined) {
     if (memDataCache.size >= MAX_MEM_DATA_KEYS) {
       const oldest = memDataCache.keys().next().value;
       if (oldest) memDataCache.delete(oldest);
     }
-    memDataCache.set(vkey, { data, exp: now + 30_000 });
-    try { await env.CACHE.put(vkey, JSON.stringify(data), { expirationTtl: ttl }); } catch { /* KV quota non-fatal */ }
+    memDataCache.set(vkey, { data, exp: now + 60_000 });
+    saveToEdgeCache(data);
+    const kvPut = env.CACHE.put(vkey, JSON.stringify(data), { expirationTtl: ttl }).catch(() => {});
+    if (ctx?.waitUntil) ctx.waitUntil(kvPut);
+    else await kvPut;
   }
   return json(data, 200, { 'X-Cache': 'MISS', ...PUBLIC_CACHE });
 }
@@ -453,6 +509,60 @@ export default {
       const img = pathname.match(/^\/img\/(.+)$/);
       if (img) return serveImage(request, env, decodeURIComponent(img[1]));
 
+      // GET /api/img/code/:code ? resolve & edge-cache Costco product image by code (self-heals dead Firebase URLs)
+      const imgCodeMatch = pathname.match(/^\/api\/img\/code\/([^/]+)$/);
+      if (imgCodeMatch) {
+        const code = decodeURIComponent(imgCodeMatch[1]).trim();
+        const edgeCache = typeof caches !== 'undefined' ? caches.default : null;
+        const edgeImgKey = edgeCache ? new Request(`https://edge-cache.costco.mn/img-code/${encodeURIComponent(code)}`, { method: 'GET' }) : null;
+        if (edgeCache && edgeImgKey) {
+          const hit = await edgeCache.match(edgeImgKey);
+          if (hit) return hit;
+        }
+        let targetUrl = '';
+        try {
+          const row = await env.DB.prepare('SELECT image FROM products WHERE id = ? OR code = ? LIMIT 1').bind(code, code).first();
+          if (row?.image && !/firebasestorage\.googleapis\.com|storage\.googleapis\.com/.test(row.image)) {
+            targetUrl = row.image;
+          }
+        } catch { /* ignore */ }
+        if (!targetUrl) {
+          try {
+            const krRes = await fetch(`https://www.costco.co.kr/rest/v2/korea/products/${encodeURIComponent(code)}?fields=images&lang=ko&curr=KRW`, {
+              headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+            });
+            if (krRes.ok) {
+              const krData = await krRes.json();
+              const imgs = Array.isArray(krData?.images) ? krData.images : [];
+              const chosen = imgs.find((i) => i.format === 'product-webp') || imgs.find((i) => i.format === 'product') || imgs[0];
+              if (chosen?.url) {
+                targetUrl = chosen.url.startsWith('http') ? chosen.url : `https://www.costco.co.kr${chosen.url}`;
+                if (ctx?.waitUntil) {
+                  ctx.waitUntil(
+                    env.DB.prepare('UPDATE products SET image = ? WHERE id = ? OR code = ?').bind(targetUrl, code, code).run().catch(() => {})
+                  );
+                }
+              }
+            }
+          } catch { /* ignore */ }
+        }
+        if (targetUrl) {
+          const redir = new Response(null, {
+            status: 302,
+            headers: {
+              'Location': targetUrl,
+              'Cache-Control': 'public, max-age=604800, s-maxage=604800, stale-while-revalidate=2592000',
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
+          if (edgeCache && edgeImgKey && ctx?.waitUntil) {
+            ctx.waitUntil(edgeCache.put(edgeImgKey, redir.clone()).catch(() => {}));
+          }
+          return redir;
+        }
+        return json({ error: 'image not found' }, 404);
+      }
+
       // GET /api/product/:id
       const m = pathname.match(/^\/api\/product\/([^/]+)$/);
       if (m) {
@@ -494,7 +604,7 @@ export default {
           const { results } = await env.DB.prepare(`SELECT ${LIST_COLS} FROM products ${clause} ORDER BY id LIMIT ? OFFSET ?`)
             .bind(...args, limit, offset).all();
           return { products: (results || []).map((r) => shapeProduct(r, false)), limit, offset };
-        });
+        }, ctx);
       }
 
       // GET /api/products/count?category=&subCategory=&tag= — active-product count for a filter.
@@ -506,7 +616,7 @@ export default {
         return cached(env, json, `count:${category}:${subCategory}:${tag}`, 300, async () => {
           const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM products ${clause}`).bind(...args).first();
           return { count: Number(row?.n) || 0 };
-        });
+        }, ctx);
       }
 
       // GET /api/category-counts — active-product counts for every category + special tag (single scan).
@@ -538,7 +648,7 @@ export default {
             if (p.targetCode === 'BuyersPick' || addStr.includes('"Featured"')) counts.Featured++;
           }
           return { counts };
-        });
+        }, ctx);
       }
 
       // GET /api/admin/products?status=inactive — admin product lists (inactive | deleted).
@@ -583,7 +693,7 @@ export default {
                AND (name LIKE ? OR name_mn LIKE ? OR englishName LIKE ?) LIMIT 40`
           ).bind(like, like, like).all();
           return { products: (results || []).map((r) => shapeProduct(r, false)) };
-        });
+        }, ctx);
       }
 
       // GET /api/categories
@@ -597,7 +707,7 @@ export default {
               banner: c.banner, subcategories: parse(c.subcategories),
             })),
           };
-        });
+        }, ctx);
       }
 
       // GET /api/settings?id=general — public read (replaces Firestore settings reads, cached 120s).
@@ -607,7 +717,7 @@ export default {
         return cached(env, json, `settings:${key}`, 120, async () => {
           const r = await getPublicSettings(env, key);
           return r.data;
-        });
+        }, ctx);
       }
 
       // GET /api/admin/coupons — admin coupon list.

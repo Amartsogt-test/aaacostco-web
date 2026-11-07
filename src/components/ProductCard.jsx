@@ -106,13 +106,15 @@ const ProductCard = memo(function ProductCard({ product, isFeatured, priority = 
     const [timeLeft, setTimeLeft] = useState(null);
     const [cartAdded, setCartAdded] = useState(false);
 
+    const discountEnd = product.discountEndsAt || product.discountEndDate;
+
     useEffect(() => {
-        if (!product.discountEndsAt) return;
+        if (!discountEnd) return;
 
         // Only the hour count is displayed, so updating once a minute is plenty —
         // a 1s interval would needlessly re-render every discounted card each second.
         const compute = () => {
-            const diff = new Date(product.discountEndsAt) - new Date();
+            const diff = new Date(discountEnd) - new Date();
             if (diff <= 0) {
                 setTimeLeft(null);
                 return false;
@@ -127,7 +129,7 @@ const ProductCard = memo(function ProductCard({ product, isFeatured, priority = 
         }, 60000);
 
         return () => clearInterval(interval);
-    }, [product.discountEndsAt]);
+    }, [discountEnd]);
 
     const isInactive = product.status === 'inactive' || product.stock === 'outOfStock';
     const weightDisplayValue = useMemo(() => {

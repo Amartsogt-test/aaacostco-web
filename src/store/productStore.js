@@ -9,7 +9,7 @@ import { smartSearchFilter } from '../utils/searchUtils';
 const PAGE_SIZE = 40;
 
 // Cache configuration for instant home page loading
-const HOME_CACHE_KEY = 'costco_home_products_v8'; // Bumped for sync_info filtering
+const HOME_CACHE_KEY = 'costco_home_products_v9'; // Bumped for WebP Costco images & discountEndsAt
 const CATEGORY_CACHE_KEY_PREFIX = 'costco_cat_v2_';
 const CACHE_VERSION_KEY = 'costco_cache_version';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -24,6 +24,7 @@ const checkCacheVersion = () => {
             // Clear all product caches when version changes
             console.log('New app version detected, clearing cache...');
             localStorage.removeItem(HOME_CACHE_KEY);
+            localStorage.removeItem('costco_home_products_v8');
             localStorage.removeItem(SEARCH_INDEX_CACHE_KEY); // FORCE CLEAR INDEX
             localStorage.removeItem('costco_home_products_v4'); // Old cache key
             localStorage.removeItem('costco_home_products_v3'); // Old cache key
@@ -71,6 +72,7 @@ const setHomeCache = (products, categoryCounts) => {
             hasDiscount: p.hasDiscount,
             discountPercent: p.discountPercent,
             discount: p.discount, // Needed for ProductCard badge check
+            discountEndsAt: p.discountEndsAt || p.discountEndDate,
             status: p.status,
             stock: p.stock,
             additionalCategories: p.additionalCategories,
@@ -184,24 +186,23 @@ export const useProductStore = create(
                         });
                     } else {
                         set({ categories: cats });
-                    }
-
-                    // Refresh counts lazily (idle) for freshness; cached → usually free.
-                    const loadCounts = async () => {
-                        try {
-                            const counts = await productService.getAllCategoryCounts();
-                            const catsWithCounts = cats.map(c => ({ ...c, count: counts[c.id] || 0 }));
-                            set({ categories: catsWithCounts, categoryCounts: counts });
-                            const existingCache = getHomeCache();
-                            if (existingCache) setHomeCache(existingCache.products, counts);
-                        } catch (e) {
-                            console.error('Category counts failed:', e);
+                        // Only query /api/category-counts if the CDN snapshot lacked categoryCounts.
+                        const loadCounts = async () => {
+                            try {
+                                const counts = await productService.getAllCategoryCounts();
+                                const catsWithCounts = cats.map(c => ({ ...c, count: counts[c.id] || 0 }));
+                                set({ categories: catsWithCounts, categoryCounts: counts });
+                                const existingCache = getHomeCache();
+                                if (existingCache) setHomeCache(existingCache.products, counts);
+                            } catch (e) {
+                                console.error('Category counts failed:', e);
+                            }
+                        };
+                        if (typeof requestIdleCallback !== 'undefined') {
+                            requestIdleCallback(() => loadCounts(), { timeout: 3000 });
+                        } else {
+                            setTimeout(loadCounts, 1200);
                         }
-                    };
-                    if (typeof requestIdleCallback !== 'undefined') {
-                        requestIdleCallback(() => loadCounts(), { timeout: 3000 });
-                    } else {
-                        setTimeout(loadCounts, 1200);
                     }
                 } catch (error) {
                     console.error("Error fetching categories:", error);
@@ -518,18 +519,8 @@ export const useProductStore = create(
                 // Return existing if already subscribed
                 if (window.__wonRateUnsubscribe) return window.__wonRateUnsubscribe;
 
-                // Sync initial fetch in background
+                // onSettingsChange performs the initial fetch immediately + 60s poll
                 import('../services/productService').then(({ productService }) => {
-                    productService.getSettings('currency').then(currencySettings => {
-                        if (currencySettings && currencySettings.wonRate) {
-                            const newRate = currencySettings.wonRate;
-                            const oldRate = get().wonRate;
-                            if (oldRate === null || Math.abs(newRate - oldRate) >= 0.001) {
-                                set({ wonRate: newRate });
-                            }
-                        }
-                    }).catch(err => console.error('❌ Failed to fetch initial rate:', err));
-
                     window.__wonRateUnsubscribe = productService.onSettingsChange('currency', (data) => {
                         const rawRate = data?.wonRate;
                         if (!rawRate) return;

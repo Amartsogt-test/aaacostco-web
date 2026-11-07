@@ -113,6 +113,10 @@ export function estimateWeightKg(name = '', englishName = '', existingWeight = 0
     return 1.0;
 }
 
+function isDeadFirebaseImage(url) {
+    return typeof url === 'string' && /storage\.googleapis\.com|firebasestorage\.googleapis\.com/.test(url);
+}
+
 function ingestSearchIndexItems(map, items = []) {
     for (const item of items) {
         const code = String(item.c || item.id || '').trim();
@@ -123,6 +127,7 @@ function ingestSearchIndexItems(map, items = []) {
         const warehousePrice = Number(item.w || prev.estimatedWarehousePrice || 0);
         const markup = Number(item.mk ?? (warehousePrice > 100000 ? 0 : 2000));
         const effectivePrice = onlinePrice > 0 ? onlinePrice : warehousePrice > 0 ? warehousePrice + markup : 0;
+        const candidateImg = item.i || prev.image || '';
 
         map.set(code, {
             ...prev,
@@ -132,7 +137,7 @@ function ingestSearchIndexItems(map, items = []) {
             name_mn: item.m || prev.name_mn || '',
             englishName: item.e || prev.englishName || '',
             brand: item.b || prev.brand || '',
-            image: item.i || prev.image || '',
+            image: isDeadFirebaseImage(candidateImg) ? '' : candidateImg,
             price: effectivePrice,
             priceKRW: effectivePrice,
             originalPrice: Number(item.o || prev.originalPrice || effectivePrice),
@@ -155,25 +160,15 @@ function ingestSearchIndexItems(map, items = []) {
 }
 
 /**
- * Load existing translations & metadata from search-index.json, home-snapshot.json,
- * and (if available) live CDN search-index.json so previously hidden-price or warehouse-only
- * items are never lost.
+ * Load existing translations & metadata from search-index.json and home-snapshot.json
+ * so previously translated items keep their Mongolian names and weights.
  */
 async function loadExistingCatalogCache() {
     const map = new Map();
     let wonRate = 2.5;
     let categories = [];
 
-    // 1. Seed from live CDN search-index if reachable (recovers any historical warehouse-only items)
-    try {
-        const cdnRes = await axios.get('https://costco-fe034.web.app/search-index.json', { timeout: 8000 });
-        const cdnItems = Array.isArray(cdnRes.data) ? cdnRes.data : cdnRes.data?.items || [];
-        ingestSearchIndexItems(map, cdnItems);
-    } catch {
-        /* offline or unreachable — local files used below */
-    }
-
-    // 2. Load local search-index.json
+    // 1. Load local search-index.json
     if (fs.existsSync(SEARCH_INDEX_PATH)) {
         try {
             const idx = JSON.parse(fs.readFileSync(SEARCH_INDEX_PATH, 'utf8'));
@@ -183,7 +178,7 @@ async function loadExistingCatalogCache() {
         }
     }
 
-    // 3. Load local home-snapshot.json
+    // 2. Load local home-snapshot.json
     if (fs.existsSync(SNAPSHOT_PATH)) {
         try {
             const snap = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8'));
@@ -193,11 +188,13 @@ async function loadExistingCatalogCache() {
                 const code = String(prod.code || prod.id || '').trim();
                 if (!code) continue;
                 const prev = map.get(code) || {};
+                const candidateImg = prod.image || prev.image || '';
                 map.set(code, {
                     ...prev,
                     ...prod,
                     code,
                     id: code,
+                    image: isDeadFirebaseImage(candidateImg) ? (isDeadFirebaseImage(prev.image) ? '' : prev.image || '') : candidateImg,
                     name_mn: prod.name_mn || prev.name_mn || '',
                     weight: Number(prod.weight || prev.weight || 1.0),
                 });
@@ -325,13 +322,14 @@ function mapRawCostcoProduct(raw, existing = {}, specialTag = null, fallbackCatC
             ? existingWarehouse
             : Math.max(0, priceKRW - defaultMarkup);
 
-    let imageUrl = existing.image || '';
+    let imageUrl = isDeadFirebaseImage(existing.image) ? '' : (existing.image || '');
     if (Array.isArray(raw.images) && raw.images.length > 0) {
-        const mainImg = raw.images.find((i) => i.format === 'product') || raw.images[0];
+        const mainImg =
+            raw.images.find((i) => i.format === 'product-webp') ||
+            raw.images.find((i) => i.format === 'product') ||
+            raw.images[0];
         const freshUrl = mainImg ? fixImageUrl(mainImg.url) : '';
-        if (!/storage\.googleapis\.com|firebasestorage\.googleapis\.com/.test(imageUrl)) {
-            imageUrl = freshUrl || imageUrl;
-        }
+        imageUrl = freshUrl || imageUrl;
     }
 
     const { categoryCode, subCategory } = extractCategoriesFromPlp(
@@ -343,9 +341,16 @@ function mapRawCostcoProduct(raw, existing = {}, specialTag = null, fallbackCatC
         raw.membershipRestrictionApplied || raw.hidePriceValue || existing.memberOnly
     );
 
+    const plpCats = Array.isArray(raw.addToCartFromPLPCategories) ? raw.addToCartFromPLPCategories : [];
+    const activePlpKeys = new Set(plpCats.filter((c) => c?.value !== false).map((c) => String(c?.key || '')));
+
     const tagSet = new Set(Array.isArray(existing.additionalCategories) ? existing.additionalCategories : []);
     if (specialTag) tagSet.add(specialTag);
-    if (hasDiscount) {
+    if (activePlpKeys.has('BuyersPick')) tagSet.add('Featured');
+    if (activePlpKeys.has('whatsnew')) tagSet.add('New');
+    if (activePlpKeys.has('ks_all') || activePlpKeys.has('KirklandSignature')) tagSet.add('Kirkland Signature');
+
+    if (hasDiscount || activePlpKeys.has('SpecialPriceOffers')) {
         tagSet.add('Sale');
         tagSet.add('Хямдралтай');
     } else if (!specialTag || specialTag !== 'Sale') {
@@ -379,6 +384,7 @@ function mapRawCostcoProduct(raw, existing = {}, specialTag = null, fallbackCatC
         discount: discountKRW,
         discountPercent,
         discountEndDate,
+        discountEndsAt: discountEndDate,
         category: categoryCode,
         categoryCode,
         subCategory,
@@ -392,6 +398,7 @@ function mapRawCostcoProduct(raw, existing = {}, specialTag = null, fallbackCatC
         reviewCount: Number(raw.numberOfReviews || existing.reviewCount || 0),
         description_mn: existing.description_mn || '',
         updatedAt: new Date().toISOString(),
+        _liveSynced: true,
     };
 }
 
@@ -570,6 +577,41 @@ export async function runCostcoKrCatalogSync({ maxPagesPerCategory = 2 } = {}) {
         console.log(`📂 [Costco.co.kr Sync] Category ${cat.code} (${cat.label}): synced ${catFetched} products.`);
     }
 
+    // 2.5. Full Catalog Sweep (:relevance) in parallel batches so every live product gets fresh costco.co.kr WebP images
+    console.log('🌐 [Costco.co.kr Sync] Running parallel full-catalog sweep (:relevance) to refresh all product images & prices...');
+    const firstSweep = await fetchCostcoSearchPage(':relevance', 0, 100, memberSession);
+    const sweepTotalPages = Math.min(Number(firstSweep?.pagination?.totalPages || 0), 90);
+    if (firstSweep?.products?.length) {
+        for (const raw of firstSweep.products) {
+            if (!raw?.code) continue;
+            const code = String(raw.code);
+            const existing = catalogMap.get(code);
+            const mapped = mapRawCostcoProduct(raw, existing, null, existing?.categoryCode || '');
+            catalogMap.set(code, mapped);
+            totalFetchedFromCostco += 1;
+        }
+    }
+    const sweepConcurrency = 8;
+    for (let pStart = 1; pStart < sweepTotalPages; pStart += sweepConcurrency) {
+        const pageBatch = [];
+        for (let p = pStart; p < Math.min(pStart + sweepConcurrency, sweepTotalPages); p += 1) {
+            pageBatch.push(fetchCostcoSearchPage(':relevance', p, 100, memberSession));
+        }
+        const results = await Promise.all(pageBatch);
+        for (const data of results) {
+            if (!data || !Array.isArray(data.products)) continue;
+            for (const raw of data.products) {
+                if (!raw?.code) continue;
+                const code = String(raw.code);
+                const existing = catalogMap.get(code);
+                const mapped = mapRawCostcoProduct(raw, existing, null, existing?.categoryCode || '');
+                catalogMap.set(code, mapped);
+                totalFetchedFromCostco += 1;
+            }
+        }
+    }
+    console.log(`✅ [Costco.co.kr Sync] Full-catalog sweep complete (${sweepTotalPages} pages).`);
+
     // 3. Backfill any remaining zero-price items via authenticated individual product detail endpoint
     const zeroPriceCandidates = Array.from(catalogMap.values()).filter(
         (p) => p.status === 'active' && !(p.price > 0) && !(p.estimatedWarehousePrice > 0)
@@ -601,7 +643,7 @@ export async function runCostcoKrCatalogSync({ maxPagesPerCategory = 2 } = {}) {
 
     // 4. Translate any newly discovered or still-Korean products lacking Mongolian titles
     const needsTranslation = Array.from(catalogMap.values()).filter(
-        (p) => p.status === 'active' && (!p.name_mn || /[가-힣]/.test(p.name_mn))
+        (p) => p.status === 'active' && p.image && !isDeadFirebaseImage(p.image) && (!p.name_mn || /[가-힣]/.test(p.name_mn))
     );
     if (needsTranslation.length > 0 || newlyDiscovered.length > 0) {
         const targetList = needsTranslation.length > 0 ? needsTranslation : newlyDiscovered;
@@ -612,9 +654,13 @@ export async function runCostcoKrCatalogSync({ maxPagesPerCategory = 2 } = {}) {
     }
 
     // 5. Rebuild public/home-snapshot.json & public/search-index.json
-    // Keep all active products that have either an online price OR an estimatedWarehousePrice
+    // Keep all active products that have a valid working image AND either an online price OR an estimatedWarehousePrice
     const allProducts = Array.from(catalogMap.values()).filter(
-        (p) => (p.price > 0 || p.estimatedWarehousePrice > 0) && p.status === 'active'
+        (p) =>
+            (p.price > 0 || p.estimatedWarehousePrice > 0) &&
+            p.status === 'active' &&
+            Boolean(p.image) &&
+            !isDeadFirebaseImage(p.image)
     );
 
     // Compute categoryCounts
@@ -640,7 +686,7 @@ export async function runCostcoKrCatalogSync({ maxPagesPerCategory = 2 } = {}) {
     }
 
     // Prioritize Featured, Sale, and New items for the home-snapshot grid (up to 1,200 products)
-    // Strip heavy description_mn and duplicate keys from card items so home-snapshot.json stays fast (~500 KB raw / ~110 KB gzip)
+    // Strip heavy description_mn and duplicate keys from card items so home-snapshot.json stays fast
     const sortedForHome = [...allProducts]
         .sort((a, b) => {
             const aScore =
@@ -661,6 +707,8 @@ export async function runCostcoKrCatalogSync({ maxPagesPerCategory = 2 } = {}) {
             delete card.description;
             delete card.priceKRW;
             delete card.originalPriceKRW;
+            delete card.categoryPath;
+            delete card._liveSynced;
             return card;
         });
 

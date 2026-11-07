@@ -10,7 +10,16 @@ import { useState, useRef, useEffect, memo } from 'react';
  *
  * Device-pixel-ratio is factored in (capped at 2x) so retina screens stay crisp.
  */
+const API_BASE = (import.meta.env.VITE_API_BASE || 'https://costco-api.costcomn.workers.dev').replace(/\/$/, '');
+
 const optimizeImageUrl = (url) => {
+    if (!url || typeof url !== 'string') return url;
+    if (/firebasestorage\.googleapis\.com|storage\.googleapis\.com/.test(url)) {
+        const m = url.match(/product-images(?:%2F|\/)([^.?/]+)\./i);
+        if (m && m[1]) {
+            return `${API_BASE}/api/img/code/${encodeURIComponent(m[1])}`;
+        }
+    }
     return url;
 };
 

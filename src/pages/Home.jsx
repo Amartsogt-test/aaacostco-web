@@ -138,25 +138,32 @@ export default function Home() {
             ) {
                 const actualPrice = p.finalPrice !== undefined ? finalPrice : (price || priceKRW || 0);
                 const krwPrice = priceKRW || price || 0;
+                const origPrice = parsePrice(p.originalPrice);
 
-                // Use robust pricing logic to determine if it's TRULY discounted
-                const pricing = getDisplayPricing(p, { useWarehousePrice: true });
-                const discountInfo = resolveDiscount({
-                    displayPrice: pricing.displayPrice,
-                    displayOldPrice: pricing.displayOldPrice,
-                    isExpired: pricing.isExpired,
-                    hasDiscount: p.hasDiscount === true,
-                    discountValue: p.discountPercent ?? p.discount,
-                });
-                
-                const isRealDiscount = discountInfo.isDiscounted;
+                // Fast path for pre-validated snapshot items; fallback to full pricing resolver only if needed
+                let isRealDiscount = false;
+                if (p.hasDiscount === true && (origPrice > krwPrice || (p.discountPercent > 0) || (p.discount > 0))) {
+                    isRealDiscount = !p.discountEndsAt && !p.discountEndDate
+                        ? true
+                        : Date.parse(p.discountEndsAt || p.discountEndDate) > Date.now();
+                } else if (p.hasDiscount === true) {
+                    const pricing = getDisplayPricing(p, { useWarehousePrice: true });
+                    const discountInfo = resolveDiscount({
+                        displayPrice: pricing.displayPrice,
+                        displayOldPrice: pricing.displayOldPrice,
+                        isExpired: pricing.isExpired,
+                        hasDiscount: true,
+                        discountValue: p.discountPercent ?? p.discount,
+                    });
+                    isRealDiscount = discountInfo.isDiscounted;
+                }
 
                 processed.push({
                     _p: p,
                     _price: actualPrice,
                     _isCheapSale: isRealDiscount && krwPrice > 0 && krwPrice <= 50000,
                     _isDiscounted: isRealDiscount,
-                    _date: p.updatedAt ? new Date(p.updatedAt).getTime() : 0
+                    _order: p.sortOrder || i,
                 });
             }
         }
@@ -170,7 +177,7 @@ export default function Home() {
                 return a._price - b._price;
             });
         } else {
-            // Default Sort: < 50,000 KRW and on sale goes to very top, then on sale, then recent
+            // Default Sort: < 50,000 KRW and on sale goes to very top, then on sale, then snapshot order
             processed.sort((a, b) => {
                 if (a._isCheapSale && !b._isCheapSale) return -1;
                 if (!a._isCheapSale && b._isCheapSale) return 1;
@@ -178,7 +185,7 @@ export default function Home() {
                 if (a._isDiscounted && !b._isDiscounted) return -1;
                 if (!a._isDiscounted && b._isDiscounted) return 1;
 
-                return b._date - a._date;
+                return a._order - b._order;
             });
         }
 
