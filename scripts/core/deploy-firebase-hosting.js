@@ -95,9 +95,18 @@ async function main() {
                         },
                     },
                     {
-                        glob: '/**/*.@(js|css|woff2)',
+                        glob: '/assets/**/*.@(js|css|woff2)',
                         headers: {
                             'Cache-Control': 'public, max-age=31536000, immutable',
+                        },
+                    },
+                    {
+                        glob: '/*.json.js',
+                        headers: {
+                            'Content-Type': 'application/json; charset=utf-8',
+                            'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400',
+                            'CDN-Cache-Control': 'public, max-age=600, stale-while-revalidate=86400',
+                            'Cloudflare-CDN-Cache-Control': 'public, max-age=600, stale-while-revalidate=86400',
                         },
                     },
                     {

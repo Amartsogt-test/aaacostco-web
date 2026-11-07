@@ -720,7 +720,9 @@ export async function runCostcoKrCatalogSync({ maxPagesPerCategory = 2 } = {}) {
         categories,
         products: sortedForHome,
     };
-    fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(homeSnapshot), 'utf8');
+    const snapJson = JSON.stringify(homeSnapshot);
+    fs.writeFileSync(SNAPSHOT_PATH, snapJson, 'utf8');
+    fs.writeFileSync(SNAPSHOT_PATH + '.js', snapJson, 'utf8');
 
     // Write slimmed public/search-index.json (omit 300-char sm description bloat so it fits easily in browser cache)
     const searchIndexItems = allProducts.map((p) => {

@@ -8,7 +8,7 @@ export const useSettingsStore = create((set, get) => ({
     currencyRates: null,
 
     fetchSettings: async () => {
-        if (get().settings) return; // Already loaded
+        if (get().settings || get().isLoading) return; // Already loaded
 
         set({ isLoading: true });
         try {

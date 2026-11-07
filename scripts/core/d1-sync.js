@@ -173,7 +173,22 @@ export async function syncProductsToD1(products) {
         'additionalCategories','categoryPath','images','lastScraped','createdAt','updatedAt'
     ];
     const prefix = `INSERT OR REPLACE INTO products (${cols.join(', ')}) VALUES\n`;
-    let out = `PRAGMA foreign_keys=OFF;\n`;
+    let out = `PRAGMA foreign_keys=OFF;\nUPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);
+UPDATE products SET status = 'deleted' WHERE rowid IN (SELECT rowid FROM products WHERE status != 'deleted' AND (image LIKE '%firebasestorage.googleapis.com%' OR image LIKE '%storage.googleapis.com%' OR image IS NULL OR image = '') LIMIT 500);\n`;
     const MAX = 45000;
     let buf = [], bufLen = 0;
     const flush = () => { if (buf.length) { out += prefix + buf.join(',\n') + ';\n'; buf = []; bufLen = 0; } };

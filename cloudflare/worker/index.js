@@ -133,6 +133,7 @@ function productWhere({ category, subCategory, tag, statusMode = 'active' }) {
     vals.forEach((v) => args.push(`%"${v}"%`));
   };
   // status visibility
+  where.push("image LIKE 'https://www.costco.co.kr/%'");
   if (statusMode === 'catalog') where.push("status != 'deleted'");
   else if (statusMode === 'active') where.push("status = 'active'");
   else { where.push('status = ?'); args.push(statusMode); }
@@ -601,7 +602,7 @@ export default {
         const offset = Math.max(Number(searchParams.get('offset')) || 0, 0);
         const { clause, args } = productWhere({ category, subCategory, tag, statusMode });
         return cached(env, json, `products:${statusMode}:${category}:${subCategory}:${tag}:${limit}:${offset}`, 300, async () => {
-          const { results } = await env.DB.prepare(`SELECT ${LIST_COLS} FROM products ${clause} ORDER BY id LIMIT ? OFFSET ?`)
+          const { results } = await env.DB.prepare(`SELECT ${LIST_COLS} FROM products ${clause} ORDER BY CASE WHEN status = 'active' THEN 0 ELSE 1 END, hasDiscount DESC, id LIMIT ? OFFSET ?`)
             .bind(...args, limit, offset).all();
           return { products: (results || []).map((r) => shapeProduct(r, false)), limit, offset };
         }, ctx);
@@ -624,7 +625,7 @@ export default {
         return cached(env, json, 'category-counts', 600, async () => {
           const [cats, prods] = await Promise.all([
             env.DB.prepare('SELECT id FROM categories').all(),
-            env.DB.prepare("SELECT categoryCode, categoryPath, additionalCategories, hasDiscount, targetCode FROM products WHERE status = 'active'").all(),
+            env.DB.prepare("SELECT categoryCode, categoryPath, additionalCategories, hasDiscount, targetCode FROM products WHERE status = 'active' AND image LIKE 'https://www.costco.co.kr/%'").all(),
           ]);
           const counts = { Sale: 0, New: 0, Kirkland: 0, Featured: 0 };
           for (const c of cats.results || []) counts[c.id] = 0;

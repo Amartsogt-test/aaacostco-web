@@ -19,11 +19,11 @@ export default defineConfig({
         // Precaching would lock the OLD copy into the service worker until the
         // next build. Instead we runtime-cache it (StaleWhileRevalidate) below so
         // it loads instantly from cache yet always refreshes in the background.
-        globIgnores: ['**/qr-scanner-*.js', '**/home-snapshot.json', '**/search-index.json', '**/firebase-messaging-sw.js'],
+        globIgnores: ['**/qr-scanner-*.js', '**/home-snapshot.json*', '**/search-index.json*', '**/firebase-messaging-sw.js'],
         runtimeCaching: [
           {
             // 🚀 Home snapshot — instant from cache, always revalidated.
-            urlPattern: /\/home-snapshot\.json$/,
+            urlPattern: /\/home-snapshot\.json(\.js)?$/,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'home-snapshot',
@@ -33,7 +33,7 @@ export default defineConfig({
           },
           {
             // 🚀 Search index — instant from cache, refreshed in background.
-            urlPattern: /\/search-index\.json$/,
+            urlPattern: /\/search-index\.json(\.js)?$/,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'search-index',

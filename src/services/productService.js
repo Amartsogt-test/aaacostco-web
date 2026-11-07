@@ -113,7 +113,7 @@ export const productService = {
         if (!forceRefresh && _homeSnapshotPromise) return _homeSnapshotPromise;
         _homeSnapshotPromise = (async () => {
             try {
-                const res = await fetch('/home-snapshot.json', { cache: 'default' });
+                const res = await fetch('/home-snapshot.json.js', { cache: 'default' });
                 if (!res.ok) return null;
                 const data = await res.json();
                 if (!data || !Array.isArray(data.products) || data.products.length === 0) return null;
@@ -299,7 +299,7 @@ export const productService = {
         });
         _searchIndexPromise = (async () => {
             try {
-                const res = await fetch('/search-index.json', { cache: 'default' });
+                const res = await fetch('/search-index.json.js', { cache: 'default' });
                 if (res.ok) {
                     const data = await res.json();
                     if (data && Array.isArray(data.items) && data.items.length > 0) {
